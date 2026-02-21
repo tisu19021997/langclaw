@@ -190,7 +190,8 @@ class HeartbeatConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-_CONFIG_PATH = Path.home() / ".langclaw" / "config.json"
+_LANGCLAW_HOME = Path.home() / ".langclaw"
+_CONFIG_PATH = _LANGCLAW_HOME / "config.json"
 
 
 def _load_json_defaults() -> dict[str, Any]:
@@ -230,10 +231,28 @@ class LangclawConfig(BaseSettings):
     cron: CronConfig = Field(default_factory=CronConfig)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
 
+    root_dir: str = Field(default_factory=lambda: str(_LANGCLAW_HOME))
+
+    @property
+    def workspace_dir(self) -> Path:
+        return Path(self.root_dir).expanduser() / "workspace"
+
+    @property
+    def skills_dir(self) -> Path:
+        return self.workspace_dir / "skills"
+
+    @property
+    def agents_md_file(self) -> Path:
+        return self.workspace_dir / "AGENTS.md"
+
+    @property
+    def memories_dir(self) -> Path:
+        return self.workspace_dir / "memories"
+
     @model_validator(mode="before")
     @classmethod
     def _merge_json_file(cls, values: Any) -> Any:
-        """Merge JSON file as low-priority base; env vars (already parsed by pydantic-settings) win."""
+        """Merge JSON file as low-priority base; env vars win."""
         if isinstance(values, dict):
             json_data = _load_json_defaults()
             merged = {**json_data, **values}
@@ -272,3 +291,7 @@ def save_default_config() -> Path:
     default = LangclawConfig()
     _CONFIG_PATH.write_text(default.model_dump_json(indent=2, exclude_none=False))
     return _CONFIG_PATH
+
+
+# Global config instance
+config: LangclawConfig = load_config()
