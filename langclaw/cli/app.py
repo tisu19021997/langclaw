@@ -12,10 +12,11 @@ Commands:
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Annotated
 
 import typer
+
+from langclaw.config import config
 
 app = typer.Typer(
     name="langclaw",
@@ -28,29 +29,20 @@ app.add_typer(cron_app, name="cron")
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _load_config():
-    from langclaw.config import load_config
-    return load_config()
-
-
-def _echo_json(data: object) -> None:
-    typer.echo(json.dumps(data, indent=2, default=str))
-
-
-# ---------------------------------------------------------------------------
 # langclaw init
 # ---------------------------------------------------------------------------
 
 
 @app.command()
 def init(
-    force: Annotated[bool, typer.Option("--force", "-f", help="Overwrite existing config.")] = False,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Overwrite existing config.")
+    ] = False,
 ) -> None:
-    """Scaffold ~/.langclaw/config.json with default settings."""
+    """Scaffold ~/.langclaw/ with config and default workspace files."""
+    import shutil
+
+    from langclaw.agents.builder import _DEFAULT_AGENTS_MD, _DEFAULT_SKILLS_DIR
     from langclaw.config.schema import _CONFIG_PATH, save_default_config
 
     if _CONFIG_PATH.exists() and not force:
@@ -62,7 +54,33 @@ def init(
 
     path = save_default_config()
     typer.echo(f"Config written to {path}")
-    typer.echo("Edit it to add your API keys and enable channels.")
+
+    # Derive workspace from the freshly-saved config so root_dir overrides apply
+    from langclaw.config.schema import load_config
+    workspace = load_config().workspace_dir
+    workspace.mkdir(parents=True, exist_ok=True)
+
+    # Copy AGENTS.md (skip if already present and not --force)
+    dest_agents_md = workspace / "AGENTS.md"
+    if not dest_agents_md.exists() or force:
+        shutil.copy2(_DEFAULT_AGENTS_MD, dest_agents_md)
+        typer.echo(f"AGENTS.md  → {dest_agents_md}")
+    else:
+        typer.echo(f"AGENTS.md  already exists at {dest_agents_md} (skipped)")
+
+    # Copy default skills (merge; existing skill dirs not overwritten unless --force)
+    dest_skills = workspace / "skills"
+    for skill_dir in _DEFAULT_SKILLS_DIR.iterdir():
+        if not skill_dir.is_dir():
+            continue
+        dest = dest_skills / skill_dir.name
+        if dest.exists() and not force:
+            typer.echo(f"skill/{skill_dir.name}  already exists (skipped)")
+        else:
+            shutil.copytree(skill_dir, dest, dirs_exist_ok=True)
+            typer.echo(f"skill/{skill_dir.name}  → {dest}")
+
+    typer.echo("\nEdit AGENTS.md and skills to customise your agent.")
 
 
 # ---------------------------------------------------------------------------
@@ -74,7 +92,9 @@ def init(
 def agent(
     message: Annotated[
         str | None,
-        typer.Option("--message", "-m", help="Single message to send (non-interactive)."),
+        typer.Option(
+            "--message", "-m", help="Single message to send (non-interactive)."
+        ),
     ] = None,
     model: Annotated[
         str | None,
@@ -91,9 +111,8 @@ async def _agent_async(
 ) -> None:
     from langclaw.agents.builder import create_claw_agent
     from langclaw.checkpointer import make_checkpointer_backend
-    from langclaw.config import load_config
+    from langclaw.config import config
 
-    config = load_config()
     if model_override:
         config.agents.model = model_override
 
@@ -105,7 +124,7 @@ async def _agent_async(
     )
 
     async with backend:
-        claw_agent = create_claw_agent(config)
+        claw_agent = create_claw_agent(config, checkpointer=backend.get())
         thread_id = "cli-session"
         runnable_config = {"configurable": {"thread_id": thread_id}}
 
@@ -148,7 +167,7 @@ async def _stream_agent(agent: object, message: str, config: dict) -> str:
                 for block in content
             )
         if content and content != accumulated:
-            delta = content[len(accumulated):]
+            delta = content[len(accumulated) :]
             if delta:
                 typer.echo(delta, nl=False)
             accumulated = content
@@ -196,7 +215,7 @@ async def _gateway_async() -> None:
     from langclaw.agents.builder import create_claw_agent
     from langclaw.bus import make_message_bus
     from langclaw.checkpointer import make_checkpointer_backend
-    from langclaw.config import load_config
+    from langclaw.config import config
     from langclaw.gateway.manager import GatewayManager
 
     logging.basicConfig(
@@ -205,7 +224,6 @@ async def _gateway_async() -> None:
         datefmt="%H:%M:%S",
     )
 
-    config = load_config()
     bus_cfg = config.bus
     cp_cfg = config.checkpointer
 
@@ -229,7 +247,7 @@ async def _gateway_async() -> None:
         raise typer.Exit(1)
 
     async with bus, checkpointer_backend:
-        agent = create_claw_agent(config)
+        agent = create_claw_agent(config, checkpointer=checkpointer_backend.get())
         manager = GatewayManager(
             config=config,
             bus=bus,
@@ -250,6 +268,7 @@ def _build_channels(config) -> list:
     if config.channels.telegram.enabled:
         try:
             from langclaw.gateway.telegram import TelegramChannel
+
             channels.append(TelegramChannel(config.channels.telegram))
         except ImportError:
             typer.echo(
@@ -268,12 +287,20 @@ def _build_channels(config) -> list:
 @cron_app.command("add")
 def cron_add(
     name: Annotated[str, typer.Option("--name", "-n", help="Job name.")],
-    message: Annotated[str, typer.Option("--message", "-m", help="Message to send on trigger.")],
+    message: Annotated[
+        str, typer.Option("--message", "-m", help="Message to send on trigger.")
+    ],
     channel: Annotated[str, typer.Option("--channel", "-c", help="Target channel.")],
     user_id: Annotated[str, typer.Option("--user-id", "-u", help="Target user ID.")],
-    context_id: Annotated[str, typer.Option("--context-id", help="Context/chat ID.")] = "default",
-    cron: Annotated[str | None, typer.Option("--cron", help='Cron expression, e.g. "0 9 * * *".')] = None,
-    every: Annotated[int | None, typer.Option("--every", help="Interval in seconds.")] = None,
+    context_id: Annotated[
+        str, typer.Option("--context-id", help="Context/chat ID.")
+    ] = "default",
+    cron: Annotated[
+        str | None, typer.Option("--cron", help='Cron expression, e.g. "0 9 * * *".')
+    ] = None,
+    every: Annotated[
+        int | None, typer.Option("--every", help="Interval in seconds.")
+    ] = None,
 ) -> None:
     """Schedule a new cron job."""
     if cron is None and every is None:
@@ -327,7 +354,6 @@ def cron_remove(
 @app.command()
 def status() -> None:
     """Show configuration and provider health."""
-    config = _load_config()
 
     typer.echo("\n=== Providers ===")
     from langclaw.providers import provider_registry
