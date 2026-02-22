@@ -40,7 +40,7 @@ _STREAM_EDIT_MIN_DELTA = 20
 
 # Telegram hard limit per message.
 _MAX_MESSAGE_LEN = 4000
-
+_TRUNCATION_SUFFIX = "…[truncated]"
 
 # ---------------------------------------------------------------------------
 # Markdown → Telegram HTML
@@ -203,6 +203,8 @@ class TelegramChannel(BaseChannel):
         self._bus: BaseMessageBus | None = None
         self._running = False
         self._typing_tasks: dict[str, asyncio.Task] = {}
+        # Keyed by tool_call_id; stashed on tool_progress, consumed on tool_result.
+        self._tool_call_buffer: dict[str, dict] = {}
 
     def is_enabled(self) -> bool:
         return self._config.enabled and bool(self._config.token)
@@ -299,50 +301,63 @@ class TelegramChannel(BaseChannel):
             self._app = None
 
     # ------------------------------------------------------------------
-    # Outbound
+    # Outbound hooks
     # ------------------------------------------------------------------
 
-    async def send(self, msg: OutboundMessage) -> None:
-        """
-        Deliver *msg* back to the Telegram chat.
+    async def send_tool_progress(self, msg: OutboundMessage) -> None:
+        """Stash the tool call info; actual rendering happens on tool_result."""
+        tc_id = msg.metadata.get("tool_call_id", "")
+        if tc_id:
+            self._tool_call_buffer[tc_id] = {
+                "tool": msg.metadata.get("tool", ""),
+                "args": msg.metadata.get("args") or {},
+            }
 
-        Routing logic:
-        - ``metadata["type"] == "tool_progress"`` → send a small italic status
-          line while keeping the typing indicator alive.
-        - ``streaming=True`` text deltas → silently ignored (Telegram has no
-          in-place edit UX without tracking message IDs; the final complete
-          response is sent when ``streaming=False``).
-        - ``streaming=False`` → stop typing indicator, send full formatted reply.
+    async def send_tool_result(self, msg: OutboundMessage) -> None:
+        """
+        Pop the matching tool call from the buffer and render both as one message.
+
+        Format:
+          <header line>
+          <blockquote expandable>raw tool output</blockquote>
+
+        The blockquote content is truncated to keep the total message within
+        Telegram's 4 096-char limit. The full result is always available in the
+        agent's LangGraph state; this display is informational only.
         """
         if self._app is None:
             return
+        tc_id = msg.metadata.get("tool_call_id", "")
+        call_info = self._tool_call_buffer.pop(tc_id, {})
+        header = _format_tool_progress(
+            call_info.get("tool", ""),
+            call_info.get("args") or {},
+        )
+        escaped = (
+            msg.content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        )
+        # Leave room for header + blockquote tags + newline + safety margin.
+        _BLOCKQUOTE_OVERHEAD = len("<blockquote expandable></blockquote>") + 1
+        max_content = (
+            _MAX_MESSAGE_LEN
+            - len(header)
+            - _BLOCKQUOTE_OVERHEAD
+            - len(_TRUNCATION_SUFFIX)
+        )
+        if len(escaped) > max_content:
+            escaped = escaped[:max_content] + _TRUNCATION_SUFFIX
+        html = f"{header}\n<blockquote expandable>{escaped}</blockquote>"
+        await self._send_progress(msg.context_id, html)
 
-        chat_id = msg.context_id
-
-        # ── Tool-progress notification ────────────────────────────────────
-        if msg.metadata.get("type") == "tool_progress":
-            tool = msg.metadata.get("tool", "")
-            args = msg.metadata.get("args") or {}
-            line = _format_tool_progress(tool, args)
-            if line:
-                await self._send_progress(chat_id, line)
-            return  # Keep the typing indicator alive
-
-        # ── Streaming text delta — ignore ─────────────────────────────────
-        # The manager sends incremental character deltas with streaming=True
-        # and the full accumulated response with streaming=False.  We only
-        # act on the final complete message.
-        if msg.streaming:
+    async def send_ai_message(self, msg: OutboundMessage) -> None:
+        """Stop the typing indicator and deliver the final AI response."""
+        if self._app is None:
             return
-
-        # ── Final response ────────────────────────────────────────────────
-        self._stop_typing(chat_id)
-
+        self._stop_typing(msg.context_id)
         if not msg.content:
             return
-
         for chunk in _split_message(msg.content):
-            await self._send_chunk(chat_id, chunk)
+            await self._send_chunk(msg.context_id, chunk)
 
     @retry(
         retry=retry_if_exception_type(Exception),
