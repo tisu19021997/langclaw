@@ -34,6 +34,12 @@ from langclaw.config.schema import TelegramChannelConfig
 from langclaw.cron.utils import is_cron_context_id
 from langclaw.gateway.base import BaseChannel
 from langclaw.gateway.commands import CommandContext
+from langclaw.gateway.utils import (
+    TRUNCATION_SUFFIX,
+    format_tool_progress,
+    is_allowed,
+    split_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +49,6 @@ _STREAM_EDIT_MIN_DELTA = 20
 
 # Telegram hard limit per message.
 _MAX_MESSAGE_LEN = 4000
-_TRUNCATION_SUFFIX = "…[truncated]"
 
 # ---------------------------------------------------------------------------
 # Markdown → Telegram HTML
@@ -111,74 +116,6 @@ def _markdown_to_telegram_html(text: str) -> str:
     return text
 
 
-# ---------------------------------------------------------------------------
-# Tool-progress formatting
-# ---------------------------------------------------------------------------
-
-_TOOL_LABELS: dict[str, str] = {
-    "read_file": "📄 Reading",
-    "write_file": "✏️ Writing",
-    "edit_file": "📝 Editing",
-    "ls": "📁 Listing",
-    "glob": "🔍 Globbing",
-    "grep": "🔎 Searching",
-    "execute": "⚙️ Running",
-    "task": "🤖 Subagent",
-    "write_todos": "📋 Todos",
-}
-
-
-def _format_tool_progress(tool: str, args: dict) -> str:
-    """Return a one-line human-readable description of a tool invocation."""
-    label = _TOOL_LABELS.get(tool, f"🔧 {tool}")
-
-    if tool in ("read_file", "write_file", "edit_file"):
-        path = args.get("path") or args.get("file_path") or ""
-        suffix = f" <code>{path}</code>" if path else ""
-    elif tool == "ls":
-        path = args.get("path") or "."
-        suffix = f" <code>{path}</code>"
-    elif tool in ("glob", "grep"):
-        pattern = args.get("pattern") or args.get("glob") or ""
-        suffix = f" <code>{pattern}</code>" if pattern else ""
-    elif tool == "execute":
-        cmd = (args.get("command") or args.get("cmd") or "")[:60]
-        suffix = f" <code>{cmd}</code>" if cmd else ""
-    elif tool == "task":
-        desc = (args.get("description") or args.get("prompt") or "")[:60]
-        suffix = f": {desc}…" if desc else "…"
-    else:
-        suffix = ""
-
-    if suffix:
-        return f"Ran <b>{label}</b>{suffix}"
-    # Return raw args for not built-in tools
-    return f"Ran <b>{label}</b><code>{args}</code>"
-
-
-# ---------------------------------------------------------------------------
-# Message splitting
-# ---------------------------------------------------------------------------
-
-
-def _split_message(content: str, max_len: int = _MAX_MESSAGE_LEN) -> list[str]:
-    """Split *content* into chunks of at most *max_len* chars at line/word breaks."""
-    if len(content) <= max_len:
-        return [content]
-    chunks: list[str] = []
-    while content:
-        if len(content) <= max_len:
-            chunks.append(content)
-            break
-        cut = content[:max_len]
-        pos = cut.rfind("\n")
-        if pos == -1:
-            pos = cut.rfind(" ")
-        if pos == -1:
-            pos = max_len
-        chunks.append(content[:pos])
-        content = content[pos:].lstrip()
-    return chunks
 
 
 # ---------------------------------------------------------------------------
@@ -336,9 +273,10 @@ class TelegramChannel(BaseChannel):
             return
         tc_id = msg.metadata.get("tool_call_id", "")
         call_info = self._tool_call_buffer.pop(tc_id, {})
-        header = _format_tool_progress(
+        header = format_tool_progress(
             call_info.get("tool", ""),
             call_info.get("args") or {},
+            markup="html",
         )
         escaped = (
             msg.content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -349,10 +287,10 @@ class TelegramChannel(BaseChannel):
             _MAX_MESSAGE_LEN
             - len(header)
             - _BLOCKQUOTE_OVERHEAD
-            - len(_TRUNCATION_SUFFIX)
+            - len(TRUNCATION_SUFFIX)
         )
         if len(escaped) > max_content:
-            escaped = escaped[:max_content] + _TRUNCATION_SUFFIX
+            escaped = escaped[:max_content] + TRUNCATION_SUFFIX
         html = f"{header}\n<blockquote expandable>{escaped}</blockquote>"
         await self._send_progress(msg.chat_id, html)
 
@@ -363,7 +301,7 @@ class TelegramChannel(BaseChannel):
         self._stop_typing(msg.chat_id)
         if not msg.content:
             return
-        for chunk in _split_message(msg.content):
+        for chunk in split_message(msg.content, max_len=_MAX_MESSAGE_LEN):
             await self._send_chunk(msg.chat_id, chunk)
 
     @retry(
@@ -542,7 +480,4 @@ class TelegramChannel(BaseChannel):
 
     def _is_allowed(self, user_id: str, username: str | None) -> bool:
         """Return True if the user passes the allow_from whitelist check."""
-        if not self._config.allow_from:
-            return True
-        allowed = set(self._config.allow_from)
-        return user_id in allowed or (username is not None and username in allowed)
+        return is_allowed(self._config.allow_from, user_id, username)

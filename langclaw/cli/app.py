@@ -303,6 +303,18 @@ def _build_channels(config) -> list:
                 "Run: uv add 'langclaw[telegram]'",
                 err=True,
             )
+    # Discord
+    if config.channels.discord.enabled:
+        try:
+            from langclaw.gateway.discord import DiscordChannel
+
+            channels.append(DiscordChannel(config.channels.discord))
+        except ImportError:
+            typer.echo(
+                "Discord enabled but discord.py not installed. "
+                "Run: uv add 'langclaw[discord]'",
+                err=True,
+            )
     return channels
 
 

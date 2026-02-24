@@ -14,9 +14,8 @@ import pytest
 
 def test_config_default_values():
     """LangclawConfig should load and parse correctly (respects .env overrides)."""
-    from langclaw.config import load_config
+    from langclaw.config import config as cfg
 
-    cfg = load_config()
     # model may be overridden by .env — just assert it's a non-empty string
     assert isinstance(cfg.agents.model, str) and cfg.agents.model
     assert cfg.bus.backend in ("asyncio", "rabbitmq", "kafka")
