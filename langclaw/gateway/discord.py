@@ -500,8 +500,9 @@ class DiscordChannel(BaseChannel):
             args=args or [],
             display_name=user.display_name or user.name or "",
         )
+        await interaction.response.defer()
         response = await self._command_router.dispatch(cmd, ctx)
-        await interaction.response.send_message(response)
+        await interaction.followup.send(response)
 
     def _is_allowed(self, user_id: str, username: str | None) -> bool:
         """Return True if the user passes the allow_from whitelist check."""
