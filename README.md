@@ -209,11 +209,18 @@ flowchart TB
 
 ## Roadmap
 
+### Done
+
+- [x] **Sub-agent delegation** — `app.subagent()` registers child agents with isolated context, RBAC middleware, and per-subagent model/tool sets
+- [x] **Channel-routed subagents** — subagents publish results directly to the originating channel via the message bus (`output="channel"`, `_direct_delivery` flag)
+- [x] **Guardrails middleware** — `ContentFilterMiddleware` (keyword/regex blocking) and `PIIMiddleware` (redaction) in the built-in middleware stack
+- [x] **Heartbeat / proactive wake-up** — event-driven condition checks that fire messages through the bus → agent pipeline (`heartbeat/watcher.py`)
+
+### Planned
+
 - [ ] **Multi-agent support** — named agents with distinct models and per-agent tool sets, routed by channel or user intent
 - [ ] **More channels** — Slack, WhatsApp, REST API gateway
-- [x] **Sub-agent delegation** — `app.subagent()` registers child agents with isolated context, RBAC middleware, and per-subagent model/tool sets
-- [ ] **Channel-routed subagents** — subagents that publish results directly to the originating channel via the message bus (`output="channel"`)
-- [ ] **Test coverage** - increase test coverage
+- [ ] **Test coverage** — increase test coverage across all modules
 
 ## Further reading
 
