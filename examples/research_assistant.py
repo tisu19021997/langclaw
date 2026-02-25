@@ -74,7 +74,10 @@ async def get_stock_price(ticker: str) -> dict:
     params = {"interval": "1d", "range": "1d"}
     resp = await _http_client.get(url, params=params)
     if resp.status_code == 429:
-        return {"ticker": ticker.upper(), "error": "Rate-limited by Yahoo Finance. Try again shortly."}
+        return {
+            "ticker": ticker.upper(),
+            "error": "Rate-limited by Yahoo Finance. Try again shortly.",
+        }
     resp.raise_for_status()
 
     data = resp.json()
@@ -86,7 +89,10 @@ async def get_stock_price(ticker: str) -> dict:
     price = meta.get("regularMarketPrice") or meta.get("previousClose")
     prev_close = meta.get("chartPreviousClose") or meta.get("previousClose")
     if price is None:
-        return {"ticker": ticker.upper(), "error": f"Price unavailable (type: {meta.get('instrumentType', 'unknown')})."}
+        return {
+            "ticker": ticker.upper(),
+            "error": f"Price unavailable (type: {meta.get('instrumentType', 'unknown')}).",
+        }
 
     change = round(price - prev_close, 2) if prev_close else 0.0
     pct = round((change / prev_close) * 100, 2) if prev_close else 0.0

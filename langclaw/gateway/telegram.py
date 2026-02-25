@@ -152,11 +152,7 @@ class TelegramChannel(BaseChannel):
 
     async def start(self, bus: BaseMessageBus) -> None:
         try:
-            from telegram.ext import (
-                Application,
-                MessageHandler,
-                filters,
-            )
+            from telegram.ext import Application, MessageHandler, filters
             from telegram.request import HTTPXRequest
         except ImportError as exc:
             raise ImportError(
@@ -203,8 +199,9 @@ class TelegramChannel(BaseChannel):
 
             bot_commands = [
                 BotCommand(entry.name, entry.description or entry.name)
-                for entry in (self._command_router.list_commands()
-                              if self._command_router else [])
+                for entry in (
+                    self._command_router.list_commands() if self._command_router else []
+                )
             ]
             if bot_commands:
                 await app.bot.set_my_commands(bot_commands)
