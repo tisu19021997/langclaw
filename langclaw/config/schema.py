@@ -492,7 +492,3 @@ def save_default_config() -> Path:
     default = LangclawConfig()
     _CONFIG_PATH.write_text(default.model_dump_json(indent=2, exclude_none=False))
     return _CONFIG_PATH
-
-
-# Global config instance
-config: LangclawConfig = load_config()

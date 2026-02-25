@@ -5,13 +5,13 @@ from langclaw.config.schema import (
     CheckpointerConfig,
     LangclawConfig,
     ProvidersConfig,
-    config,
+    load_config,
     save_default_config,
 )
 
 __all__ = [
     "LangclawConfig",
-    "config",
+    "load_config",
     "save_default_config",
     "AgentConfig",
     "BusConfig",
