@@ -116,8 +116,6 @@ def _markdown_to_telegram_html(text: str) -> str:
     return text
 
 
-
-
 # ---------------------------------------------------------------------------
 # Channel
 # ---------------------------------------------------------------------------
@@ -458,9 +456,7 @@ class TelegramChannel(BaseChannel):
         args = parts[1:] if len(parts) > 1 else []
 
         if self._command_router is None:
-            await update.message.reply_text(
-                f"Command /{cmd} is not available."
-            )
+            await update.message.reply_text(f"Command /{cmd} is not available.")
             return
 
         ctx = CommandContext(
