@@ -14,9 +14,6 @@ build/
 venv/
 env/
 
-# uv
-uv.lock
-
 # Secrets — never commit these
 .env
 *.env
