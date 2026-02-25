@@ -19,6 +19,10 @@ from langclaw.agents.tools import build_cron_tools, build_gmail_tools, build_web
 from langclaw.config.schema import LangclawConfig
 from langclaw.middleware.channel_context import ChannelContextMiddleware
 from langclaw.middleware.guardrails import ContentFilterMiddleware, PIIMiddleware
+from langclaw.middleware.permissions import (
+    LangclawContext,
+    build_tool_permission_middleware,
+)
 from langclaw.middleware.rate_limit import RateLimitMiddleware
 from langclaw.providers.registry import provider_registry
 from langclaw.utils import to_virtual_path  # for extra_skills conversion
@@ -106,23 +110,38 @@ def create_claw_agent(
 
     # Built-in middleware stack (order matters):
     #   1. ChannelContextMiddleware  — inject channel metadata first
-    #   2. RateLimitMiddleware       — rate-check early, before expensive ops
-    #   3. ContentFilterMiddleware   — block banned content before any LLM call
-    #   4. PIIMiddleware             — redact PII from inbound messages
-    #   5. caller-provided extras
+    #   2. ToolPermission middleware — filter tools per-user role
+    #   3. RateLimitMiddleware       — rate-check early
+    #   4. ContentFilterMiddleware   — block banned content
+    #   5. PIIMiddleware             — redact PII
+    #   6. caller-provided extras
     middleware: list[Any] = [
         ChannelContextMiddleware(),
-        RateLimitMiddleware(rpm=config.agents.rate_limit_rpm),
-        ContentFilterMiddleware(banned_keywords=config.agents.banned_keywords),
-        PIIMiddleware(
-            "azure_openai_api_key",
-            detector=r"^[a-zA-Z0-9]{84}$",
-            strategy="redact",
-            apply_to_output=True,
-            apply_to_tool_results=True,
-        ),
-        *(extra_middleware or []),
     ]
+
+    if config.permissions.enabled:
+        middleware.append(
+            build_tool_permission_middleware(config.permissions),
+        )
+
+    middleware.extend(
+        [
+            RateLimitMiddleware(rpm=config.agents.rate_limit_rpm),
+            ContentFilterMiddleware(
+                banned_keywords=config.agents.banned_keywords,
+            ),
+            PIIMiddleware(
+                "azure_openai_api_key",
+                detector=r"^[a-zA-Z0-9]{84}$",
+                strategy="redact",
+                apply_to_output=True,
+                apply_to_tool_results=True,
+            ),
+            *(extra_middleware or []),
+        ]
+    )
+
+    context_schema = LangclawContext if config.permissions.enabled else None
 
     return create_deep_agent(
         model=resolved_model,
@@ -131,7 +150,9 @@ def create_claw_agent(
         system_prompt=system_prompt,
         checkpointer=checkpointer,
         backend=FilesystemBackend(
-            root_dir=str(config.agents.workspace_dir), virtual_mode=True
+            root_dir=str(config.agents.workspace_dir),
+            virtual_mode=True,
         ),
         middleware=middleware,
+        context_schema=context_schema,
     )

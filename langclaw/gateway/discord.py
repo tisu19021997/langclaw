@@ -287,17 +287,17 @@ class DiscordChannel(BaseChannel):
                     if exc.status == 429:
                         retry_after = getattr(exc, "retry_after", 1.0)
                         logger.warning(
-                            "Discord rate limited, retrying in %ss", retry_after
+                            f"Discord rate limited, retrying in {retry_after}s"
                         )
                         await asyncio.sleep(float(retry_after))
                         continue
                     if attempt == 2:
-                        logger.error("Error sending Discord message: %s", exc)
+                        logger.error(f"Error sending Discord message: {exc}")
                     else:
                         await asyncio.sleep(1)
                 except Exception as exc:
                     if attempt == 2:
-                        logger.error("Error sending Discord message: %s", exc)
+                        logger.error(f"Error sending Discord message: {exc}")
                     else:
                         await asyncio.sleep(1)
 
@@ -358,17 +358,16 @@ class DiscordChannel(BaseChannel):
 
         if not sender_id or not channel_id:
             logger.debug(
-                "Discord message dropped: author=%s bot=%s channel=%s content=%r",
-                message.author,
-                message.author.bot,
-                message.channel.id,
-                message.content[:80] if message.content else "",
+                f"Discord message dropped: author={message.author} "
+                f"bot={message.author.bot} "
+                f"channel={message.channel.id} "
+                f"content={message.content[:80] if message.content else ''}",
             )
             return
 
         if not self._is_allowed(sender_id, username):
             logger.warning(
-                "Discord user %s (%s) not in allow_from — dropping message",
+                f"Discord user {sender_id} ({username}) not in allow_from — dropping message",
                 sender_id,
                 username,
             )
@@ -378,7 +377,7 @@ class DiscordChannel(BaseChannel):
                     mention_author=False,
                 )
             except Exception as exc:
-                logger.debug("Failed to send 'not authorised' reply: %s", exc)
+                logger.debug(f"Failed to send 'not authorised' reply: {exc}")
             return
 
         # -- Command handling (/start, /help, /reset, /cron) --
@@ -402,7 +401,7 @@ class DiscordChannel(BaseChannel):
                 try:
                     await message.reply(response, mention_author=False)
                 except Exception as exc:
-                    logger.error("Failed to send command response: %s", exc)
+                    logger.error(f"Failed to send command response: {exc}")
                 return
 
         if self._bus is None:
@@ -427,7 +426,7 @@ class DiscordChannel(BaseChannel):
                 media_paths.append(str(file_path))
                 content_parts.append(f"[attachment: {file_path}]")
             except Exception as exc:
-                logger.warning("Failed to download Discord attachment: %s", exc)
+                logger.warning(f"Failed to download Discord attachment: {exc}")
                 content_parts.append(
                     f"[attachment: {attachment.filename} - download failed]"
                 )

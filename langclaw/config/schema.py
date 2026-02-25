@@ -73,6 +73,38 @@ def _parse_str_list(v: object) -> list[str]:
 
 StringList = Annotated[list[str], BeforeValidator(_parse_str_list)]
 
+
+def _parse_str_dict(v: object) -> dict[str, str]:
+    """Parse ``"key:val,key:val"`` strings into a dict.
+
+    Accepts:
+        ``{"a": "b"}``              — pass-through
+        ``'alice:admin,bob:viewer'`` — comma+colon format
+        ``'{"a":"b"}'``             — JSON string
+        ``''``                       — empty → {}
+    """
+    if isinstance(v, dict):
+        return {str(k): str(val) for k, val in v.items()}
+    if isinstance(v, str):
+        v = v.strip()
+        if not v:
+            return {}
+        if v.startswith("{"):
+            return json.loads(v)
+        result: dict[str, str] = {}
+        for pair in v.split(","):
+            pair = pair.strip()
+            if not pair:
+                continue
+            key, _, val = pair.partition(":")
+            if key.strip() and val.strip():
+                result[key.strip()] = val.strip()
+        return result
+    return v  # type: ignore[return-value]
+
+
+StringDict = Annotated[dict[str, str], BeforeValidator(_parse_str_dict)]
+
 # ---------------------------------------------------------------------------
 # Langclaw home
 # ---------------------------------------------------------------------------
@@ -114,12 +146,18 @@ class TelegramChannelConfig(BaseModel):
     enabled: bool = False
     token: str = ""
     allow_from: StringList = Field(default_factory=list)
+    user_roles: StringDict = Field(default_factory=dict)
+    """Maps Telegram user IDs / @usernames to permission roles.
+    Env format: ``123456:admin,@alice:editor``"""
 
 
 class DiscordChannelConfig(BaseModel):
     enabled: bool = False
     token: str = ""
     allow_from: StringList = Field(default_factory=list)
+    user_roles: StringDict = Field(default_factory=dict)
+    """Maps Discord user IDs to permission roles.
+    Env format: ``123456:admin,789012:viewer``"""
 
 
 class SlackChannelConfig(BaseModel):
@@ -127,6 +165,9 @@ class SlackChannelConfig(BaseModel):
     bot_token: str = ""
     app_token: str = ""
     allow_from: StringList = Field(default_factory=list)
+    user_roles: StringDict = Field(default_factory=dict)
+    """Maps Slack user IDs to permission roles.
+    Env format: ``U12345:admin,U67890:editor``"""
 
 
 class WebSocketChannelConfig(BaseModel):
@@ -134,6 +175,9 @@ class WebSocketChannelConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 18789
     allow_from: StringList = Field(default_factory=list)
+    user_roles: StringDict = Field(default_factory=dict)
+    """Maps WebSocket user IDs to permission roles.
+    Env format: ``user1:admin,user2:viewer``"""
 
 
 class ChannelsConfig(BaseModel):
@@ -306,12 +350,42 @@ class GmailConfig(BaseModel):
     client_secret: str = ""
     """OAuth 2.0 client secret from the Google Cloud Console."""
 
-    token_path: str = Field(default_factory=lambda: str(_LANGCLAW_HOME / "gmail_token.json"))
+    token_path: str = Field(
+        default_factory=lambda: str(_LANGCLAW_HOME / "gmail_token.json")
+    )
     """Path to the persisted OAuth refresh/access token file."""
 
     readonly: bool = True
     """When ``True`` only read/search tools are registered;
     when ``False`` send, draft, reply, and label tools are added as well."""
+
+
+class RoleConfig(BaseModel):
+    """Defines which tools a role may use."""
+
+    tools: StringList = Field(default_factory=list)
+    """Tool names this role is allowed to invoke.
+    Use ``["*"]`` to grant access to all tools."""
+
+
+class PermissionsConfig(BaseModel):
+    """Global RBAC definitions.
+
+    Role *definitions* (role name -> allowed tools) live here.
+    User -> role *mappings* live per-channel alongside ``allow_from``.
+    """
+
+    enabled: bool = False
+    """Enable per-user tool permission filtering."""
+
+    default_role: str = "viewer"
+    """Role assigned to users not listed in any channel's ``user_roles``."""
+
+    roles: dict[str, RoleConfig] = Field(default_factory=dict)
+    """Role name -> ``RoleConfig``. Define in ``config.json``::
+
+        {"roles": {"admin": {"tools": ["*"]}, "viewer": {"tools": ["web_search"]}}}
+    """
 
 
 class ToolsConfig(BaseModel):
@@ -370,6 +444,7 @@ class LangclawConfig(BaseSettings):
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     agents: AgentConfig = Field(default_factory=AgentConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    permissions: PermissionsConfig = Field(default_factory=PermissionsConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     bus: BusConfig = Field(default_factory=BusConfig)
     cron: CronConfig = Field(default_factory=CronConfig)

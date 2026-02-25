@@ -23,6 +23,7 @@ from langclaw.config.schema import LangclawConfig
 from langclaw.cron.scheduler import CronManager
 from langclaw.gateway.base import BaseChannel
 from langclaw.gateway.commands import CommandRouter
+from langclaw.middleware.permissions import LangclawContext
 from langclaw.session.manager import SessionManager
 
 
@@ -224,17 +225,38 @@ class GatewayManager:
                             )
                         )
 
+    def _resolve_user_role(self, msg: InboundMessage) -> str | None:
+        """Look up the user's RBAC role from the channel config.
+
+        Returns the role string, or ``None`` when permissions are
+        disabled so the caller can skip passing context entirely.
+        """
+        perms = self._config.permissions
+        if not perms.enabled:
+            return None
+        ch_cfg = getattr(
+            self._config.channels, msg.channel, None,
+        )
+        if ch_cfg is None:
+            return perms.default_role
+        user_roles: dict[str, str] = getattr(
+            ch_cfg, "user_roles", {},
+        )
+        return user_roles.get(msg.user_id, perms.default_role)
+
     async def _handle(self, msg: InboundMessage) -> None:
         """
         Full message handling pipeline:
           1. Resolve / create LangGraph thread
-          2. Build RunnableConfig with channel context
-          3. Stream agent updates, dispatching each to the originating channel
+          2. Resolve user RBAC role (if permissions enabled)
+          3. Build RunnableConfig with channel context
+          4. Stream agent updates back to the originating channel
         """
         channel = self._channel_map.get(msg.channel)
         if channel is None:
             logger.warning(
-                f"No channel handler for '{msg.channel}' — dropping message."
+                f"No channel handler for '{msg.channel}'"
+                " — dropping message.",
             )
             return
 
@@ -252,19 +274,37 @@ class GatewayManager:
             channel_context=channel_context,
         )
 
-        input_state = {"messages": [HumanMessage(content=msg.content)]}
+        user_role = self._resolve_user_role(msg)
+        context: LangclawContext | None = None
+        if user_role is not None:
+            context = LangclawContext(user_role=user_role)
+
+        input_state = {
+            "messages": [HumanMessage(content=msg.content)],
+        }
 
         try:
+            stream_kwargs: dict[str, Any] = {
+                "config": runnable_config,
+                "stream_mode": "updates",
+                "print_mode": "updates",
+            }
+            if context is not None:
+                stream_kwargs["context"] = context
+
             async for chunk in self._agent.astream(
                 input_state,
-                config=runnable_config,
-                stream_mode="updates",
-                print_mode="updates",
+                **stream_kwargs,
             ):
-                await self._stream_updates_to_outbound_message(chunk, msg, channel)
+                await self._stream_updates_to_outbound_message(
+                    chunk, msg, channel,
+                )
 
         except Exception:
-            logger.exception(f"Error handling message from {msg.channel}/{msg.user_id}")
+            logger.exception(
+                f"Error handling message from"
+                f" {msg.channel}/{msg.user_id}",
+            )
             try:
                 await channel.send(
                     OutboundMessage(
@@ -272,9 +312,14 @@ class GatewayManager:
                         user_id=msg.user_id,
                         context_id=msg.context_id,
                         chat_id=msg.chat_id,
-                        content="Sorry, something went wrong. Please try again.",
+                        content=(
+                            "Sorry, something went wrong."
+                            " Please try again."
+                        ),
                         type="ai",
                     )
                 )
             except Exception:
-                logger.exception("Failed to send error response.")
+                logger.exception(
+                    "Failed to send error response.",
+                )
