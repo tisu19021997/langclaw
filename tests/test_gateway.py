@@ -268,7 +268,8 @@ def test_discord_channel_allow_from_empty_allows_all():
 
 
 def test_discord_in_build_channels(monkeypatch):
-    """When discord is enabled, _build_channels should include a DiscordChannel."""
+    """When discord is enabled, Langclaw._build_all_channels should include a DiscordChannel."""
+    from langclaw.app import Langclaw
     from langclaw.config.schema import LangclawConfig
 
     monkeypatch.setenv("LANGCLAW__CHANNELS__DISCORD__ENABLED", "true")
@@ -277,9 +278,8 @@ def test_discord_in_build_channels(monkeypatch):
     cfg = LangclawConfig()
     assert cfg.channels.discord.enabled is True
 
-    from langclaw.cli.app import _build_channels
-
-    channels = _build_channels(cfg)
+    lc = Langclaw(config=cfg)
+    channels = lc._build_all_channels()
     names = [ch.name for ch in channels]
     assert "discord" in names
 

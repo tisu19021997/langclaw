@@ -17,7 +17,7 @@ from typing import Annotated
 import typer
 
 from langclaw.cli.utils import install_deps
-from langclaw.config import config
+from langclaw.config.schema import load_config
 
 app = typer.Typer(
     name="langclaw",
@@ -56,14 +56,12 @@ def init(
     path = save_default_config()
     typer.echo(f"Config written to {path}")
 
-    # Derive workspace from the freshly-saved config so root_dir overrides apply
-    from langclaw.config.schema import load_config
-
-    workspace = load_config().agents.workspace_dir
+    cfg = load_config()
+    workspace = cfg.agents.workspace_dir
     workspace.mkdir(parents=True, exist_ok=True)
 
     # Copy AGENTS.md (skip if already present and not --force)
-    dest_agents_md = config.agents.agents_md_file
+    dest_agents_md = cfg.agents.agents_md_file
     if not dest_agents_md.exists() or force:
         shutil.copy2(_DEFAULT_AGENTS_MD, dest_agents_md)
         typer.echo(f"AGENTS.md  → {dest_agents_md}")
@@ -71,7 +69,7 @@ def init(
         typer.echo(f"AGENTS.md  already exists at {dest_agents_md} (skipped)")
 
     # Copy default skills (merge; existing skill dirs not overwritten unless --force)
-    dest_skills = config.agents.skills_dir
+    dest_skills = cfg.agents.skills_dir
     for skill_dir in _DEFAULT_SKILLS_DIR.iterdir():
         if not skill_dir.is_dir():
             continue
@@ -85,7 +83,7 @@ def init(
     typer.echo("\nEdit AGENTS.md and skills to customise your agent.")
 
     # Create memories directory
-    memories_dir = config.agents.memories_dir
+    memories_dir = cfg.agents.memories_dir
     if not memories_dir.exists() or force:
         memories_dir.mkdir(parents=True, exist_ok=True)
         typer.echo(f"memories directory created at {memories_dir}")
@@ -122,14 +120,14 @@ async def _agent_async(
     message: str | None,
     model_override: str | None,
 ) -> None:
-    from langclaw.agents.builder import create_claw_agent
+    from langclaw.app import Langclaw
     from langclaw.checkpointer import make_checkpointer_backend
-    from langclaw.config import config
 
+    lc = Langclaw.from_env()
     if model_override:
-        config.agents.model = model_override
+        lc.config.agents.model = model_override
 
-    cp_cfg = config.checkpointer
+    cp_cfg = lc.config.checkpointer
     backend = make_checkpointer_backend(
         cp_cfg.backend,
         db_path=cp_cfg.sqlite.db_path,
@@ -137,7 +135,7 @@ async def _agent_async(
     )
 
     async with backend:
-        claw_agent = create_claw_agent(config, checkpointer=backend.get())
+        claw_agent = lc.create_agent(checkpointer=backend.get())
         thread_id = "cli-session"
         runnable_config = {"configurable": {"thread_id": thread_id}}
 
@@ -220,114 +218,9 @@ async def _run_repl(agent: object, config: dict) -> None:
 @app.command()
 def gateway() -> None:
     """Start the multi-channel gateway (all enabled channels)."""
-    asyncio.run(_gateway_async())
+    from langclaw.app import Langclaw
 
-
-async def _gateway_async() -> None:
-    import logging
-
-    from langclaw.agents.builder import create_claw_agent
-    from langclaw.bus import make_message_bus
-    from langclaw.checkpointer import make_checkpointer_backend
-    from langclaw.config import config
-    from langclaw.gateway.manager import GatewayManager
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
-    bus_cfg = config.bus
-    cp_cfg = config.checkpointer
-
-    bus = make_message_bus(
-        bus_cfg.backend,
-        rabbitmq_url=bus_cfg.rabbitmq.amqp_url,
-        rabbitmq_queue=bus_cfg.rabbitmq.queue_name,
-        kafka_servers=bus_cfg.kafka.bootstrap_servers,
-        kafka_topic=bus_cfg.kafka.topic,
-        kafka_group_id=bus_cfg.kafka.group_id,
-    )
-    checkpointer_backend = make_checkpointer_backend(
-        cp_cfg.backend,
-        db_path=cp_cfg.sqlite.db_path,
-        dsn=cp_cfg.postgres.dsn,
-    )
-
-    channels = _build_channels(config)
-    if not channels:
-        typer.echo("No channels enabled. Enable at least one in your config.", err=True)
-        raise typer.Exit(1)
-
-    async with bus, checkpointer_backend:
-        cron_manager = None
-        if config.cron.enabled:
-            from langclaw.cron import make_cron_manager
-
-            cron_manager = make_cron_manager(bus=bus, config=config.cron)
-
-        agent = create_claw_agent(
-            config,
-            checkpointer=checkpointer_backend.get(),
-            cron_manager=cron_manager,
-        )
-        manager = GatewayManager(
-            config=config,
-            bus=bus,
-            checkpointer_backend=checkpointer_backend,
-            agent=agent,
-            channels=channels,
-            cron_manager=cron_manager,
-        )
-        cron_status = "enabled" if cron_manager else "disabled"
-        typer.echo(
-            f"Gateway starting — channels: {[ch.name for ch in channels]}, "
-            f"bus: {bus_cfg.backend}, "
-            f"checkpointer: {cp_cfg.backend}, cron: {cron_status}"
-        )
-        await manager.run()
-
-
-def _build_channels(config) -> list:
-    channels = []
-    # Telegram
-    if config.channels.telegram.enabled:
-        try:
-            from langclaw.gateway.telegram import TelegramChannel
-
-            channels.append(TelegramChannel(config.channels.telegram))
-        except ImportError:
-            typer.echo(
-                "Telegram enabled but python-telegram-bot not installed. "
-                "Run: uv add 'langclaw[telegram]'",
-                err=True,
-            )
-    # Discord
-    if config.channels.discord.enabled:
-        try:
-            from langclaw.gateway.discord import DiscordChannel
-
-            channels.append(DiscordChannel(config.channels.discord))
-        except ImportError:
-            typer.echo(
-                "Discord enabled but discord.py not installed. "
-                "Run: uv add 'langclaw[discord]'",
-                err=True,
-            )
-    # WebSocket
-    if config.channels.websocket.enabled:
-        try:
-            from langclaw.gateway.websocket import WebSocketChannel
-
-            channels.append(WebSocketChannel(config.channels.websocket))
-        except ImportError:
-            typer.echo(
-                "WebSocket enabled but websockets not installed. "
-                "Run: uv add 'langclaw[websocket]'",
-                err=True,
-            )
-    return channels
+    Langclaw.from_env().run()
 
 
 # ---------------------------------------------------------------------------
@@ -384,9 +277,10 @@ async def _cron_add_async(
     from langclaw.bus import AsyncioMessageBus
     from langclaw.cron import make_cron_manager
 
+    cfg = load_config()
     bus = AsyncioMessageBus()
     await bus.start()
-    mgr = make_cron_manager(bus=bus, config=config.cron)
+    mgr = make_cron_manager(bus=bus, config=cfg.cron)
     await mgr.start()
     try:
         job_id = await mgr.add_job(
@@ -413,7 +307,8 @@ def cron_list() -> None:
 async def _cron_list_async() -> None:
     from langclaw.cron import list_jobs_from_store
 
-    if config.cron.data_store.backend == "memory":
+    cfg = load_config()
+    if cfg.cron.data_store.backend == "memory":
         typer.echo(
             "Cannot list jobs: the 'memory' data store does not persist jobs. "
             "Set cron.data_store.backend to 'sqlite' (default) or 'postgres'.",
@@ -422,7 +317,7 @@ async def _cron_list_async() -> None:
         raise typer.Exit(1)
 
     try:
-        jobs = await list_jobs_from_store(config.cron)
+        jobs = await list_jobs_from_store(cfg.cron)
     except Exception as exc:
         typer.echo(f"Error reading data store: {exc}", err=True)
         raise typer.Exit(1) from exc
@@ -456,18 +351,19 @@ def cron_remove(
 @app.command()
 def status() -> None:
     """Show configuration and provider health."""
-
-    typer.echo("\n=== Providers ===")
     from langclaw.providers import provider_registry
 
-    rows = provider_registry.list_configured(config.providers)
+    cfg = load_config()
+
+    typer.echo("\n=== Providers ===")
+    rows = provider_registry.list_configured(cfg.providers)
     for row in rows:
         mark = "✓" if row["configured"] == "yes" else "✗"
         gw = " (gateway)" if row["gateway"] == "yes" else ""
         typer.echo(f"  {mark} {row['display']}{gw}")
 
     typer.echo("\n=== Channels ===")
-    ch = config.channels
+    ch = cfg.channels
     channel_states = [
         ("telegram", ch.telegram.enabled),
         ("discord", ch.discord.enabled),
@@ -479,9 +375,9 @@ def status() -> None:
         typer.echo(f"  {mark} {name}")
 
     typer.echo("\n=== Bus / Checkpointer ===")
-    typer.echo(f"  Bus:          {config.bus.backend}")
-    typer.echo(f"  Checkpointer: {config.checkpointer.backend}")
-    typer.echo(f"  Agent model:  {config.agents.model}")
+    typer.echo(f"  Bus:          {cfg.bus.backend}")
+    typer.echo(f"  Checkpointer: {cfg.checkpointer.backend}")
+    typer.echo(f"  Agent model:  {cfg.agents.model}")
     typer.echo()
 
 
