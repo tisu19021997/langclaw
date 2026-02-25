@@ -23,7 +23,6 @@ dependencies = [
 [project.optional-dependencies]
 telegram = ["python-telegram-bot>=21"]
 discord  = ["discord.py>=2"]
-slack    = ["slack-sdk>=3"]
 websocket = [
     "websockets>=14",
 ]
@@ -34,7 +33,7 @@ mcp      = ["langchain-mcp-adapters>=0.1"]
 gmail    = ["google-api-python-client>=2.100", "google-auth>=2.20", "google-auth-oauthlib>=1.1"]
 search   = ["crawl4ai>=0.4", "langchain-community>=0.3", "tavily-python>=0.3", "duckduckgo-search>=6"]
 dev      = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.4"]
-all      = ["langclaw[telegram,discord,slack,websocket,postgres,rabbitmq,kafka,mcp,search,gmail]"]
+all      = ["langclaw[telegram,discord,websocket,postgres,rabbitmq,kafka,mcp,search,gmail]"]
 
 [project.scripts]
 langclaw = "langclaw.cli.app:app"

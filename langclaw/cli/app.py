@@ -367,7 +367,6 @@ def status() -> None:
     channel_states = [
         ("telegram", ch.telegram.enabled),
         ("discord", ch.discord.enabled),
-        ("slack", ch.slack.enabled),
         ("websocket", ch.websocket.enabled),
     ]
     for name, enabled in channel_states:

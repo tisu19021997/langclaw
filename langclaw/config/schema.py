@@ -163,16 +163,6 @@ class DiscordChannelConfig(BaseModel):
     Env format: ``123456:admin,789012:viewer``"""
 
 
-class SlackChannelConfig(BaseModel):
-    enabled: bool = False
-    bot_token: str = ""
-    app_token: str = ""
-    allow_from: StringList = Field(default_factory=list)
-    user_roles: StringDict = Field(default_factory=dict)
-    """Maps Slack user IDs to permission roles.
-    Env format: ``U12345:admin,U67890:editor``"""
-
-
 class WebSocketChannelConfig(BaseModel):
     enabled: bool = False
     host: str = "127.0.0.1"
@@ -186,7 +176,6 @@ class WebSocketChannelConfig(BaseModel):
 class ChannelsConfig(BaseModel):
     telegram: TelegramChannelConfig = Field(default_factory=TelegramChannelConfig)
     discord: DiscordChannelConfig = Field(default_factory=DiscordChannelConfig)
-    slack: SlackChannelConfig = Field(default_factory=SlackChannelConfig)
     websocket: WebSocketChannelConfig = Field(default_factory=WebSocketChannelConfig)
 
 
