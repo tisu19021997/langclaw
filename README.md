@@ -1,10 +1,33 @@
-# langclaw
+# Langclaw
 
-A **framework** for building multi-channel AI agent systems — with scheduled tasks, persistent memory, RBAC, and a pluggable tool ecosystem — on top of LangChain, LangGraph, and deepagents.
+### Multi-channel AI agent framework, the LangChain way
 
-## Vision
+[![PyPI version](https://img.shields.io/pypi/v/langclaw)](https://pypi.org/project/langclaw/)
+[![Python versions](https://img.shields.io/pypi/pyversions/langclaw)](https://pypi.org/project/langclaw/)
+[![License](https://img.shields.io/github/license/tisu19021997/langclaw)](https://github.com/tisu19021997/langclaw/blob/main/LICENSE)
 
-Langclaw is not a fork-to-use application. It is a framework that developers `pip install` and build upon. The primary interface is the `Langclaw` application class:
+---
+
+**Repository**: [github.com/tisu19021997/langclaw](https://github.com/tisu19021997/langclaw)
+
+---
+
+**Langclaw is a Python framework for building production-grade, multi-channel AI agent systems — with RBAC, scheduled tasks, persistent memory, subagent delegation, and a pluggable tool ecosystem — on top of [LangChain](https://github.com/langchain-ai/langchain), [LangGraph](https://github.com/langchain-ai/langgraph), and [deepagents](https://github.com/tisu19021997/deepagents).**
+
+FastAPI gave web developers a declarative, decorator-driven way to build APIs. Langclaw brings that same feeling to multi-channel agentic systems. Define tools, roles, subagents, and channels on a single app object — langclaw handles the wiring, middleware, message routing, and state persistence so you can focus on what your agent actually does.
+
+## Why Use Langclaw
+
+1. **Framework, not a fork**: `pip install langclaw` and build on top of it — like Flask/FastAPI for agentic systems. No repo cloning, no boilerplate.
+2. **Multi-channel from day one**: Telegram, Discord, WebSocket out of the box. Add custom channels with a single `app.add_channel()` call.
+3. **Declarative RBAC**: `app.role("analyst", tools=["*"])` — one line to define who can use what. Permissions are enforced as middleware before the LLM sees anything.
+4. **Subagent delegation**: Register specialist subagents that run in isolated contexts. The main agent delegates via a built-in `task` tool; results flow back cleanly or stream directly to the channel.
+5. **Scheduled jobs**: Users can ask the agent to schedule recurring tasks. Cron jobs publish to the same message bus and flow through the same pipeline as user messages.
+6. **Pluggable everything**: Message bus (asyncio / RabbitMQ / Kafka), checkpointer (SQLite / Postgres), LLM providers — swap backends via config, not code changes.
+7. **Middleware pipeline**: Content filtering, PII redaction, rate limiting, and RBAC run as composable middleware before every LLM call.
+8. **Built on LangChain + LangGraph**: Not a wrapper — langclaw compiles down to a real LangGraph `CompiledStateGraph`. Bring any LangChain tool, model, or integration.
+
+## Hello World
 
 ```python
 from langclaw import Langclaw
@@ -12,216 +35,163 @@ from langclaw import Langclaw
 app = Langclaw()
 
 @app.tool()
-async def get_stock_price(ticker: str) -> str:
-    """Fetch the latest stock price."""
-    return await fetch_price(ticker)
-
-app.role("analyst", tools=["get_stock_price", "web_search", "cron"])
-app.role("viewer", tools=["web_search"])
+async def greet(name: str) -> str:
+    """Say hello to someone."""
+    return f"Hello, {name}!"
 
 if __name__ == "__main__":
     app.run()
 ```
 
-Think Flask/FastAPI for web apps — langclaw is that for multi-channel agentic systems.
+That's it. Langclaw wires up the message bus, checkpointer, channels (from your `.env`), and middleware — then starts listening.
 
-## Quick start
+## Real-World Example
+
+Here's a research assistant with custom tools, subagent delegation, RBAC, lifecycle hooks, and a slash command — all on one app object:
+
+```python
+from langclaw import Langclaw
+from langclaw.gateway.commands import CommandContext
+
+app = Langclaw(
+    system_prompt=(
+        "## Research Assistant\n"
+        "You are a financial research assistant.\n"
+        "Check stock prices before answering. For complex questions, "
+        "delegate to the deep-researcher subagent."
+    ),
+)
+
+# -- Custom tool: stock price lookup ------------------------------------------
+
+@app.tool()
+async def get_stock_price(ticker: str) -> dict:
+    """Fetch the latest quote for a US stock ticker."""
+    ...  # httpx call to Yahoo Finance
+    return {"ticker": ticker, "price": 182.52, "change_pct": "+1.23%"}
+
+# -- Subagent: deep research in isolated context ------------------------------
+
+app.subagent(
+    "deep-researcher",
+    description="Multi-step research using web search and synthesis",
+    system_prompt="You are a thorough researcher. Search, synthesise, cite.",
+    tools=["web_search", "web_fetch"],
+    output="channel",  # stream results directly to the user
+)
+
+# -- RBAC: who can use what ---------------------------------------------------
+
+app.role("analyst", tools=["*"])
+app.role("free", tools=["web_search"])
+
+# -- Command: bypasses the LLM entirely --------------------------------------
+
+@app.command("watchlist", description="show watchlist prices (no AI)")
+async def watchlist_cmd(ctx: CommandContext) -> str:
+    return "AAPL: $182.52 | MSFT: $441.20 | NVDA: $135.80"
+
+# -- Lifecycle hooks ----------------------------------------------------------
+
+@app.on_startup
+async def setup():
+    ...  # open DB connections, HTTP clients, etc.
+
+@app.on_shutdown
+async def teardown():
+    ...  # clean up resources
+
+if __name__ == "__main__":
+    app.run()
+```
+
+See [`examples/`](examples/) for complete, runnable versions.
+
+## Message Flow
+
+Every message — whether from a user or a cron job — follows the same path:
+
+```
+Channel (Telegram / Discord / WebSocket)
+    │
+    ├── /command ──▶ CommandRouter ──▶ instant response (no LLM)
+    │
+    └── message ──▶ InboundMessage ──▶ Message Bus
+                                          │
+                                    GatewayManager
+                                          │
+                                    SessionManager ──▶ Checkpointer
+                                          │
+                                    Middleware Pipeline
+                                    (RBAC → Rate Limit → Content Filter → PII)
+                                          │
+                                    LangGraph Agent ──▶ Tools / Subagents
+                                          │
+                                    OutboundMessage ──▶ Channel
+```
+
+Cron jobs publish `InboundMessage` to the same bus, flowing through the identical pipeline. Commands bypass everything — they're fast system operations handled before the bus.
+
+## Installation
 
 ```bash
 pip install langclaw
-langclaw init          # scaffold ~/.langclaw/ with config and workspace
 ```
 
-### Option A: Use the CLI (zero custom code)
+With channel and backend extras:
 
 ```bash
-# Configure channels and providers in .env or ~/.langclaw/config.json
-langclaw gateway       # start all enabled channels
+pip install "langclaw[telegram,postgres,rabbitmq]"
+
+# Or install everything:
+pip install "langclaw[all]"
 ```
 
-### Option B: Build your own system (the framework way)
+Available extras: `telegram`, `discord`, `websocket`, `postgres`, `rabbitmq`, `kafka`, `mcp`, `search`, `gmail`.
 
-```python
-# my_bot/app.py
-from langclaw import Langclaw
-
-app = Langclaw()
-
-@app.tool()
-async def my_custom_tool(query: str) -> str:
-    """A tool only my system needs."""
-    return f"Result: {query}"
-
-@app.tool(roles=["premium"])
-async def premium_analysis(data: str) -> str:
-    """Deep analysis — premium users only."""
-    return await run_analysis(data)
-
-app.role("premium", tools=["*"])
-app.role("free_tier", tools=["web_search", "my_custom_tool"])
-
-if __name__ == "__main__":
-    app.run()
-```
-
-### Register existing LangChain tools
-
-```python
-from langclaw import Langclaw
-from langchain_community.tools import WikipediaQueryRun
-
-app = Langclaw()
-app.register_tool(WikipediaQueryRun())
-app.run()
-```
-
-### Add custom channels
-
-```python
-from langclaw import Langclaw
-from my_project.channels import WhatsAppChannel
-
-app = Langclaw()
-app.add_channel(WhatsAppChannel(token="..."))
-app.run()
-```
-
-### Register subagents
-
-Subagents let the main agent delegate complex tasks to specialised child agents with isolated context. Results flow back through the main agent, keeping its context clean.
-
-```python
-from langclaw import Langclaw
-
-app = Langclaw()
-
-@app.tool()
-async def web_search(query: str) -> str:
-    """Search the web."""
-    return await do_search(query)
-
-app.subagent(
-    "researcher",
-    description="Conducts in-depth research using web search",
-    system_prompt="You are a thorough researcher. Search, synthesise, cite sources.",
-    tools=["web_search"],
-    model="openai:gpt-4.1",
-)
-
-app.subagent(
-    "analyst",
-    description="Analyses data and produces concise summaries",
-    system_prompt="You are a data analyst. Return key insights as bullet points.",
-)
-
-if __name__ == "__main__":
-    app.run()
-```
-
-### Use third-party tool packs
-
-```python
-from langclaw import Langclaw
-from langclaw_jira import jira_tools  # pip install langclaw-jira-tools
-
-app = Langclaw()
-app.register_tools(jira_tools)
-app.run()
-```
-
-## Architecture
-
-```mermaid
-flowchart TB
-    subgraph channels [Channels]
-        TG["Telegram"]
-        DC["Discord"]
-        WS["WebSocket"]
-    end
-
-    subgraph gateway [Gateway]
-        CR["CommandRouter"]
-        Bus["Message Bus"]
-        GM["GatewayManager"]
-    end
-
-    subgraph agent_layer [Agent]
-        MW["Middleware Pipeline"]
-        Agent["LangGraph Agent"]
-    end
-
-    subgraph tools [Tools]
-        FS["Filesystem / Memory"]
-        Web["Web Search & Fetch"]
-        CronTool["Cron Tool"]
-    end
-
-    subgraph infra [Infrastructure]
-        Providers["LLM Providers"]
-        Cron["CronManager\n(APScheduler)"]
-        Sessions["SessionManager"]
-        CP["Checkpointer"]
-    end
-
-    channels -- "/commands" --> CR
-    CR -- "response" --> channels
-    channels -- "InboundMessage" --> Bus
-    Bus --> GM
-    GM -- "OutboundMessage" --> channels
-
-    GM --> Sessions
-    Sessions --> CP
-    GM --> MW
-    MW --> Agent
-    Agent --> tools
-    Agent --> Providers
-
-    Cron -- "InboundMessage" --> Bus
-    CronTool -.-> Cron
-```
-
-### Data flow
-
-1. **User sends a message** on any channel (Telegram, Discord, WebSocket).
-2. **Commands** (`/start`, `/reset`, `/help`, `/cron`) are handled instantly by the `CommandRouter` — they bypass the bus and never reach the LLM.
-3. **Regular messages** are published as `InboundMessage` to the message bus.
-4. **GatewayManager** consumes from the bus, resolves (or creates) a LangGraph thread via `SessionManager`, and streams the message through the agent.
-5. **Middleware** runs before the LLM: channel context injection, RBAC tool filtering, rate limiting, content filtering, PII redaction.
-6. **The agent** (LangGraph) processes the message with access to tools — filesystem/memory, web search, web fetch, and cron scheduling — plus any custom tools registered via `@app.tool()`.
-7. **Streaming chunks** (tool calls, tool results, AI text) are converted to `OutboundMessage` and forwarded back to the originating channel.
-8. **Cron jobs** fire on schedule and publish `InboundMessage` to the same bus, flowing through the same agent pipeline as user messages.
-
-### Packages
+## Packages
 
 | Package | Purpose |
 |---|---|
-| `app.py` | `Langclaw` application class — the developer's primary interface |
-| `cli/` | CLI entry points (`langclaw gateway`, `langclaw cron list`, etc.) |
-| `gateway/` | Channel orchestration, command routing, message dispatch |
-| `bus/` | Message bus abstraction (asyncio, RabbitMQ, Kafka) |
-| `agents/` | LangGraph agent construction and tool wiring |
-| `middleware/` | Request pipeline (RBAC, rate limit, content filter, PII) |
-| `providers/` | LLM model resolution via LangChain `init_chat_model` |
-| `cron/` | Scheduled jobs via APScheduler v4 (SQLite/Postgres persistence) |
+| `app.py` | `Langclaw` class — the developer's primary interface (decorators, lifecycle, wiring) |
+| `agents/` | LangGraph agent construction, tool wiring, subagent delegation |
+| `gateway/` | Channel orchestration (`GatewayManager`), command routing, message dispatch |
+| `bus/` | Message bus abstraction — asyncio (dev), RabbitMQ / Kafka (prod) |
+| `middleware/` | Request pipeline: RBAC, rate limit, content filter, PII redaction |
+| `config/` | Pydantic Settings with `LANGCLAW__` env prefix (nested `__` delimiter) |
+| `cron/` | Scheduled jobs via APScheduler v4 |
 | `session/` | Maps (channel, user, context) to LangGraph thread IDs |
-| `checkpointer/` | Conversation state persistence (SQLite/Postgres) |
-| `config/` | Pydantic-settings configuration with env var support |
+| `checkpointer/` | Conversation state persistence — SQLite (dev), Postgres (prod) |
+| `providers/` | LLM model resolution via `init_chat_model` |
+| `cli/` | Typer CLI: `langclaw gateway`, `langclaw agent`, `langclaw cron`, `langclaw status` |
 
 ## Roadmap
 
-### Done
+### Shipped
 
-- [x] **Sub-agent delegation** — `app.subagent()` registers child agents with isolated context, RBAC middleware, and per-subagent model/tool sets
-- [x] **Channel-routed subagents** — subagents publish results directly to the originating channel via the message bus (`output="channel"`, `_direct_delivery` flag)
-- [x] **Guardrails middleware** — `ContentFilterMiddleware` (keyword/regex blocking) and `PIIMiddleware` (redaction) in the built-in middleware stack
-- [x] **Heartbeat / proactive wake-up** — event-driven condition checks that fire messages through the bus → agent pipeline (`heartbeat/watcher.py`)
+- **Subagent delegation** — `app.subagent()` registers child agents with isolated context and per-subagent model/tool sets
+- **Channel-routed subagents** — subagents can publish results directly to the originating channel (`output="channel"`)
+- **Guardrails middleware** — `ContentFilterMiddleware` (keyword/regex) and `PIIMiddleware` (redaction) in the built-in stack
+- **Heartbeat / proactive wake-up** — event-driven condition checks that fire messages through the agent pipeline
 
 ### Planned
 
-- [ ] **Multi-agent support** — named agents with distinct models and per-agent tool sets, routed by channel or user intent
-- [ ] **More channels** — Slack, WhatsApp, REST API gateway
-- [ ] **Test coverage** — increase test coverage across all modules
+- **Multi-agent routing** — named agents with distinct models, routed by channel or user intent
+- **More channels** — Slack, WhatsApp, REST API gateway
+- **Plugin ecosystem** — `langclaw-*` tool packs installable via pip
+- **Observability** — OpenTelemetry tracing for the full message flow
+- **Test coverage** — comprehensive tests across all modules
 
-## Further reading
+## Contributing
 
-- [Architecture](docs/ARCHITECTURE.md) — design principles, component deep-dive, and comparison with alternative frameworks
+```bash
+git clone https://github.com/tisu19021997/langclaw.git
+cd langclaw
+uv sync --group dev
+uv run pytest tests/ -v
+uv run ruff check . && uv run ruff format .
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.
