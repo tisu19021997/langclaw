@@ -1,20 +1,31 @@
 """
 Knowledge Base Bot — a multi-channel assistant that answers questions
-using web search, tracks token usage, and blocks off-topic requests.
+using a RAG subagent, tracks token usage, and blocks off-topic requests.
 
 Demonstrates
 ------------
-- ``@app.tool()``           — custom tool (company knowledge base lookup)
-- ``app.register_tool()``   — plug in existing LangChain community tools
-- ``app.add_middleware()``   — custom LangChain middleware (token-usage logger)
-- ``@app.command()``        — fast ``/usage`` command (bypasses the LLM)
-- ``app.role()``            — RBAC: admins get all tools, members are scoped
+- ``app.subagent(graph=...)``  — bring-your-own LangGraph RAG pipeline
+- ``app.add_middleware()``     — custom LangChain middleware (token-usage logger)
+- ``@app.command()``           — fast ``/usage`` command (bypasses the LLM)
+- ``app.role()``               — RBAC: admins get all tools, members are scoped
+
+RAG subagent
+------------
+A 2-node LangGraph ``StateGraph`` that the main agent delegates to via
+the ``task`` tool whenever the user asks a company-policy question:
+
+    retrieve  →  generate
+
+- **retrieve** — embeds the question, searches an ``InMemoryVectorStore``
+  seeded with company-policy sentences.
+- **generate** — feeds the retrieved context + question into an LLM and
+  returns a concise answer.
 
 Run
 ---
 1. Copy ``.env.example`` to ``.env`` and fill in at least one LLM provider key
    and one channel token.
-2. ``pip install 'langclaw[telegram]' duckduckgo-search``
+2. ``pip install 'langclaw[telegram]'``
 3. ``python examples/knowledge_base_bot.py``
 """
 
@@ -23,7 +34,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Annotated, Any
 
 from langchain.agents.middleware import (
     AgentMiddleware,
@@ -31,73 +42,120 @@ from langchain.agents.middleware import (
     ModelRequest,
     ModelResponse,
 )
+from langchain.chat_models import init_chat_model
+from langchain.embeddings import init_embeddings
+from langchain_core.messages import AIMessage
+from langchain_core.vectorstores import InMemoryVectorStore
+from langgraph.graph import END, START, StateGraph, add_messages
 from langgraph.runtime import Runtime
 from loguru import logger
+from typing_extensions import TypedDict
 
 from langclaw import Langclaw
 from langclaw.gateway.commands import CommandContext
 
-app = Langclaw()
-
-# ---------------------------------------------------------------------------
-# Custom tool — company knowledge base (simulated)
-# ---------------------------------------------------------------------------
-
-KB: dict[str, str] = {
-    "refund": (
-        "Refund policy: Full refund within 30 days of purchase. "
-        "After 30 days, store credit only. Contact support@example.com."
+app = Langclaw(
+    system_prompt=(
+        "## Knowledge Base Bot\n"
+        "You are a helpful support assistant for an e-commerce company.\n\n"
+        "- For company-policy questions (shipping, returns, refunds, "
+        "pricing, support hours, warranties, accounts, payments), "
+        "delegate to the **kb-rag** subagent.\n"
+        "- For general questions, answer directly."
     ),
-    "shipping": (
-        "Standard shipping: 5-7 business days. "
-        "Express: 1-2 business days ($12.99). Free shipping over $50."
-    ),
-    "hours": "Support hours: Mon-Fri 9 AM - 6 PM EST. Closed weekends.",
-    "returns": (
-        "Returns accepted within 30 days. Item must be unused and in "
-        "original packaging. Start a return at example.com/returns."
-    ),
-}
-
-
-@app.tool()
-async def lookup_policy(
-    query: Literal["refund", "shipping", "hours", "returns"],
-) -> str:
-    """Search the company knowledge base for policy and support info.
-
-    Args:
-        query: A keyword or topic to look up (e.g. "refund", "shipping").
-
-    Returns:
-        The matching knowledge base entry, or a not-found message.
-    """
-    key = query.strip().lower()
-    for kb_key, answer in KB.items():
-        if kb_key in key or key in kb_key:
-            return answer
-    return f"No knowledge base entry found for '{query}'. Try: {', '.join(KB)}."
-
+)
 
 # ---------------------------------------------------------------------------
-# Register existing LangChain community tools
+# Company knowledge base — sentences embedded into a vector store
 # ---------------------------------------------------------------------------
 
-try:
-    from langchain_community.tools import DuckDuckGoSearchResults
+KB_SENTENCES = [
+    "Refund policy: full refund within 30 days of purchase for unused items.",
+    "After 30 days, only store credit is available. Contact support@example.com.",
+    "Standard shipping takes 5-7 business days and is free on orders over $50.",
+    "Express shipping costs $12.99 and delivers in 1-2 business days.",
+    "International shipping is available to 40+ countries; fees calculated at checkout.",
+    "Returns are accepted within 30 days. Items must be unused and in original packaging.",
+    "Start a return at example.com/returns or contact our support team.",
+    "Defective items may be returned within 90 days for a full replacement.",
+    "Support hours are Monday through Friday, 9 AM to 6 PM Eastern Time.",
+    "Weekend support is available via email only — expect a response within 24 hours.",
+    "Live chat is available during business hours at example.com/chat.",
+    "All electronics come with a 1-year manufacturer warranty.",
+    "Extended warranty plans (2 or 3 years) can be purchased at checkout.",
+    "We accept Visa, Mastercard, AMEX, PayPal, and Apple Pay.",
+    "Gift cards never expire and can be used on any product in our store.",
+    "Loyalty members earn 2 points per dollar spent. 500 points = $10 discount.",
+    "Price matching is available within 14 days of purchase if you find a lower price.",
+    "Bulk orders of 50+ units receive a 15% discount — email sales@example.com.",
+    "Account deletion requests are processed within 5 business days.",
+    "Two-factor authentication is available in your account security settings.",
+]
 
-    ddg = DuckDuckGoSearchResults(
-        name="web_search",
-        description="Search the web for recent information not in the knowledge base.",
-        num_results=3,
+embeddings = init_embeddings("azure_openai:text-embedding-3-small")
+vectorstore = InMemoryVectorStore.from_texts(KB_SENTENCES, embedding=embeddings)
+retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+
+logger.info("Retriever is ready!")
+
+# ---------------------------------------------------------------------------
+# RAG subagent graph — retrieve → generate
+# ---------------------------------------------------------------------------
+
+
+class RAGState(TypedDict):
+    messages: Annotated[list, add_messages]
+    context: str
+
+
+rag_llm = init_chat_model("azure_openai:gpt-5-mini")
+
+
+def retrieve(state: RAGState) -> dict[str, Any]:
+    """Embed the question and retrieve relevant KB passages."""
+    question = state["messages"][-1].content
+    docs = retriever.invoke(question)
+    context = "\n".join(doc.page_content for doc in docs)
+    return {"context": context}
+
+
+def generate(state: RAGState) -> dict[str, Any]:
+    """Answer the question using retrieved context."""
+    question = state["messages"][-1].content
+    context = state.get("context", "")
+    prompt = (
+        "You are a company support assistant. Use ONLY the context below "
+        "to answer the question. If the context doesn't contain the "
+        "answer, say you don't know.\n\n"
+        f"Context:\n{context}\n\n"
+        f"Question: {question}"
     )
-    app.register_tool(ddg)
-    logger.info("DuckDuckGo search tool registered")
-except ImportError:
-    logger.info(
-        "langchain-community not installed — web search skipped. "
-        "Install with: pip install langchain-community duckduckgo-search"
-    )
+    response = rag_llm.invoke([{"role": "user", "content": prompt}])
+    return {"messages": [AIMessage(content=response.content)]}
+
+
+workflow = StateGraph(RAGState)
+workflow.add_node("retrieve", retrieve)
+workflow.add_node("generate", generate)
+workflow.add_edge(START, "retrieve")
+workflow.add_edge("retrieve", "generate")
+workflow.add_edge("generate", END)
+
+rag_graph = workflow.compile()
+
+# ---------------------------------------------------------------------------
+# Register the RAG graph as a subagent
+# ---------------------------------------------------------------------------
+
+app.subagent(
+    "kb-rag",
+    description=(
+        "Answers company-policy questions (shipping, returns, refunds, "
+        "warranties, payments, support hours, accounts) using a knowledge "
+        "base. Delegate any policy-related question to this subagent."
+    ),
+    graph=rag_graph,
+)
 
 # ---------------------------------------------------------------------------
 # Custom middleware — token-usage tracker (LangChain AgentMiddleware)
@@ -133,10 +191,11 @@ class UsageTrackerMiddleware(AgentMiddleware):
         user_id = self._get_user_id(request)
         _usage_log[user_id]["calls"] += 1
 
-        usage = getattr(response, "usage_metadata", None)
+        last_msg = response.result[-1] if response.result else None
+        usage = getattr(last_msg, "usage_metadata", None) if last_msg else None
         if usage:
-            _usage_log[user_id]["input_tokens"] += getattr(usage, "input_tokens", 0)
-            _usage_log[user_id]["output_tokens"] += getattr(usage, "output_tokens", 0)
+            _usage_log[user_id]["input_tokens"] += usage.get("input_tokens", 0)
+            _usage_log[user_id]["output_tokens"] += usage.get("output_tokens", 0)
         logger.debug("Usage for {}: {}", user_id, dict(_usage_log[user_id]))
 
         return response
@@ -180,7 +239,7 @@ async def usage_cmd(ctx: CommandContext) -> str:
 # ---------------------------------------------------------------------------
 
 app.role("admin", tools=["*"])
-app.role("member", tools=["lookup_knowledge_base", "web_search"])
+app.role("member", tools=["web_search"])
 
 
 # ---------------------------------------------------------------------------

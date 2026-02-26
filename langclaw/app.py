@@ -36,6 +36,7 @@ from langclaw.gateway.commands import CommandContext
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
+    from langchain_core.runnables import Runnable
     from langgraph.graph.state import CompiledStateGraph
     from langgraph.types import Checkpointer
 
@@ -218,7 +219,8 @@ class Langclaw:
         name: str,
         *,
         description: str,
-        system_prompt: str,
+        graph: Runnable | dict[str, Any] | None = None,
+        system_prompt: str | None = None,
         tools: list[str] | None = None,
         model: str | BaseChatModel | None = None,
         roles: list[str] | None = None,
@@ -230,28 +232,59 @@ class Langclaw:
         provided by deepagents.  Each subagent runs in an isolated
         context and returns a single result.
 
+        There are three ways to define what the subagent does:
+
+        1. **Declarative** — pass ``system_prompt`` (and optionally
+           ``tools``, ``model``).  Langclaw builds the agent, resolves
+           tool names, and injects its middleware.
+
+        2. **Pre-built graph** — pass a ``Runnable`` or
+           ``CompiledStateGraph`` via ``graph``.  Langclaw wraps it
+           into a deepagents ``CompiledSubAgent`` and passes it through
+           as-is.  The runnable's state schema **must** include a
+           ``messages`` key.
+
+        3. **deepagents dict** — pass a ``SubAgent`` or
+           ``CompiledSubAgent`` TypedDict via ``graph``.  For
+           ``SubAgent`` dicts, Langclaw prepends its middleware
+           (channel context, RBAC).  ``CompiledSubAgent`` dicts (with
+           a ``runnable`` key) are passed through unchanged.
+
+        When ``graph`` is ``None``, ``system_prompt`` is required.
+
         Args:
             name:          Unique identifier used by the main agent when
                            calling the ``task`` tool.
             description:   What this subagent does.  Be specific —
                            the main agent uses this to decide when to
                            delegate.
-            system_prompt: Instructions for the subagent.
-            tools:         Tool **names** this subagent may use.  Resolved
-                           at build time against all registered tools.
-                           ``None`` inherits the main agent's full tool set.
-            model:         Override the main agent's model for this
-                           subagent.  Accepts ``"provider:model"`` strings
-                           or a ``BaseChatModel`` instance.
+            graph:         A pre-built ``Runnable``, ``CompiledStateGraph``,
+                           or deepagents ``SubAgent``/``CompiledSubAgent``
+                           dict.  Mutually exclusive with ``system_prompt``.
+            system_prompt: Instructions for the subagent (declarative mode).
+                           Required when ``graph`` is not provided.
+            tools:         Tool **names** this subagent may use (declarative
+                           mode only).  Resolved at build time against all
+                           registered tools.  ``None`` inherits the main
+                           agent's full tool set.
+            model:         Override the main agent's model (declarative mode
+                           only).  Accepts ``"provider:model"`` strings or
+                           a ``BaseChatModel`` instance.
             roles:         Reserved for future RBAC scoping of which user
                            roles may trigger this subagent.
             output:        ``"main_agent"`` (default) returns the result
                            to the main agent.  ``"channel"`` publishes
                            the result directly to the originating channel
-                           via the message bus (Phase 2).
+                           via the message bus (declarative mode only).
+
+        Raises:
+            ValueError: If neither ``graph`` nor ``system_prompt`` is
+                        provided, or if both are provided, or if
+                        ``output`` is invalid.
 
         Example::
 
+            # Declarative — Langclaw builds the agent
             app.subagent(
                 "researcher",
                 description="Researches topics using web search",
@@ -259,12 +292,59 @@ class Langclaw:
                 tools=["web_search", "web_fetch"],
                 model="openai:gpt-4.1",
             )
+
+            # Pre-built LangGraph graph
+            my_graph = create_agent("openai:gpt-4.1", tools=[...])
+            app.subagent(
+                "my-graph",
+                description="Custom LangGraph pipeline",
+                graph=my_graph,
+            )
+
+            # deepagents SubAgent dict
+            app.subagent(
+                "analyst",
+                description="Financial analyst",
+                graph={
+                    "system_prompt": "Analyze data.",
+                    "tools": [my_tool],
+                    "model": "openai:gpt-4.1",
+                },
+            )
         """
+        from langchain_core.runnables import Runnable as _Runnable
+
+        if graph is not None and system_prompt is not None:
+            raise ValueError(
+                "'graph' and 'system_prompt' are mutually exclusive. "
+                "Use 'graph' to bring a pre-built agent, or "
+                "'system_prompt' for Langclaw to build one."
+            )
+
+        if graph is not None:
+            if isinstance(graph, _Runnable):
+                self._subagents.append(
+                    {
+                        "name": name,
+                        "description": description,
+                        "runnable": graph,
+                    }
+                )
+            elif isinstance(graph, dict):
+                self._subagents.append({**graph, "name": name, "description": description})
+            else:
+                raise TypeError(f"'graph' must be a Runnable or dict, got {type(graph).__name__}")
+            return
+
+        if system_prompt is None:
+            raise ValueError("Either 'graph' or 'system_prompt' is required.")
+
         if output not in ("main_agent", "channel"):
             raise ValueError(
                 f"Invalid output mode {output!r} for subagent {name!r}. "
                 "Must be 'main_agent' or 'channel'."
             )
+
         self._subagents.append(
             {
                 "name": name,
@@ -339,7 +419,7 @@ class Langclaw:
             cron_manager=cron_manager,
             extra_tools=self._extra_tools or None,
             extra_middleware=self._extra_middleware or None,
-            extra_subagents=self._subagents or None,
+            subagents=self._subagents or None,
             system_prompt=self._system_prompt,
             bus=bus,
             model=model,

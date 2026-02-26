@@ -313,6 +313,276 @@ class TestBuildDeepagentSubagents:
 
 
 # ---------------------------------------------------------------------------
+# BYOA — app.subagent(graph=...) registration
+# ---------------------------------------------------------------------------
+
+
+class _FakeRunnable:
+    """Minimal Runnable stand-in for tests."""
+
+    def invoke(self, state):
+        return {"messages": []}
+
+    async def ainvoke(self, state):
+        return {"messages": []}
+
+
+class TestSubagentGraph:
+    """Verify that app.subagent(graph=...) validates and stores specs."""
+
+    def test_graph_runnable(self):
+        from langchain_core.runnables import RunnableLambda
+
+        from langclaw import Langclaw
+
+        app = Langclaw()
+        runnable = RunnableLambda(lambda x: {"messages": []})
+        app.subagent(
+            "my-graph",
+            description="Custom pipeline",
+            graph=runnable,
+        )
+        assert len(app._subagents) == 1
+        spec = app._subagents[0]
+        assert spec["name"] == "my-graph"
+        assert spec["description"] == "Custom pipeline"
+        assert spec["runnable"] is runnable
+
+    def test_graph_subagent_dict(self):
+        from langclaw import Langclaw
+
+        app = Langclaw()
+        app.subagent(
+            "analyst",
+            description="Financial analyst",
+            graph={
+                "system_prompt": "Analyze data.",
+                "tools": [],
+                "model": "openai:gpt-4.1",
+            },
+        )
+        assert len(app._subagents) == 1
+        spec = app._subagents[0]
+        assert spec["name"] == "analyst"
+        assert spec["description"] == "Financial analyst"
+        assert spec["system_prompt"] == "Analyze data."
+        assert spec["model"] == "openai:gpt-4.1"
+
+    def test_graph_compiled_subagent_dict(self):
+        from langclaw import Langclaw
+
+        app = Langclaw()
+        runnable = _FakeRunnable()
+        app.subagent(
+            "compiled",
+            description="Pre-compiled",
+            graph={"runnable": runnable},
+        )
+        spec = app._subagents[0]
+        assert spec["name"] == "compiled"
+        assert spec["description"] == "Pre-compiled"
+        assert spec["runnable"] is runnable
+
+    def test_graph_dict_name_overridden(self):
+        """Method args take precedence over dict keys."""
+        from langclaw import Langclaw
+
+        app = Langclaw()
+        app.subagent(
+            "override-name",
+            description="Override desc",
+            graph={
+                "name": "dict-name",
+                "description": "dict desc",
+                "system_prompt": "X.",
+            },
+        )
+        spec = app._subagents[0]
+        assert spec["name"] == "override-name"
+        assert spec["description"] == "Override desc"
+
+    def test_graph_raw_runnable_via_runnablelambda(self):
+        from langchain_core.runnables import RunnableLambda
+
+        from langclaw import Langclaw
+
+        app = Langclaw()
+        runnable = RunnableLambda(lambda x: {"messages": []})
+        app.subagent(
+            "my-lambda",
+            description="A lambda agent",
+            graph=runnable,
+        )
+        spec = app._subagents[0]
+        assert spec["name"] == "my-lambda"
+        assert spec["runnable"] is runnable
+
+    def test_graph_invalid_type_raises(self):
+        from langclaw import Langclaw
+
+        app = Langclaw()
+        with pytest.raises(TypeError, match="Runnable or dict"):
+            app.subagent(
+                "bad",
+                description="Bad",
+                graph="not_valid",  # type: ignore[arg-type]
+            )
+
+    def test_graph_and_system_prompt_mutually_exclusive(self):
+        from langclaw import Langclaw
+
+        app = Langclaw()
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            app.subagent(
+                "bad",
+                description="Bad",
+                graph=_FakeRunnable(),
+                system_prompt="Conflict.",
+            )
+
+    def test_neither_graph_nor_system_prompt_raises(self):
+        from langclaw import Langclaw
+
+        app = Langclaw()
+        with pytest.raises(ValueError, match="'graph' or 'system_prompt'"):
+            app.subagent("bad", description="Bad")
+
+    def test_all_types_in_single_list(self):
+        from langchain_core.runnables import RunnableLambda
+
+        from langclaw import Langclaw
+
+        app = Langclaw()
+        app.subagent("a", description="A", system_prompt="A.")
+        app.subagent(
+            "b",
+            description="B",
+            graph=RunnableLambda(lambda x: {"messages": []}),
+        )
+        app.subagent(
+            "c",
+            description="C",
+            graph={"system_prompt": "C.", "tools": []},
+        )
+        assert len(app._subagents) == 3
+        assert [s["name"] for s in app._subagents] == ["a", "b", "c"]
+        assert "output" in app._subagents[0]
+        assert "runnable" in app._subagents[1]
+        assert "output" not in app._subagents[2]
+
+
+# ---------------------------------------------------------------------------
+# BYOA — _prepare_external_subagents middleware injection
+# ---------------------------------------------------------------------------
+
+
+class TestPrepareExternalSubagents:
+    """Verify middleware injection for external subagent specs."""
+
+    def _make_config(self, permissions_enabled: bool = False):
+        from langclaw.config.schema import LangclawConfig
+
+        cfg = LangclawConfig()
+        cfg.permissions.enabled = permissions_enabled
+        if permissions_enabled:
+            from langclaw.config.schema import RoleConfig
+
+            cfg.permissions.roles = {"viewer": RoleConfig(tools=["web_search"])}
+        return cfg
+
+    def test_compiled_passthrough(self):
+        from langclaw.agents.builder import _prepare_external_subagents
+
+        runnable = _FakeRunnable()
+        specs = [{"name": "g", "description": "G", "runnable": runnable}]
+        result = _prepare_external_subagents(specs, self._make_config())
+        assert len(result) == 1
+        assert result[0]["runnable"] is runnable
+        assert "middleware" not in result[0]
+
+    def test_subagent_gets_langclaw_middleware(self):
+        from langclaw.agents.builder import _prepare_external_subagents
+        from langclaw.middleware.channel_context import ChannelContextMiddleware
+
+        specs = [
+            {
+                "name": "analyst",
+                "description": "Analyst",
+                "system_prompt": "Analyze.",
+            }
+        ]
+        result = _prepare_external_subagents(specs, self._make_config())
+        assert len(result) == 1
+        mw_types = [type(m) for m in result[0]["middleware"]]
+        assert ChannelContextMiddleware in mw_types
+
+    def test_subagent_gets_rbac_when_enabled(self):
+        from langclaw.agents.builder import _prepare_external_subagents
+
+        specs = [
+            {
+                "name": "analyst",
+                "description": "Analyst",
+                "system_prompt": "Analyze.",
+            }
+        ]
+        config = self._make_config(permissions_enabled=True)
+        result = _prepare_external_subagents(specs, config)
+        assert len(result[0]["middleware"]) == 2
+
+    def test_subagent_no_rbac_when_disabled(self):
+        from langclaw.agents.builder import _prepare_external_subagents
+
+        specs = [
+            {
+                "name": "analyst",
+                "description": "Analyst",
+                "system_prompt": "Analyze.",
+            }
+        ]
+        result = _prepare_external_subagents(specs, self._make_config())
+        assert len(result[0]["middleware"]) == 1
+
+    def test_preserves_user_middleware(self):
+        """User-provided middleware should come after Langclaw's."""
+        from langclaw.agents.builder import _prepare_external_subagents
+        from langclaw.middleware.channel_context import ChannelContextMiddleware
+
+        class _UserMiddleware:
+            pass
+
+        user_mw = _UserMiddleware()
+        specs = [
+            {
+                "name": "analyst",
+                "description": "Analyst",
+                "system_prompt": "Analyze.",
+                "middleware": [user_mw],
+            }
+        ]
+        result = _prepare_external_subagents(specs, self._make_config())
+        mw = result[0]["middleware"]
+        assert isinstance(mw[0], ChannelContextMiddleware)
+        assert mw[-1] is user_mw
+
+    def test_mixed_specs(self):
+        """Compiled and uncompiled specs in the same list."""
+        from langclaw.agents.builder import _prepare_external_subagents
+
+        runnable = _FakeRunnable()
+        specs = [
+            {"name": "compiled", "description": "C", "runnable": runnable},
+            {"name": "declarative", "description": "D", "system_prompt": "D."},
+        ]
+        result = _prepare_external_subagents(specs, self._make_config())
+        assert len(result) == 2
+        assert result[0]["runnable"] is runnable
+        assert "middleware" not in result[0]
+        assert "middleware" in result[1]
+        assert "runnable" not in result[1]
+
+
+# ---------------------------------------------------------------------------
 # Phase 2 — channel-routed subagent wrapper
 # ---------------------------------------------------------------------------
 

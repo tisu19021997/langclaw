@@ -112,6 +112,38 @@ def _build_deepagent_subagents(
     return result
 
 
+def _prepare_external_subagents(
+    specs: list[dict[str, Any]],
+    config: LangclawConfig,
+) -> list[dict[str, Any]]:
+    """Prepare user-provided SubAgent / CompiledSubAgent dicts for deepagents.
+
+    ``CompiledSubAgent`` dicts (containing ``"runnable"``) pass through
+    unchanged — the user controls everything.
+
+    ``SubAgent`` dicts (declarative, no ``"runnable"``) get Langclaw
+    middleware prepended (channel context and, when enabled, RBAC) so
+    they participate in the same request pipeline as Langclaw-managed
+    subagents.
+    """
+    result: list[dict[str, Any]] = []
+    for spec in specs:
+        if "runnable" in spec:
+            result.append(spec)
+            continue
+
+        sa_middleware: list[Any] = [ChannelContextMiddleware()]
+        if config.permissions.enabled:
+            sa_middleware.append(
+                build_tool_permission_middleware(config.permissions),
+            )
+
+        existing_mw = list(spec.get("middleware", []))
+        prepared = {**spec, "middleware": sa_middleware + existing_mw}
+        result.append(prepared)
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
@@ -125,7 +157,7 @@ def create_claw_agent(
     extra_tools: list[BaseTool | Any] | None = None,
     extra_skills: list[str] | None = None,
     extra_middleware: list[AgentMiddleware] | None = None,
-    extra_subagents: list[dict[str, Any]] | None = None,
+    subagents: list[dict[str, Any]] | None = None,
     system_prompt: str | None = None,
     bus: BaseMessageBus | None = None,
     model: BaseChatModel | None = None,
@@ -138,27 +170,35 @@ def create_claw_agent(
     capabilities stack on top via ``extra_tools`` and ``extra_skills``.
 
     Args:
-        config:           Loaded LangclawConfig.
-        checkpointer:     LangGraph ``BaseCheckpointSaver`` for persisting
-                          conversation state across turns. Without this the
-                          agent starts fresh on every message.
-        cron_manager:     Running ``CronManager`` instance. When provided and
-                          ``config.cron.enabled`` is ``True``, the ``cron``
-                          tool is added as a default tool so the agent can
-                          schedule, list, and remove recurring jobs.
-        extra_tools:      Additional LangChain tools beyond the defaults.
-        extra_skills:     Paths to directories containing ``SKILL.md`` files.
-        extra_middleware:  Additional ``AgentMiddleware`` instances inserted
-                          after the built-in middleware stack.
-        extra_subagents:  Langclaw subagent specs registered via
-                          ``app.subagent()``.  Converted to deepagents
-                          ``SubAgent`` dicts internally.
-        system_prompt:    Extra instructions appended after the base
-                          ``AGENTS.md``.  ``None`` means use the base
-                          prompt only.
-        bus:              Running ``BaseMessageBus`` — required when any
-                          subagent uses ``output="channel"`` (Phase 2).
-        model:            Pre-built chat model. If omitted, resolved from config.
+        config:          Loaded LangclawConfig.
+        checkpointer:    LangGraph ``BaseCheckpointSaver`` for persisting
+                         conversation state across turns. Without this the
+                         agent starts fresh on every message.
+        cron_manager:    Running ``CronManager`` instance. When provided and
+                         ``config.cron.enabled`` is ``True``, the ``cron``
+                         tool is added as a default tool so the agent can
+                         schedule, list, and remove recurring jobs.
+        extra_tools:     Additional LangChain tools beyond the defaults.
+        extra_skills:    Paths to directories containing ``SKILL.md`` files.
+        extra_middleware: Additional ``AgentMiddleware`` instances inserted
+                         after the built-in middleware stack.
+        subagents:       Unified list of subagent specs.  Partitioned by
+                         shape at build time:
+
+                         - Dicts with ``"output"`` — Langclaw declarative
+                           specs.  Tool names are resolved and channel-
+                           routing is handled.
+                         - Dicts with ``"runnable"`` — ``CompiledSubAgent``
+                           pass-throughs.  Used as-is by deepagents.
+                         - Other dicts — external ``SubAgent`` specs.
+                           Langclaw middleware is injected before passing
+                           to deepagents.
+        system_prompt:   Extra instructions appended after the base
+                         ``AGENTS.md``.  ``None`` means use the base
+                         prompt only.
+        bus:             Running ``BaseMessageBus`` — required when any
+                         subagent uses ``output="channel"`` (Phase 2).
+        model:           Pre-built chat model. If omitted, resolved from config.
 
     Returns:
         A compiled LangGraph runnable (CompiledGraph) ready for ``.invoke``
@@ -224,16 +264,21 @@ def create_claw_agent(
     context_schema = LangclawContext
 
     # --- Subagents -----------------------------------------------------------
-    subagents: list[dict[str, Any]] | None = None
-    if extra_subagents:
-        main_agent_subagents = _build_deepagent_subagents(
-            extra_subagents,
-            tools,
-            config,
-        )
+    # Partition by shape:
+    #   "runnable" key  → CompiledSubAgent (pass through)
+    #   "output" key    → Langclaw declarative (tool resolution + channel routing)
+    #   otherwise       → external SubAgent dict (middleware injection only)
+    managed_specs = [s for s in (subagents or []) if "output" in s]
+    external_specs = [s for s in (subagents or []) if "output" not in s and "runnable" not in s]
+    compiled_specs = [s for s in (subagents or []) if "runnable" in s]
 
-        channel_routed_specs = [s for s in extra_subagents if s.get("output") == "channel"]
-        if channel_routed_specs:
+    resolved_subagents: list[dict[str, Any]] = list(compiled_specs)
+
+    if managed_specs:
+        resolved_subagents.extend(_build_deepagent_subagents(managed_specs, tools, config))
+
+        channel_routed = [s for s in managed_specs if s.get("output") == "channel"]
+        if channel_routed:
             from langclaw.agents.subagents import build_channel_routed_subagent
 
             if bus is None:
@@ -243,9 +288,9 @@ def create_claw_agent(
                     "by app.run(); if using create_claw_agent directly, pass "
                     "the bus= argument."
                 )
-            for spec in channel_routed_specs:
+            for spec in channel_routed:
                 sa_tools = _resolve_tools_by_name(spec.get("tools"), tools)
-                main_agent_subagents.append(
+                resolved_subagents.append(
                     build_channel_routed_subagent(
                         spec=spec,
                         bus=bus,
@@ -255,8 +300,10 @@ def create_claw_agent(
                     )
                 )
 
-        if main_agent_subagents:
-            subagents = main_agent_subagents
+    if external_specs:
+        resolved_subagents.extend(_prepare_external_subagents(external_specs, config))
+
+    final_subagents: list[dict[str, Any]] | None = resolved_subagents or None
 
     return create_deep_agent(
         model=resolved_model,
@@ -270,5 +317,5 @@ def create_claw_agent(
         ),
         middleware=middleware,
         context_schema=context_schema,
-        subagents=subagents,
+        subagents=final_subagents,
     )
