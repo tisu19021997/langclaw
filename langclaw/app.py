@@ -21,12 +21,17 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from loguru import logger
 
 from langclaw.agents.builder import create_claw_agent
-from langclaw.config.schema import LangclawConfig, PermissionsConfig, RoleConfig, load_config
+from langclaw.config.schema import (
+    LangclawConfig,
+    PermissionsConfig,
+    RoleConfig,
+    load_config,
+)
 from langclaw.gateway.commands import CommandContext
 
 if TYPE_CHECKING:
@@ -217,7 +222,7 @@ class Langclaw:
         tools: list[str] | None = None,
         model: str | BaseChatModel | None = None,
         roles: list[str] | None = None,
-        output: str = "main_agent",
+        output: Literal["main_agent", "channel"] = "main_agent",
     ) -> None:
         """Register a subagent that the main agent can delegate tasks to.
 

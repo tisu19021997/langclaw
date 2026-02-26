@@ -3,6 +3,33 @@ name = "langclaw"
 version = "0.1.0"
 requires-python = ">=3.11"
 description = "Production-ready multi-channel AI agent framework built on langchain 1.0, langgraph, and deepagents"
+license = "MIT"
+readme = "README.md"
+authors = [
+    { name = "Quang Pham", email = "quangphamm1902@gmail.com" },
+]
+keywords = [
+    "langchain",
+    "langgraph",
+    "ai-agent",
+    "chatbot",
+    "multi-channel",
+    "telegram-bot",
+    "discord-bot",
+    "conversational-ai",
+    "agent-framework",
+    "llm",
+    "openclaw"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
 dependencies = [
     "langchain>=1.0",
     "langgraph>=0.4",
@@ -37,6 +64,11 @@ all      = ["langclaw[telegram,discord,websocket,postgres,rabbitmq,kafka,mcp,sea
 
 [project.scripts]
 langclaw = "langclaw.cli.app:app"
+
+[project.urls]
+Homepage = "https://github.com/tisu19021997/langclaw"
+Repository = "https://github.com/tisu19021997/langclaw"
+Issues = "https://github.com/tisu19021997/langclaw/issues"
 
 [build-system]
 requires = ["hatchling"]
