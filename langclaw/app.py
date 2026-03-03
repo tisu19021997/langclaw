@@ -32,6 +32,7 @@ from langclaw.config.schema import (
     RoleConfig,
     load_config,
 )
+from langclaw.context import LangclawContext
 from langclaw.gateway.commands import CommandContext
 
 if TYPE_CHECKING:
@@ -40,7 +41,7 @@ if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
     from langgraph.types import Checkpointer
 
-    from langclaw.bus.base import BaseMessageBus
+    from langclaw.bus.base import BaseMessageBus, InboundMessage
     from langclaw.cron.scheduler import CronManager
     from langclaw.gateway.base import BaseChannel
 
@@ -77,6 +78,8 @@ class Langclaw:
                                    "Always check stock prices before answering."
                                ),
                            )
+        context_schema: Custom context schema to use for the agent. If omitted,
+                       uses the default LangclawContext.
     """
 
     def __init__(
@@ -84,9 +87,11 @@ class Langclaw:
         config: LangclawConfig | None = None,
         *,
         system_prompt: str | None = None,
+        context_schema: type[LangclawContext] | None = None,
     ) -> None:
         self._config = config or load_config()
         self._system_prompt = system_prompt
+        self._context_schema = context_schema
         self._extra_tools: list[Any] = []
         self._extra_channels: list[BaseChannel] = []
         self._extra_middleware: list[Any] = []
@@ -95,6 +100,11 @@ class Langclaw:
         self._subagents: list[dict[str, Any]] = []
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
+        self._bus: BaseMessageBus | None = None
+        self._context_defaults: dict[str, Any] = {}
+        self._context_factory: (
+            Callable[[InboundMessage, dict[str, Any]], Awaitable[LangclawContext]] | None
+        ) = None
 
     @classmethod
     def from_env(cls) -> Langclaw:
@@ -105,6 +115,10 @@ class Langclaw:
     def config(self) -> LangclawConfig:
         """The resolved configuration object."""
         return self._config
+
+    def get_bus(self) -> BaseMessageBus | None:
+        """Return the running message bus, or ``None`` if not yet started."""
+        return self._bus
 
     # ------------------------------------------------------------------
     # Tool registration
@@ -384,6 +398,40 @@ class Langclaw:
         return fn
 
     # ------------------------------------------------------------------
+    # Context hooks
+    # ------------------------------------------------------------------
+
+    def set_context_defaults(self, **kwargs: Any) -> None:
+        """Set extra kwargs merged into context construction.
+
+        Use for app-level singletons like service clients or shared runners
+        that every context instance needs.
+
+        Args:
+            **kwargs: Extra keyword arguments to pass to the context schema.
+        """
+        self._context_defaults.update(kwargs)
+
+    def context_factory(
+        self,
+        fn: Callable[[InboundMessage, dict[str, Any]], Awaitable[LangclawContext]],
+    ) -> Callable[[InboundMessage, dict[str, Any]], Awaitable[LangclawContext]]:
+        """Decorator to register a per-message context factory.
+
+        The factory receives the inbound message and base kwargs dict,
+        and must return a context instance. Takes precedence over
+        ``set_context_defaults()`` when set.
+
+        Args:
+            fn: Async callable ``(msg, base_kwargs) -> LangclawContext``.
+
+        Returns:
+            The original function.
+        """
+        self._context_factory = fn
+        return fn
+
+    # ------------------------------------------------------------------
     # Agent creation (lower-level API for REPL / tests)
     # ------------------------------------------------------------------
 
@@ -394,6 +442,7 @@ class Langclaw:
         cron_manager: CronManager | None = None,
         model: BaseChatModel | None = None,
         bus: BaseMessageBus | None = None,
+        context_schema: type[LangclawContext] | None = None,
     ) -> CompiledStateGraph:
         """Build the agent with all registered tools, middleware, and roles.
 
@@ -423,6 +472,7 @@ class Langclaw:
             system_prompt=self._system_prompt,
             bus=bus,
             model=model,
+            context_schema=context_schema,
         )
 
     # ------------------------------------------------------------------
@@ -453,7 +503,7 @@ class Langclaw:
         bus_cfg = cfg.bus
         cp_cfg = cfg.checkpointer
 
-        bus = make_message_bus(
+        bus = self._bus = make_message_bus(
             bus_cfg.backend,
             rabbitmq_url=bus_cfg.rabbitmq.amqp_url,
             rabbitmq_queue=bus_cfg.rabbitmq.queue_name,
@@ -490,6 +540,7 @@ class Langclaw:
                     checkpointer=checkpointer_backend.get(),
                     cron_manager=cron_manager,
                     bus=bus,
+                    context_schema=self._context_schema,
                 )
 
                 manager = GatewayManager(
@@ -500,6 +551,9 @@ class Langclaw:
                     channels=channels,
                     cron_manager=cron_manager,
                     extra_commands=self._extra_commands or None,
+                    context_schema=self._context_schema,
+                    context_defaults=self._context_defaults,
+                    context_factory=self._context_factory,
                 )
 
                 cron_status = "enabled" if cron_manager else "disabled"
@@ -512,6 +566,7 @@ class Langclaw:
                 )
                 await manager.run()
         finally:
+            self._bus = None
             for hook in self._shutdown_hooks:
                 await hook()
 
