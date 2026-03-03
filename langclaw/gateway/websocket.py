@@ -185,8 +185,8 @@ class WebSocketChannel(BaseChannel):
                         context_id=conn.context_id,
                         chat_id=f"{conn.user_id}:{conn.context_id}",
                         content=content,
+                        origin="channel",
                         metadata={
-                            "source": "channel",
                             "platform": "websocket",
                         },
                     )

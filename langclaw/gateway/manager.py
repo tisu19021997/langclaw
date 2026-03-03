@@ -63,6 +63,11 @@ class GatewayManager:
         extra_commands: (
             list[tuple[str, Callable[[CommandContext], Awaitable[str]], str]] | None
         ) = None,
+        context_schema: type[LangclawContext] | None = None,
+        context_defaults: dict[str, Any] | None = None,
+        context_factory: (
+            Callable[[InboundMessage, dict[str, Any]], Awaitable[LangclawContext]] | None
+        ) = None,
     ) -> None:
         self._config = config
         self._bus = bus
@@ -70,6 +75,9 @@ class GatewayManager:
         self._agent = agent
         self._channels = [ch for ch in channels if ch.is_enabled()]
         self._cron_manager = cron_manager
+        self._context_schema = context_schema or LangclawContext
+        self._context_defaults = context_defaults or {}
+        self._context_factory = context_factory
         self._sessions = SessionManager()
         self._command_router = CommandRouter(
             self._sessions,
@@ -145,6 +153,7 @@ class GatewayManager:
         chunk: dict[str, Any],
         msg: InboundMessage,
         channel: BaseChannel,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """
         Translate one ``stream_mode="updates"`` chunk into ``OutboundMessage``
@@ -297,9 +306,15 @@ class GatewayManager:
           3. Build RunnableConfig with channel context
           4. Stream agent updates back to the originating channel
 
-        Messages with ``metadata["_direct_delivery"]`` skip the agent
-        and are sent straight to the channel as an AI message.  This is
-        used by channel-routed subagents.
+        Routing is controlled by the ``to`` field on InboundMessage:
+          - ``to="channel"``: bypass agent, send straight to the channel
+          - ``to="agent"`` (default): feed to the main agent pipeline
+
+        The ``origin`` field indicates who produced the message and is
+        passed through to the channel in outbound metadata.
+
+        For backward compatibility, ``metadata["_direct_delivery"]`` is
+        still honoured if ``to="agent"`` but the flag is set.
         """
         channel = self._channel_map.get(msg.channel)
         if channel is None:
@@ -308,7 +323,16 @@ class GatewayManager:
             )
             return
 
-        if (msg.metadata or {}).get("_direct_delivery"):
+        meta = msg.metadata or {}
+
+        # Route directly to channel if msg.to == "channel" or legacy _direct_delivery
+        direct_to_channel = msg.to == "channel" or meta.get("_direct_delivery")
+        if direct_to_channel:
+            out_meta = {
+                "origin": msg.origin,
+                "subagent_name": meta.get("subagent_name", ""),
+                **{k: v for k, v in meta.items()},
+            }
             await channel.send(
                 OutboundMessage(
                     channel=msg.channel,
@@ -317,14 +341,12 @@ class GatewayManager:
                     chat_id=msg.chat_id,
                     content=msg.content,
                     type="ai",
-                    metadata={
-                        "source": "subagent",
-                        "subagent_name": (msg.metadata or {}).get("subagent_name", ""),
-                    },
+                    metadata=out_meta,
                 )
             )
             return
 
+        # Message for main agent
         channel_context = {
             "channel": msg.channel,
             "user_id": msg.user_id,
@@ -340,14 +362,19 @@ class GatewayManager:
         )
 
         user_role = self._resolve_user_role(msg) or "viewer"
-        context = LangclawContext(
-            user_role=user_role,
-            channel=msg.channel,
-            user_id=msg.user_id,
-            context_id=msg.context_id,
-            chat_id=msg.chat_id,
-            metadata=msg.metadata or {},
-        )
+        base_kwargs = {
+            "user_role": user_role,
+            "channel": msg.channel,
+            "user_id": msg.user_id,
+            "context_id": msg.context_id,
+            "chat_id": msg.chat_id,
+            "metadata": msg.metadata or {},
+        }
+
+        if self._context_factory:
+            context = await self._context_factory(msg, base_kwargs)
+        else:
+            context = self._context_schema(**base_kwargs, **self._context_defaults)
 
         input_state = {
             "messages": [HumanMessage(content=msg.content)],
@@ -365,11 +392,7 @@ class GatewayManager:
                 input_state,
                 **stream_kwargs,
             ):
-                await self._stream_updates_to_outbound_message(
-                    chunk,
-                    msg,
-                    channel,
-                )
+                await self._stream_updates_to_outbound_message(chunk, msg, channel, metadata=meta)
 
         except Exception:
             logger.exception(

@@ -280,8 +280,9 @@ class TelegramChannel(BaseChannel):
         self._stop_typing(msg.chat_id)
         if not msg.content:
             return
+        reply_to_id = (msg.metadata or {}).get("reply_to")
         for chunk in split_message(msg.content, max_len=_MAX_MESSAGE_LEN):
-            await self._send_chunk(msg.chat_id, chunk)
+            await self._send_chunk(msg.chat_id, chunk, reply_to_id=reply_to_id)
 
     @retry(
         retry=retry_if_exception_type(Exception),
@@ -289,7 +290,9 @@ class TelegramChannel(BaseChannel):
         stop=stop_after_attempt(3),
         reraise=True,
     )
-    async def _send_chunk(self, chat_id: str, text: str) -> None:
+    async def _send_chunk(
+        self, chat_id: str, text: str, reply_to_id: int | str | None = None
+    ) -> None:
         """Send a single chunk with HTML → plain-text fallback and tenacity retry."""
         try:
             from telegram.error import BadRequest
@@ -303,12 +306,18 @@ class TelegramChannel(BaseChannel):
 
         html = _markdown_to_telegram_html(text)
         logger.debug(f"_send_chunk to {chat_id}: raw={len(text)} chars, html={len(html)} chars")
+
+        reply_kw: dict = {}
+        if reply_to_id is not None:
+            reply_kw["reply_to_message_id"] = (
+                int(reply_to_id) if isinstance(reply_to_id, str) else reply_to_id
+            )
         try:
-            await bot.send_message(chat_id=chat_id, text=html, parse_mode="HTML")
+            await bot.send_message(chat_id=chat_id, text=html, parse_mode="HTML", **reply_kw)
         except BadRequest as exc:
             if "can't parse" in str(exc).lower() or "parse" in str(exc).lower():
                 logger.warning(f"HTML parse failed ({exc}), retrying as plain text.")
-                await bot.send_message(chat_id=chat_id, text=text)
+                await bot.send_message(chat_id=chat_id, text=text, **reply_kw)
             else:
                 raise
         except Exception as exc:
@@ -404,8 +413,8 @@ class TelegramChannel(BaseChannel):
                 context_id=chat_id,
                 chat_id=chat_id,
                 content=text,
+                origin="channel",
                 metadata={
-                    "source": "channel",
                     "platform": "telegram",
                     "username": user.username or "",
                     "message_id": update.message.message_id,

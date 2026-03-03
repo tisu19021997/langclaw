@@ -203,8 +203,9 @@ class DiscordChannel(BaseChannel):
         self._stop_typing(msg.chat_id)
         if not msg.content:
             return
+        reply_to_id = (msg.metadata or {}).get("reply_to")
         for chunk in split_message(msg.content, max_len=MAX_MESSAGE_LEN):
-            await self._send_text(msg.chat_id, chunk)
+            await self._send_text(msg.chat_id, chunk, reply_to_id=reply_to_id)
 
     # ------------------------------------------------------------------
     # Sending helpers
@@ -405,8 +406,8 @@ class DiscordChannel(BaseChannel):
                 context_id=channel_id,
                 chat_id=channel_id,
                 content="\n".join(p for p in content_parts if p) or "[empty message]",
+                origin="channel",
                 metadata={
-                    "source": "channel",
                     "platform": "discord",
                     "username": username,
                     "message_id": str(message.id),
