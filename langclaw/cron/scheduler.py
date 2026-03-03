@@ -2,8 +2,8 @@
 CronManager — scheduled task engine backed by APScheduler v4.
 
 Jobs publish InboundMessages to the bus on fire, so they flow through the
-same agent pipeline as channel messages. The agent pipeline is source-agnostic;
-it uses metadata["source"] == "cron" for any special handling.
+same agent pipeline as channel messages. Cron messages have ``origin="cron"``
+to identify their source.
 
 Persistence: APScheduler v4 jobs are held in-memory by default. For
 production persistence configure a SQLAlchemy data store (PostgreSQL, etc.)
@@ -104,7 +104,6 @@ async def _fire_job(
         return
     logger.debug(f"Cron job '{job_name}' fired → publishing to bus.")
     metadata: dict[str, str] = {
-        "source": "cron",
         "job_name": job_name,
     }
     if user_role:
@@ -116,6 +115,7 @@ async def _fire_job(
             context_id=context_id,
             content=_wrap_cron_runtime_prompt(message),
             chat_id=chat_id,
+            origin="cron",
             metadata=metadata,
         )
     )
