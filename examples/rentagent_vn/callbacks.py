@@ -3,6 +3,7 @@ from typing import Any
 from loguru import logger
 
 from examples.rentagent_vn.models import ScrapeResult
+from examples.rentagent_vn.trace import observe
 from langclaw import Langclaw
 from langclaw.bus.base import InboundMessage
 
@@ -44,6 +45,7 @@ async def progress_callback(
     )
 
 
+@observe
 async def streaming_url_callback(
     app: Langclaw,
     job_id: str,
@@ -87,6 +89,7 @@ async def error_callback(
     pass
 
 
+@observe
 async def result_callback(
     app: Langclaw,
     job_id: str,
@@ -113,10 +116,11 @@ async def result_callback(
             context_id=channel_context.get("context_id", ""),
             chat_id=channel_context.get("chat_id", ""),
             content=(
-                f"Scrape completed (job {job_id}). "
+                f"I have finished searching for listings. "
                 f"Found {len(result.listings)} listings across "
                 f"{result.urls_scanned} platform(s). "
-                f"Results: {result.model_dump_json()}"
+                f"Results:\n```{result.model_dump_json()}```\n\n"
+                "Now I need to present the results to the user."
             ),
             origin="background_scrape",
             to="agent",

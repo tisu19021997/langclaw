@@ -14,7 +14,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
 
@@ -376,9 +376,14 @@ class GatewayManager:
         else:
             context = self._context_schema(**base_kwargs, **self._context_defaults)
 
-        input_state = {
-            "messages": [HumanMessage(content=msg.content)],
-        }
+        if msg.origin == "user":
+            input_state = {
+                "messages": [HumanMessage(content=msg.content)],
+            }
+        else:
+            input_state = {
+                "messages": [AIMessage(content=msg.content)],
+            }
 
         try:
             stream_kwargs: dict[str, Any] = {
