@@ -68,6 +68,7 @@ class GatewayManager:
         context_factory: (
             Callable[[InboundMessage, dict[str, Any]], Awaitable[LangclawContext]] | None
         ) = None,
+        named_agent_specs: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         self._config = config
         self._bus = bus
@@ -87,6 +88,105 @@ class GatewayManager:
             for cmd_name, handler, description in extra_commands:
                 self._command_router.register(cmd_name, handler, description)
         self._channel_map: dict[str, BaseChannel] = {ch.name: ch for ch in self._channels}
+
+        # Named agent registry — "default" always points to the main agent.
+        self._agent_map: dict[str, CompiledStateGraph] = {"default": agent}
+        self._agent_descriptions: dict[str, str] = {"default": "main agent"}
+        if named_agent_specs:
+            for spec_name, spec in named_agent_specs.items():
+                self._agent_descriptions[spec_name] = spec.get("description", "")
+                self._agent_map[spec_name] = self._build_named_agent(spec)
+
+        # Register /switch only when named agents exist (no-op otherwise).
+        if named_agent_specs:
+            self._setup_switch_command()
+
+        # Phase 2 hook point — auto-routing resolver (not yet wired):
+        # self._agent_resolver: Callable[[InboundMessage], Awaitable[str | None]] | None = None
+
+    def _build_named_agent(self, spec: dict[str, Any]) -> CompiledStateGraph:
+        """Build a compiled agent from a named-agent spec.
+
+        Shares the same checkpointer backend as the main agent — threads are
+        isolated by ``thread_id``, which is determined by ``context_id``.
+
+        Args:
+            spec: Named agent spec with keys ``system_prompt``, ``tools``,
+                  ``model``.
+
+        Returns:
+            A compiled LangGraph runnable.
+        """
+        from langclaw.agents.builder import create_claw_agent
+
+        return create_claw_agent(
+            self._config,
+            checkpointer=self._checkpointer_backend.get(),
+            extra_tools=spec.get("tools"),
+            system_prompt=spec.get("system_prompt"),
+            model=spec.get("model"),
+            context_schema=self._context_schema,
+        )
+
+    def _setup_switch_command(self) -> None:
+        """Register the built-in ``/switch`` command as a closure.
+
+        The closure captures ``_agent_map``, ``_agent_descriptions``, and
+        ``_sessions`` by reference so validation is always against the
+        fully-populated map.
+        """
+        agent_map = self._agent_map
+        agent_descriptions = self._agent_descriptions
+        sessions = self._sessions
+
+        async def _cmd_switch(ctx: CommandContext) -> str:
+            if not ctx.args:
+                current = await sessions.get_mode(ctx.channel, ctx.user_id)
+                lines = ["Available agents:"]
+                for name in agent_map:
+                    desc = agent_descriptions.get(name, "")
+                    marker = " (active)" if name == current else ""
+                    suffix = f" \u2014 {desc}" if desc else ""
+                    lines.append(f"  {name}{suffix}{marker}")
+                return "\n".join(lines)
+
+            target = ctx.args[0].lower()
+            if target not in agent_map:
+                available = ", ".join(n for n in agent_map if n != "default")
+                return (
+                    f"Unknown agent '{target}'. "
+                    f"Available: {available or '(none registered)'}. "
+                    f"Use /switch default to return to the main agent."
+                )
+            await sessions.set_mode(ctx.channel, ctx.user_id, target)
+            if target == "default":
+                return "Switched back to the main agent."
+            return f"Switched to agent '{target}'."
+
+        self._command_router.register("switch", _cmd_switch, "switch to a named agent")
+
+    async def _resolve_agent_name(self, msg: InboundMessage) -> str:
+        """Determine which named agent should handle this message.
+
+        Resolution order:
+          1. Phase 2 ``agent_resolver`` hook — not yet implemented.
+          2. Stored user mode from :meth:`SessionManager.get_mode`.
+          3. Falls back to ``"default"``.
+
+        Args:
+            msg: The inbound message being handled.
+
+        Returns:
+            Agent name string — always a key present in ``self._agent_map``.
+        """
+        # Phase 2 hook (uncomment and wire when implementing auto-routing):
+        # if self._agent_resolver is not None:
+        #     resolved = await self._agent_resolver(msg)
+        #     if resolved is not None and resolved in self._agent_map:
+        #         return resolved
+
+        mode = await self._sessions.get_mode(msg.channel, msg.user_id)
+        return mode if mode in self._agent_map else "default"
 
     async def run(self) -> None:
         """
@@ -346,18 +446,21 @@ class GatewayManager:
             )
             return
 
-        # Message for main agent
+        # Message for main agent — resolve which agent handles this session.
+        agent_name = await self._resolve_agent_name(msg)
+        effective_context_id = msg.context_id if agent_name == "default" else f"agent:{agent_name}"
+
         channel_context = {
             "channel": msg.channel,
             "user_id": msg.user_id,
-            "context_id": msg.context_id,
+            "context_id": effective_context_id,
             "chat_id": msg.chat_id,
             "metadata": msg.metadata,
         }
         runnable_config = await self._sessions.get_config(
             channel=msg.channel,
             user_id=msg.user_id,
-            context_id=msg.context_id,
+            context_id=effective_context_id,
             channel_context=channel_context,
         )
 
@@ -366,7 +469,7 @@ class GatewayManager:
             "user_role": user_role,
             "channel": msg.channel,
             "user_id": msg.user_id,
-            "context_id": msg.context_id,
+            "context_id": effective_context_id,
             "chat_id": msg.chat_id,
             "metadata": msg.metadata or {},
         }
@@ -385,6 +488,8 @@ class GatewayManager:
                 "messages": [AIMessage(content=msg.content)],
             }
 
+        active_agent = self._agent_map.get(agent_name, self._agent_map["default"])
+
         try:
             stream_kwargs: dict[str, Any] = {
                 "config": runnable_config,
@@ -393,7 +498,7 @@ class GatewayManager:
                 "context": context,
             }
 
-            async for chunk in self._agent.astream(
+            async for chunk in active_agent.astream(
                 input_state,
                 **stream_kwargs,
             ):

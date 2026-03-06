@@ -98,6 +98,7 @@ class Langclaw:
         self._extra_roles: dict[str, list[str]] = {}
         self._extra_commands: list[tuple[str, Callable[[CommandContext], Awaitable[str]], str]] = []
         self._subagents: list[dict[str, Any]] = []
+        self._named_agents: dict[str, dict[str, Any]] = {}
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None
@@ -372,6 +373,71 @@ class Langclaw:
         )
 
     # ------------------------------------------------------------------
+    # Named agent registration
+    # ------------------------------------------------------------------
+
+    def agent(
+        self,
+        name: str,
+        *,
+        description: str,
+        system_prompt: str | None = None,
+        tools: list[Any] | None = None,
+        model: str | BaseChatModel | None = None,
+    ) -> None:
+        """Register a named agent that users can switch to via ``/switch <name>``.
+
+        Named agents are fully independent agent instances built with the same
+        :func:`~langclaw.agents.builder.create_claw_agent` factory as the main
+        agent.  Each named agent:
+
+        - Gets its own isolated LangGraph conversation thread
+          (``context_id = "agent:<name>"``), so history never bleeds across modes.
+        - Shares the same checkpointer backend as the main agent.
+        - Can use a different system prompt, tool set, or model.
+
+        Users switch between agents via the built-in ``/switch <name>`` command,
+        and can return to the main agent with ``/switch default``.
+
+        Args:
+            name:          Unique identifier used with ``/switch <name>``.
+                           Must not be ``"default"`` (reserved sentinel).
+            description:   Short description shown by ``/switch`` with no args.
+            system_prompt: System prompt for this agent.  When ``None``, the
+                           base ``AGENTS.md`` prompt is used unchanged.
+            tools:         Explicit list of tool instances for this agent.
+                           ``None`` inherits the config-driven built-in tools
+                           without the extra tools registered on the app.
+            model:         Override the default model.  Accepts
+                           ``"provider:model"`` strings or a ``BaseChatModel``.
+
+        Raises:
+            ValueError: If ``name`` is ``"default"`` (reserved).
+
+        Example::
+
+            app.agent(
+                "researcher",
+                description="Deep research mode with web tools",
+                system_prompt="You are a meticulous researcher. Always cite sources.",
+                tools=[web_search, web_fetch],
+                model="openai:gpt-4.1",
+            )
+        """
+        if name == "default":
+            raise ValueError(
+                "'default' is a reserved agent name — it refers to the main agent. "
+                "Choose a different name."
+            )
+        self._named_agents[name] = {
+            "name": name,
+            "description": description,
+            "system_prompt": system_prompt,
+            "tools": tools,
+            "model": model,
+        }
+
+    # ------------------------------------------------------------------
     # Channels & middleware
     # ------------------------------------------------------------------
 
@@ -554,6 +620,7 @@ class Langclaw:
                     context_schema=self._context_schema,
                     context_defaults=self._context_defaults,
                     context_factory=self._context_factory,
+                    named_agent_specs=self._named_agents or None,
                 )
 
                 cron_status = "enabled" if cron_manager else "disabled"
