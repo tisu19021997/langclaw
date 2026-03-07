@@ -202,13 +202,19 @@ class TinyFishClient:
                         # Logging internally for visibility
                         if event.type == "STARTED":
                             logger.info(f"SSE started, runId:{event.run_id}")
-                        if event.type == "PROGRESS":
+                        elif event.type == "STREAMING_URL":
+                            logger.info(
+                                "SSE streaming_url, runId:{}, url:{}",
+                                event.run_id,
+                                event.streaming_url,
+                            )
+                        elif event.type == "PROGRESS":
                             logger.debug(
                                 f"SSE progress, runId:{event.run_id}, purpose:{event.purpose}"
                             )
-                        if event.type == "COMPLETE":
+                        elif event.type == "COMPLETE":
                             logger.info(f"SSE completed, runId:{event.run_id}")
-                        if event.type == "ERROR":
+                        elif event.type == "ERROR":
                             logger.error(
                                 f"SSE error, runId:{event.run_id}, message:{event.message}"
                             )
