@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useActivityStore } from "@/stores/activity-store";
 import { useZaloStore } from "@/stores/zalo-store";
+import { useResearchStore } from "@/stores/research-store";
 import { ZaloSettingsDialog } from "@/components/zalo/zalo-settings-dialog";
 import { cn } from "@/lib/utils";
 import type { Campaign } from "@/types";
@@ -18,6 +19,7 @@ interface TopBarProps {
 export function TopBar({ campaign, onChatToggle }: TopBarProps) {
   const { isScanning, latestScan } = useActivityStore();
   const { status, fetchStatus } = useZaloStore();
+  const { researching } = useResearchStore();
   const [zaloSettingsOpen, setZaloSettingsOpen] = useState(false);
 
   useEffect(() => {
@@ -25,6 +27,9 @@ export function TopBar({ campaign, onChatToggle }: TopBarProps) {
   }, [fetchStatus]);
 
   const zaloConnected = status?.connected ?? false;
+  const runningCount = Object.values(researching).filter(
+    (r) => r.status === "running"
+  ).length;
 
   const lastScanTime = latestScan?.completed_at || latestScan?.started_at;
   const formattedTime = lastScanTime
@@ -49,6 +54,12 @@ export function TopBar({ campaign, onChatToggle }: TopBarProps) {
             <Badge variant="secondary" className="text-xs">
               Sẵn sàng
             </Badge>
+          )}
+          {runningCount > 0 && (
+            <div className="flex items-center gap-1.5 bg-teal-100 dark:bg-teal-900/30 text-teal-800 dark:text-teal-300 border border-teal-300 dark:border-teal-700 rounded-full px-2 py-0.5 text-xs">
+              <span className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-pulse" />
+              <span>Đang nghiên cứu ({runningCount})</span>
+            </div>
           )}
         </div>
 
