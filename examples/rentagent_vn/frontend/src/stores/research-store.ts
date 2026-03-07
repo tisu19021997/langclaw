@@ -3,6 +3,7 @@ import type {
   AreaResearch,
   AutoOutreachConfig,
   ResearchCriteriaOption,
+  ResearchLiveState,
   ResearchSSEEvent,
 } from "@/types";
 import { DEFAULT_CRITERIA } from "@/types";
@@ -24,6 +25,7 @@ interface ResearchState {
   // Active research tracking
   researching: Record<string, AreaResearch>; // research_id -> data
   researchByListing: Record<string, string>; // listing_id -> research_id
+  liveState: Record<string, ResearchLiveState>; // research_id -> live preview state
   startResearch: (campaignId: string, listingIds: string[]) => Promise<void>;
   fetchAllResearch: (campaignId: string) => Promise<void>;
   fetchResearch: (campaignId: string, researchId: string) => Promise<void>;
@@ -52,6 +54,7 @@ export const useResearchStore = create<ResearchState>((set, get) => ({
   },
   researching: {},
   researchByListing: {},
+  liveState: {},
   configSheetOpen: false,
   loading: false,
   error: null,
@@ -93,6 +96,9 @@ export const useResearchStore = create<ResearchState>((set, get) => ({
           : { enabled: false, threshold: 7.0, must_pass: {} },
       });
       set({ selectedIds: new Set(), configSheetOpen: false, loading: false });
+
+      // Refetch so researching map is populated and SSE stream connects
+      await get().fetchAllResearch(campaignId);
     } catch (e) {
       set({ error: (e as Error).message, loading: false });
     }
@@ -141,24 +147,95 @@ export const useResearchStore = create<ResearchState>((set, get) => ({
 
   updateFromSSE: (event) => {
     if (!event.research_id) return;
+    const researchId = event.research_id;
+
     set((s) => {
-      const existing = s.researching[event.research_id!];
+      let existing = s.researching[researchId];
+
+      // Create placeholder entry for new research on "started" event
+      if (!existing && event.type === "started" && event.listing_id) {
+        existing = {
+          id: researchId,
+          listing_id: event.listing_id,
+          campaign_id: "",
+          status: "running",
+          criteria: [],
+          scores: null,
+          result: null,
+          verdict: null,
+          overall_score: null,
+          street_view_urls: [],
+          auto_outreach_enabled: false,
+          auto_outreach_threshold: null,
+          auto_outreach_conditions: null,
+          auto_outreach_triggered: false,
+          tinyfish_job_id: null,
+          error_message: null,
+          started_at: new Date().toISOString(),
+          completed_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      }
+
       if (!existing) return s;
 
       const updated = { ...existing };
+      let newLiveState = s.liveState;
+      let newResearchByListing = s.researchByListing;
+
       if (event.type === "started") {
         updated.status = "running";
+        if (event.listing_id) {
+          newResearchByListing = {
+            ...s.researchByListing,
+            [event.listing_id]: researchId,
+          };
+        }
+      } else if (event.type === "streaming_url") {
+        const currentLive = s.liveState[researchId] || {
+          browserUrl: null,
+          currentStep: null,
+          currentDetail: null,
+        };
+        newLiveState = {
+          ...s.liveState,
+          [researchId]: {
+            ...currentLive,
+            browserUrl: event.browser_url || currentLive.browserUrl,
+          },
+        };
+      } else if (event.type === "progress") {
+        const currentLive = s.liveState[researchId] || {
+          browserUrl: null,
+          currentStep: null,
+          currentDetail: null,
+        };
+        newLiveState = {
+          ...s.liveState,
+          [researchId]: {
+            ...currentLive,
+            currentStep: event.step || null,
+            currentDetail: event.detail || null,
+          },
+        };
       } else if (event.type === "completed") {
         updated.status = "done";
         updated.overall_score = event.overall_score ?? null;
         updated.verdict = event.verdict ?? null;
+        const { [researchId]: _, ...rest } = s.liveState;
+        newLiveState = rest;
       } else if (event.type === "failed") {
         updated.status = "failed";
         updated.error_message = event.error ?? null;
+        const { [researchId]: _, ...rest } = s.liveState;
+        newLiveState = rest;
       }
 
       return {
-        researching: { ...s.researching, [event.research_id!]: updated },
+        researching: { ...s.researching, [researchId]: updated },
+        researchByListing: newResearchByListing,
+        liveState: newLiveState,
       };
     });
   },
