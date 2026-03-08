@@ -29,6 +29,7 @@ from langclaw.gateway.utils import (
     TRUNCATION_SUFFIX,
     format_tool_progress,
     is_allowed,
+    make_attachment,
     split_message,
 )
 
@@ -372,8 +373,10 @@ class DiscordChannel(BaseChannel):
             return
 
         # -- Attachment handling --
+        from langclaw.bus.base import Attachment
+
         content_parts = [content] if content else []
-        media_paths: list[str] = []
+        msg_attachments: list[Attachment] = []
         media_dir = Path.home() / ".langclaw" / "media"
 
         for attachment in message.attachments:
@@ -384,8 +387,13 @@ class DiscordChannel(BaseChannel):
                 media_dir.mkdir(parents=True, exist_ok=True)
                 file_path = media_dir / f"{attachment.id}_{attachment.filename.replace('/', '_')}"
                 await attachment.save(file_path)
-                media_paths.append(str(file_path))
-                content_parts.append(f"[attachment: {file_path}]")
+                msg_attachments.append(
+                    make_attachment(
+                        file_path=file_path,
+                        filename=attachment.filename,
+                        size=attachment.size or 0,
+                    )
+                )
             except Exception as exc:
                 logger.warning(f"Failed to download Discord attachment: {exc}")
                 content_parts.append(f"[attachment: {attachment.filename} - download failed]")
@@ -407,6 +415,7 @@ class DiscordChannel(BaseChannel):
                 chat_id=channel_id,
                 content="\n".join(p for p in content_parts if p) or "[empty message]",
                 origin="channel",
+                attachments=msg_attachments,
                 metadata={
                     "platform": "discord",
                     "username": username,
@@ -456,6 +465,23 @@ class DiscordChannel(BaseChannel):
                     if job_id:
                         args.append(job_id)
                     await self._handle_slash(interaction, "cron", args)
+
+            elif entry.name == "switch":
+
+                @tree.command(
+                    name="switch",
+                    description=entry.description or "Switch to a named agent",
+                )
+                @discord.app_commands.describe(
+                    agent_name="Agent name to switch to (omit to list agents)"
+                )
+                async def slash_switch(
+                    interaction: discord.Interaction,
+                    agent_name: str | None = None,
+                ) -> None:
+                    args = [agent_name] if agent_name else []
+                    await self._handle_slash(interaction, "switch", args)
+
             else:
                 tree.command(
                     name=entry.name,

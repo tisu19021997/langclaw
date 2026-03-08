@@ -396,6 +396,14 @@ class LangclawConfig(BaseSettings):
         extra="ignore",
     )
 
+    log_level: str = "WARNING"
+    """
+    Minimum log level for both stdlib ``logging`` and loguru.
+
+    Common values: ``"DEBUG"``, ``"INFO"``, ``"WARNING"``, ``"ERROR"``.
+    Override via env var: ``LANGCLAW__LOG_LEVEL=INFO``.
+    """
+
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     agents: AgentConfig = Field(default_factory=AgentConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)

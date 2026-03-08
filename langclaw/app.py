@@ -559,13 +559,19 @@ class Langclaw:
         from langclaw.checkpointer import make_checkpointer_backend
         from langclaw.gateway.manager import GatewayManager
 
+        cfg = self._config
+
+        # Configure stdlib logging (used by channel implementations).
         logging.basicConfig(
-            level=logging.INFO,
+            level=cfg.log_level.upper(),
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
             datefmt="%H:%M:%S",
         )
+        # Configure loguru (used by GatewayManager, middleware, tools).
+        import sys
 
-        cfg = self._config
+        logger.remove()
+        logger.add(sys.stderr, level=cfg.log_level.upper())
         bus_cfg = cfg.bus
         cp_cfg = cfg.checkpointer
 
