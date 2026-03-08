@@ -8,12 +8,12 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from examples.rentagent_vn.api.brokers import research_broker
 from examples.rentagent_vn.api.models import (
     AreaResearchResponse,
     TriggerResearchRequest,
     TriggerResearchResponse,
 )
-from examples.rentagent_vn.api.research_broker import research_broker
 from examples.rentagent_vn.db import queries
 
 router = APIRouter(prefix="/api/v1", tags=["research"])

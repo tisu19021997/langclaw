@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from examples.rentagent_vn.api.brokers import scan_broker
 from examples.rentagent_vn.api.models import (
     ActivityResponse,
     CampaignResponse,
@@ -19,7 +20,6 @@ from examples.rentagent_vn.api.models import (
     UpdateCampaignRequest,
     UpdateListingRequest,
 )
-from examples.rentagent_vn.api.scan_broker import scan_broker
 from examples.rentagent_vn.db import queries
 
 router = APIRouter(prefix="/api/v1", tags=["campaigns"])

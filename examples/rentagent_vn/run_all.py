@@ -15,7 +15,7 @@ from typing import Any
 import uvicorn
 from loguru import logger
 
-from examples.rentagent_vn.api.scan_broker import ScanEvent, scan_broker
+from examples.rentagent_vn.api.brokers import ScanEvent, scan_broker
 from examples.rentagent_vn.api.server import (
     create_api_app,
     set_research_trigger,

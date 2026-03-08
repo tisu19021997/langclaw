@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING
 from langclaw import LangclawContext
 
 if TYPE_CHECKING:
-    from examples.rentagent_vn.research_runner import BackgroundResearchRunner
-    from examples.rentagent_vn.runner import BackgroundScrapeRunner
+    from examples.rentagent_vn.runners import BackgroundResearchRunner, BackgroundScrapeRunner
 
 
 @dataclass(kw_only=True)
