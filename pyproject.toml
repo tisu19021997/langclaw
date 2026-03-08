@@ -1,6 +1,6 @@
 [project]
 name = "langclaw"
-version = "0.1.5"
+version = "0.1.6"
 requires-python = ">=3.11"
 description = "Production-ready multi-channel AI agent framework built on langchain 1.0, langgraph, and deepagents"
 license = "MIT"
