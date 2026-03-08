@@ -12,6 +12,48 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from enum import StrEnum
+
+# ---------------------------------------------------------------------------
+# Attachment types
+# ---------------------------------------------------------------------------
+
+
+class AttachmentType(StrEnum):
+    """Supported attachment media categories."""
+
+    IMAGE = "image"
+    FILE = "file"
+    AUDIO = "audio"
+    VIDEO = "video"
+
+
+@dataclass
+class Attachment:
+    """A standardised attachment descriptor.
+
+    Channels convert platform-specific media into this format.
+    ``GatewayManager`` converts these into LangChain multimodal content blocks.
+
+    Either ``url`` or ``data`` (base64-encoded) must be populated.
+    When ``data`` is used, ``mime_type`` is required for the data URI.
+
+    Args:
+        type: Media category (image, file, audio, video).
+        mime_type: MIME type (e.g. ``"image/jpeg"``, ``"application/pdf"``).
+        filename: Original filename, if available.
+        url: URL to the attachment (public URL or local ``file://`` path).
+        data: Base64-encoded content (alternative to *url*).
+        size: File size in bytes, if known.
+    """
+
+    type: AttachmentType
+    mime_type: str = ""
+    filename: str = ""
+    url: str = ""
+    data: str = ""
+    size: int = 0
+
 
 # ---------------------------------------------------------------------------
 # Message dataclasses
@@ -68,8 +110,8 @@ class InboundMessage:
       - ``"channel"``: Deliver directly to the channel, bypassing the agent.
     """
 
-    attachments: list[dict] = field(default_factory=list)
-    """Optional list of attachment descriptors (type, url, data)."""
+    attachments: list[Attachment] = field(default_factory=list)
+    """Optional list of standardised attachment descriptors."""
 
     metadata: dict = field(default_factory=dict)
     """
@@ -77,6 +119,17 @@ class InboundMessage:
     Built-in keys:
       - ``"reply_to"``: message ID for threading (platform-specific)
     """
+
+    def __post_init__(self) -> None:
+        """Reconstruct nested ``Attachment`` objects from raw dicts.
+
+        Required for bus deserialization (``InboundMessage(**asdict(msg))``).
+        """
+        if self.attachments and isinstance(self.attachments[0], dict):
+            self.attachments = [
+                Attachment(**{**a, "type": AttachmentType(a["type"])}) if isinstance(a, dict) else a
+                for a in self.attachments
+            ]
 
 
 @dataclass

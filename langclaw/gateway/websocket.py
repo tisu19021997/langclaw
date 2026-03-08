@@ -24,7 +24,13 @@ import json
 import logging
 from typing import Any
 
-from langclaw.bus.base import BaseMessageBus, InboundMessage, OutboundMessage
+from langclaw.bus.base import (
+    Attachment,
+    AttachmentType,
+    BaseMessageBus,
+    InboundMessage,
+    OutboundMessage,
+)
 from langclaw.config.schema import WebSocketChannelConfig
 from langclaw.gateway.base import BaseChannel
 from langclaw.gateway.commands import CommandContext
@@ -148,7 +154,7 @@ class WebSocketChannel(BaseChannel):
                     await self._send_json(ws, {"type": "pong"})
                     continue
 
-                if not content:
+                if not content and not data.get("attachments"):
                     continue
 
                 # Command handling
@@ -178,6 +184,20 @@ class WebSocketChannel(BaseChannel):
                 if self._bus is None:
                     continue
 
+                raw_attachments = data.get("attachments") or []
+                attachments = [
+                    Attachment(
+                        type=AttachmentType(a.get("type", "file")),
+                        mime_type=a.get("mime_type", ""),
+                        filename=a.get("filename", ""),
+                        url=a.get("url", ""),
+                        data=a.get("data", ""),
+                        size=a.get("size", 0),
+                    )
+                    for a in raw_attachments
+                    if isinstance(a, dict)
+                ]
+
                 await self._bus.publish(
                     InboundMessage(
                         channel=self.name,
@@ -186,6 +206,7 @@ class WebSocketChannel(BaseChannel):
                         chat_id=f"{conn.user_id}:{conn.context_id}",
                         content=content,
                         origin="channel",
+                        attachments=attachments,
                         metadata={
                             "platform": "websocket",
                         },

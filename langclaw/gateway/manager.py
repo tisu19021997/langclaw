@@ -14,7 +14,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
 
@@ -25,6 +25,7 @@ from langclaw.context import LangclawContext
 from langclaw.cron.scheduler import CronManager
 from langclaw.gateway.base import BaseChannel
 from langclaw.gateway.commands import CommandContext, CommandRouter
+from langclaw.gateway.utils import attachments_to_content_blocks
 from langclaw.session.manager import SessionManager
 
 
@@ -493,14 +494,10 @@ class GatewayManager:
         else:
             context = self._context_schema(**base_kwargs, **self._context_defaults)
 
-        if msg.origin == "user":
-            input_state = {
-                "messages": [HumanMessage(content=msg.content)],
-            }
-        else:
-            input_state = {
-                "messages": [AIMessage(content=msg.content)],
-            }
+        content = attachments_to_content_blocks(msg.content, msg.attachments)
+        input_state = {
+            "messages": [HumanMessage(content=content)],
+        }
 
         active_agent = self._agent_map.get(agent_name, self._agent_map["default"])
 
@@ -508,9 +505,10 @@ class GatewayManager:
             stream_kwargs: dict[str, Any] = {
                 "config": runnable_config,
                 "stream_mode": "updates",
-                "print_mode": "updates",
                 "context": context,
             }
+            if self._config.log_level.upper() == "DEBUG":
+                stream_kwargs["print_mode"] = "updates"
 
             async for chunk in active_agent.astream(
                 input_state,

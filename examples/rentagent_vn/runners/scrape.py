@@ -8,7 +8,11 @@ from typing import Any
 
 from loguru import logger
 
-from examples.rentagent_vn.models import ListingSummary, ScrapeResult, TinyFishListingResponse
+from examples.rentagent_vn.models import (
+    ListingSummary,
+    ScrapeResult,
+    TinyFishListingResponse,
+)
 from examples.rentagent_vn.prompts import build_goal
 from examples.rentagent_vn.runners.base import (
     BaseTinyFishRunner,

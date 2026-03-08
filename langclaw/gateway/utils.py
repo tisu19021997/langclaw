@@ -7,7 +7,12 @@ check, and other helpers so individual channel implementations stay thin.
 
 from __future__ import annotations
 
-from typing import Literal
+import base64
+import mimetypes
+from pathlib import Path
+from typing import Any, Literal
+
+from langclaw.bus.base import Attachment, AttachmentType
 
 TRUNCATION_SUFFIX = "…[truncated]"
 
@@ -131,3 +136,149 @@ def is_allowed(
         return True
     allowed = set(allow_from)
     return user_id in allowed or (username is not None and username in allowed)
+
+
+# ---------------------------------------------------------------------------
+# Attachment helpers
+# ---------------------------------------------------------------------------
+
+_MIME_TO_TYPE: dict[str, AttachmentType] = {
+    "image": AttachmentType.IMAGE,
+    "audio": AttachmentType.AUDIO,
+    "video": AttachmentType.VIDEO,
+}
+
+
+def infer_attachment_type(mime_type: str) -> AttachmentType:
+    """Infer ``AttachmentType`` from a MIME type string.
+
+    Args:
+        mime_type: MIME type like ``"image/jpeg"``, ``"audio/ogg"``.
+
+    Returns:
+        The matching ``AttachmentType``, defaulting to ``FILE``.
+    """
+    major = mime_type.split("/")[0] if mime_type else ""
+    return _MIME_TO_TYPE.get(major, AttachmentType.FILE)
+
+
+def make_attachment(
+    *,
+    filename: str = "",
+    mime_type: str = "",
+    url: str = "",
+    data: str = "",
+    file_path: str | Path = "",
+    size: int = 0,
+    attachment_type: AttachmentType | None = None,
+) -> Attachment:
+    """Create a standardised ``Attachment`` from platform-specific data.
+
+    Channels call this to normalise their platform attachments.
+    Exactly one of *url*, *data*, or *file_path* should be provided.
+
+    When *file_path* is given the file is read and base64-encoded into
+    *data*, and *mime_type* is guessed from the extension if not provided.
+
+    Args:
+        filename: Original filename.
+        mime_type: MIME type. Guessed from *filename*/*file_path* if omitted.
+        url: Public URL to the attachment.
+        data: Pre-encoded base64 string.
+        file_path: Local file path — read and base64-encode.
+        size: File size in bytes.
+        attachment_type: Explicit type override. Inferred from *mime_type* if omitted.
+
+    Returns:
+        A populated ``Attachment`` instance.
+    """
+    if file_path:
+        p = Path(file_path)
+        if not mime_type:
+            mime_type = mimetypes.guess_type(str(p))[0] or "application/octet-stream"
+        if not filename:
+            filename = p.name
+        if not data:
+            data = base64.b64encode(p.read_bytes()).decode("ascii")
+        if not size:
+            size = p.stat().st_size
+
+    if not mime_type and filename:
+        mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+
+    resolved_type = attachment_type or infer_attachment_type(mime_type)
+    attachment = Attachment(
+        type=resolved_type,
+        mime_type=mime_type,
+        filename=filename,
+        url=url,
+        data=data,
+        size=size,
+    )
+    return attachment
+
+
+def attachments_to_content_blocks(
+    text: str,
+    attachments: list[Attachment],
+) -> str | list[dict[str, Any]]:
+    """Convert text + attachments into LangChain multimodal content.
+
+    When there are no attachments, returns the plain text string (preserving
+    backward compatibility with models that don't support content blocks).
+
+    When attachments are present, returns a list of content-block dicts
+    suitable for ``HumanMessage(content=[...])``.
+
+    Args:
+        text: The text content of the message.
+        attachments: ``Attachment`` objects from the ``InboundMessage``.
+
+    Returns:
+        Either a plain string or a list of LangChain content-block dicts.
+    """
+    if not attachments:
+        return text
+
+    blocks: list[dict[str, Any]] = []
+
+    if text:
+        blocks.append({"type": "text", "text": text})
+
+    for att in attachments:
+        if att.type == AttachmentType.IMAGE:
+            if att.data:
+                img_url = f"data:{att.mime_type};base64,{att.data}"
+            elif att.url:
+                img_url = att.url
+            else:
+                continue
+            blocks.append({"type": "image_url", "image_url": {"url": img_url}})
+
+        elif att.type in (
+            AttachmentType.FILE,
+            AttachmentType.AUDIO,
+            AttachmentType.VIDEO,
+        ):
+            block: dict[str, Any] = {"type": "file"}
+            if att.data:
+                block["source"] = {
+                    "type": "base64",
+                    "media_type": att.mime_type,
+                    "data": att.data,
+                }
+            elif att.url:
+                block["source"] = {"type": "url", "url": att.url}
+            else:
+                continue
+            if att.filename:
+                block["filename"] = att.filename
+            blocks.append(block)
+
+    # If all attachments were skipped, fall back to plain text for
+    # backward compatibility (avoids sending a single text-only block).
+    has_media = any(b["type"] != "text" for b in blocks)
+    if not has_media:
+        return text
+
+    return blocks if blocks else text

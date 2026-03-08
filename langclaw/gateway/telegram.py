@@ -38,6 +38,7 @@ from langclaw.gateway.utils import (
     TRUNCATION_SUFFIX,
     format_tool_progress,
     is_allowed,
+    make_attachment,
     split_message,
 )
 
@@ -184,6 +185,16 @@ class TelegramChannel(BaseChannel):
         app.add_error_handler(self._on_error)
         app.add_handler(MessageHandler(filters.COMMAND, self._handle_command))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message))
+        app.add_handler(
+            MessageHandler(
+                filters.PHOTO
+                | filters.Document.ALL
+                | filters.VOICE
+                | filters.AUDIO
+                | filters.VIDEO,
+                self._handle_attachment,
+            )
+        )
 
         logger.info("TelegramChannel starting (polling mode)…")
         await app.initialize()
@@ -454,6 +465,117 @@ class TelegramChannel(BaseChannel):
         )
         response = await self._command_router.dispatch(cmd, ctx)
         await update.message.reply_text(response)
+
+    async def _handle_attachment(self, update: object, context: object) -> None:
+        """Forward an incoming Telegram media message to the bus."""
+        import base64
+
+        from telegram import Update as TGUpdate
+
+        from langclaw.bus.base import Attachment
+
+        if not isinstance(update, TGUpdate) or not update.message:
+            return
+
+        user = update.message.from_user
+        if not user:
+            return
+
+        user_id = str(user.id)
+        if not self._is_allowed(user_id, user.username):
+            await update.message.reply_text("Sorry, you are not authorised to use this bot.")
+            return
+
+        chat_id = str(update.message.chat_id)
+        caption = update.message.caption or ""
+        attachments: list[Attachment] = []
+
+        if update.message.photo:
+            photo = update.message.photo[-1]  # largest size
+            tg_file = await photo.get_file()
+            raw = await tg_file.download_as_bytearray()
+            attachments.append(
+                make_attachment(
+                    data=base64.b64encode(bytes(raw)).decode("ascii"),
+                    mime_type="image/jpeg",
+                    filename=f"{photo.file_unique_id}.jpg",
+                    size=photo.file_size or len(raw),
+                )
+            )
+        elif update.message.document:
+            doc = update.message.document
+            tg_file = await doc.get_file()
+            raw = await tg_file.download_as_bytearray()
+            attachments.append(
+                make_attachment(
+                    data=base64.b64encode(bytes(raw)).decode("ascii"),
+                    filename=doc.file_name or "document",
+                    mime_type=doc.mime_type or "application/octet-stream",
+                    size=doc.file_size or len(raw),
+                )
+            )
+        elif update.message.voice:
+            voice = update.message.voice
+            tg_file = await voice.get_file()
+            raw = await tg_file.download_as_bytearray()
+            attachments.append(
+                make_attachment(
+                    data=base64.b64encode(bytes(raw)).decode("ascii"),
+                    mime_type=voice.mime_type or "audio/ogg",
+                    filename=f"voice_{voice.file_unique_id}.ogg",
+                    size=voice.file_size or len(raw),
+                )
+            )
+        elif update.message.audio:
+            audio = update.message.audio
+            tg_file = await audio.get_file()
+            raw = await tg_file.download_as_bytearray()
+            attachments.append(
+                make_attachment(
+                    data=base64.b64encode(bytes(raw)).decode("ascii"),
+                    mime_type=audio.mime_type or "audio/mpeg",
+                    filename=audio.file_name or f"audio_{audio.file_unique_id}.mp3",
+                    size=audio.file_size or len(raw),
+                )
+            )
+        elif update.message.video:
+            video = update.message.video
+            tg_file = await video.get_file()
+            raw = await tg_file.download_as_bytearray()
+            attachments.append(
+                make_attachment(
+                    data=base64.b64encode(bytes(raw)).decode("ascii"),
+                    mime_type=video.mime_type or "video/mp4",
+                    filename=video.file_name or f"video_{video.file_unique_id}.mp4",
+                    size=video.file_size or len(raw),
+                )
+            )
+
+        if not attachments and not caption:
+            return
+
+        if self._bus is None:
+            return
+
+        self._start_typing(chat_id)
+
+        await self._bus.publish(
+            InboundMessage(
+                channel=self.name,
+                user_id=user_id,
+                context_id=chat_id,
+                chat_id=chat_id,
+                content=caption,
+                origin="channel",
+                attachments=attachments,
+                metadata={
+                    "platform": "telegram",
+                    "username": user.username or "",
+                    "message_id": update.message.message_id,
+                    "is_group": update.message.chat.type != "private",
+                },
+            )
+        )
 
     # ------------------------------------------------------------------
     # Helpers

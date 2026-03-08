@@ -1,5 +1,11 @@
 from langclaw.bus.asyncio_bus import AsyncioMessageBus
-from langclaw.bus.base import BaseMessageBus, InboundMessage, OutboundMessage
+from langclaw.bus.base import (
+    Attachment,
+    AttachmentType,
+    BaseMessageBus,
+    InboundMessage,
+    OutboundMessage,
+)
 from langclaw.bus.kafka_bus import KafkaMessageBus
 from langclaw.bus.rabbitmq_bus import RabbitMQMessageBus
 
@@ -33,6 +39,8 @@ def make_message_bus(
 
 
 __all__ = [
+    "Attachment",
+    "AttachmentType",
     "BaseMessageBus",
     "InboundMessage",
     "OutboundMessage",
