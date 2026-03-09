@@ -89,6 +89,10 @@ class WebSocketChannel(BaseChannel):
 
         import websockets.asyncio.server as ws_server
 
+        # Browser refreshes abort the WS handshake mid-flight; websockets logs
+        # this as ERROR, but it is harmless expected behaviour.
+        logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
+
         self._server = await ws_server.serve(
             self._handler,
             host=self._config.host,

@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nhà Tốt — Redesign Concept</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
+  <style>
+    /* ===================== TOKENS ===================== */
+    :root {
+      /* Palette — pulled from HCMC street-level color world */
+      --cream:        #FAF7F2;   /* sun-faded concrete base */
+      --cream-100:    #F3EDE2;   /* slightly deeper surface */
+      --cream-200:    #E8E0D0;   /* dividers, inputs */
+
+      --ink:          #1A1815;   /* evening pavement */
+      --ink-70:       rgba(26,24,21,.70);
+      --ink-50:       rgba(26,24,21,.50);
+      --ink-30:       rgba(26,24,21,.30);
+      --ink-15:       rgba(26,24,21,.15);
+      --ink-08:       rgba(26,24,21,.08);
+      --ink-04:       rgba(26,24,21,.04);
+
+      --terra:        #C4562A;   /* terracotta roof tiles — primary accent */
+      --terra-15:     rgba(196,86,42,.15);
+      --terra-08:     rgba(196,86,42,.08);
+
+      --jade:         #3D7A63;   /* painted shutters — research done */
+      --jade-15:      rgba(61,122,99,.15);
+
+      --amber:        #B87B2A;   /* afternoon light — research running */
+      --amber-15:     rgba(184,123,42,.15);
+
+      --white:        #FFFFFF;
+      --shadow-card:  0 2px 8px rgba(26,24,21,.06), 0 8px 32px rgba(26,24,21,.10);
+      --shadow-float: 0 4px 24px rgba(26,24,21,.12), 0 12px 48px rgba(26,24,21,.12);
+
+      /* Radius */
+      --r-xs:   6px;
+      --r-sm:   10px;
+      --r-md:   14px;
+      --r-lg:   20px;
+      --r-xl:   26px;
+      --r-full: 999px;
+
+      /* Spacing (4px base) */
+      --s1: 4px;   --s2: 8px;   --s3: 12px;  --s4: 16px;
+      --s5: 20px;  --s6: 24px;  --s8: 32px;  --s10: 40px;
+    }
+
+    /* ===================== RESET ===================== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; }
+
+    /* ===================== STAGE ===================== */
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #D6CFBF;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    /* ===================== PHONE SHELL ===================== */
+    .phone {
+      width: 390px;
+      height: 844px;
+      background: var(--cream);
+      border-radius: 46px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,.15) inset,
+        0 0 0 9px #0e0c0a,
+        0 0 0 10px rgba(255,255,255,.06),
+        0 24px 80px rgba(0,0,0,.35),
+        0 48px 120px rgba(0,0,0,.18);
+    }
+
+    /* Dynamic Island */
+    .d-island {
+      position: absolute;
+      top: 13px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 122px;
+      height: 36px;
+      background: #0e0c0a;
+      border-radius: 20px;
+      z-index: 200;
+    }
+
+    /* Status bar */
+    .status {
+      height: 56px;
+      padding: 15px var(--s5) 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+    }
+    .status-time {
+      font-size: 15px; font-weight: 600; color: var(--ink); letter-spacing: -.3px;
+    }
+    .status-icons { display: flex; align-items: center; gap: 5px; padding-top: 2px; }
+
+    /* ===================== SCREENS ===================== */
+    .screens { flex: 1; position: relative; overflow: hidden; }
+
+    .screen {
+      position: absolute; inset: 0;
+      opacity: 0; pointer-events: none;
+      transition: opacity .2s ease;
+      overflow-y: auto; overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+    .screen::-webkit-scrollbar { display: none; }
+    .screen.active { opacity: 1; pointer-events: all; }
+
+    /* Discovery screen needs flex layout */
+    #s-discover {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden; /* cards handle their own layout */
+    }
+
+    /* ===================== BOTTOM NAV ===================== */
+    .bnav {
+      height: 80px;
+      background: var(--cream);
+      border-top: 1px solid var(--ink-08);
+      display: flex;
+      align-items: flex-start;
+      padding-top: var(--s2);
+      flex-shrink: 0;
+      position: relative;
+      z-index: 50;
+    }
+    .bnav-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      gap: 5px; padding: var(--s2) 0;
+    }
+    .bnav-icon { width: 24px; height: 24px; color: var(--ink-30); transition: color .15s; }
+    .bnav-label { font-size: 11px; font-weight: 500; color: var(--ink-30); transition: color .15s; letter-spacing: -.1px; }
+    .bnav-btn.active .bnav-icon { color: var(--terra); }
+    .bnav-btn.active .bnav-label { color: var(--terra); font-weight: 600; }
+
+    /* ===================== DISCOVER SCREEN ===================== */
+    .disc-header {
+      padding: var(--s3) var(--s5);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .search-pill {
+      display: flex; align-items: center; gap: var(--s2);
+      background: var(--ink-04); border: 1px solid var(--ink-15);
+      border-radius: var(--r-full); padding: 7px var(--s3);
+      cursor: pointer; transition: background .15s;
+    }
+    .search-pill:active { background: var(--ink-08); }
+    .pill-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--terra); flex-shrink: 0; }
+    .pill-text { font-size: 13px; font-weight: 600; color: var(--ink); letter-spacing: -.3px; }
+    .header-right { display: flex; align-items: center; gap: var(--s2); }
+    .count-tag {
+      background: var(--terra); color: #fff; font-size: 11px; font-weight: 700;
+      padding: 4px 9px; border-radius: var(--r-full); letter-spacing: -.1px;
+    }
+    .icon-btn {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: var(--ink-04); border: 1px solid var(--ink-15);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--ink-50); transition: background .15s;
+    }
+
+    /* ---- Card Stack ---- */
+    .stack-area {
+      flex: 1; position: relative; padding: 0 var(--s4);
+      overflow: hidden;
+    }
+    .card-stack { position: relative; width: 100%; height: 100%; }
+
+    .r-card {
+      position: absolute; inset: 0;
+      border-radius: var(--r-xl);
+      overflow: hidden;
+      cursor: grab;
+      user-select: none;
+      transform-origin: center bottom;
+      will-change: transform;
+      box-shadow: var(--shadow-float);
+      transition: transform .3s cubic-bezier(.4,0,.2,1);
+    }
+    .r-card.dragging { cursor: grabbing; transition: none !important; }
+    .r-card:nth-child(1) { z-index: 3; }
+    .r-card:nth-child(2) { z-index: 2; transform: translateY(12px) scale(.955); }
+    .r-card:nth-child(3) { z-index: 1; transform: translateY(24px) scale(.91); }
+
+    .card-bg {
+      position: absolute; inset: 0;
+      background-size: cover; background-position: center;
+      background-color: var(--cream-200);
+    }
+    /* Strong gradient — text on photo must be legible */
+    .card-grad {
+      position: absolute; inset: 0;
+      background: linear-gradient(
+        to bottom,
+        transparent 25%,
+        rgba(14,12,10,.12) 50%,
+        rgba(14,12,10,.60) 75%,
+        rgba(14,12,10,.82) 100%
+      );
+    }
+
+    /* Source badge — top left */
+    .source-tag {
+      position: absolute; top: var(--s4); left: var(--s4);
+      background: rgba(255,255,255,.18); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,.22);
+      border-radius: var(--r-full); padding: 4px 10px;
+      font-size: 11px; font-weight: 700; color: #fff; letter-spacing: .4px;
+    }
+
+    /* Signature: Khảo sát arc badge — top right */
+    .score-arc {
+      position: absolute; top: var(--s4); right: var(--s4);
+      width: 54px; height: 54px;
+    }
+    .arc-ring-bg { fill: none; stroke: rgba(255,255,255,.15); stroke-width: 2.5; }
+    .arc-ring    { fill: none; stroke-width: 2.5; stroke-linecap: round;
+                   transform: rotate(-90deg); transform-origin: 27px 27px; }
+    .arc-ring.hi { stroke: #57d99a; }
+    .arc-ring.md { stroke: #f0b860; }
+    .arc-num     { font-size: 11.5px; font-weight: 800; fill: #fff; text-anchor: middle; dominant-baseline: middle; letter-spacing: -.5px; }
+
+    /* Card info block */
+    .card-body {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: var(--s6) var(--s5) var(--s5);
+    }
+    .card-price {
+      font-size: 30px; font-weight: 900; color: #fff; letter-spacing: -1.2px; line-height: 1;
+    }
+    .card-price-unit { font-size: 15px; font-weight: 400; opacity: .75; letter-spacing: -.2px; }
+    .card-specs {
+      display: flex; align-items: center; gap: var(--s2); margin-top: var(--s2);
+    }
+    .card-spec {
+      background: rgba(255,255,255,.15); backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,.15); border-radius: var(--r-full);
+      padding: 4px 10px; font-size: 12px; font-weight: 500; color: rgba(255,255,255,.9);
+      display: flex; align-items: center; gap: 3px;
+    }
+    .card-loc {
+      font-size: 12px; color: rgba(255,255,255,.65); margin-top: var(--s2);
+      display: flex; align-items: center; gap: 4px; letter-spacing: -.1px;
+    }
+
+    /* Swipe overlays */
+    .sw-ind {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      border: 2.5px solid; border-radius: var(--r-sm);
+      padding: var(--s2) var(--s3); font-size: 18px; font-weight: 800;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      opacity: 0; transition: opacity .08s; pointer-events: none; z-index: 10;
+    }
+    .sw-like { right: var(--s5); color: #57d99a; border-color: #57d99a; }
+    .sw-skip { left:  var(--s5); color: #e05a5a; border-color: #e05a5a; }
+
+    /* ---- Action Buttons ---- */
+    .actions {
+      display: flex; align-items: center; justify-content: center;
+      gap: var(--s5); padding: var(--s4) var(--s8) var(--s5);
+      flex-shrink: 0;
+    }
+    .act-btn {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      transition: transform .12s;
+    }
+    .act-btn:active { transform: scale(.9); }
+    .act-circle {
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow-card);
+    }
+    .act-skip    .act-circle { width: 54px; height: 54px; background: var(--white); border: 1px solid var(--ink-15); }
+    .act-contact .act-circle { width: 46px; height: 46px; background: var(--white); border: 1px solid var(--ink-15); }
+    .act-like    .act-circle { width: 64px; height: 64px; background: var(--terra); }
+    .act-lbl { font-size: 11px; font-weight: 500; color: var(--ink-50); letter-spacing: -.1px; }
+    .act-like .act-lbl { color: var(--terra); font-weight: 600; }
+
+    /* Empty state */
+    .disc-empty {
+      display: none; flex: 1; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: var(--s4); padding: var(--s8); text-align: center;
+    }
+    .disc-empty.show { display: flex; }
+    .empty-icon-wrap {
+      width: 72px; height: 72px; background: var(--terra-08); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 30px;
+    }
+    .empty-h { font-size: 18px; font-weight: 700; color: var(--ink); letter-spacing: -.5px; }
+    .empty-p { font-size: 14px; color: var(--ink-50); line-height: 1.55; }
+
+    /* ===================== TRACK SCREEN ===================== */
+    #s-track { background: var(--cream); padding-bottom: var(--s8); }
+
+    .track-hdr {
+      padding: var(--s4) var(--s5) var(--s3);
+      background: var(--cream);
+      position: sticky; top: 0; z-index: 20;
+      border-bottom: 1px solid var(--ink-04);
+    }
+    .track-h1 { font-size: 22px; font-weight: 800; color: var(--ink); letter-spacing: -.8px; }
+    .track-sub { font-size: 13px; color: var(--ink-50); margin-top: 2px; }
+
+    .track-sect { padding: var(--s4) 0 var(--s2); }
+    .sect-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 var(--s5) var(--s3);
+    }
+    .sect-label { display: flex; align-items: center; gap: var(--s2); }
+    .sect-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .sect-name { font-size: 13px; font-weight: 600; color: var(--ink); letter-spacing: -.2px; }
+    .sect-ct { font-size: 12px; color: var(--ink-30); font-weight: 500; }
+
+    .track-list { display: flex; flex-direction: column; gap: 6px; padding: 0 var(--s4); }
+
+    .t-card {
+      background: var(--white); border: 1px solid var(--ink-08);
+      border-radius: var(--r-lg); padding: var(--s3);
+      display: flex; gap: var(--s3); cursor: pointer;
+      transition: background .12s;
+    }
+    .t-card:active { background: var(--ink-04); }
+
+    .t-thumb {
+      width: 78px; height: 78px; border-radius: var(--r-md);
+      background-size: cover; background-position: center;
+      background-color: var(--cream-200); flex-shrink: 0;
+      position: relative; overflow: hidden;
+    }
+    .t-thumb::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(to bottom, transparent, rgba(0,0,0,.2));
+    }
+
+    .t-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+    .t-name { font-size: 13px; font-weight: 600; color: var(--ink); letter-spacing: -.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .t-price { font-size: 13px; font-weight: 700; color: var(--terra); letter-spacing: -.3px; }
+    .t-chips { display: flex; align-items: center; gap: 5px; margin-top: 2px; flex-wrap: wrap; }
+    .t-chip { font-size: 11px; color: var(--ink-50); background: var(--ink-04); border-radius: var(--r-full); padding: 2px 7px; }
+
+    .t-right { display: flex; flex-direction: column; align-items: flex-end; justify-content: space-between; flex-shrink: 0; }
+    .t-time { font-size: 11px; color: var(--ink-30); }
+
+    /* Research status badges */
+    .rbadge {
+      border-radius: var(--r-full); padding: 4px 9px;
+      font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 4px; letter-spacing: -.1px;
+    }
+    .rbadge.done     { background: var(--jade-15);  color: var(--jade);  }
+    .rbadge.running  { background: var(--amber-15); color: var(--amber); }
+    .rbadge.reached  { background: var(--terra-15); color: var(--terra); }
+    .rbadge.pending  { background: var(--ink-08);   color: var(--ink-50); }
+
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+    .pulse { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: blink 1.5s ease-in-out infinite; }
+
+    .divider { height: 1px; background: var(--ink-04); margin: 4px var(--s5); }
+
+    /* ===================== SETTINGS SCREEN ===================== */
+    #s-settings { background: var(--cream); padding-bottom: var(--s10); }
+
+    .settings-hdr { padding: var(--s4) var(--s5) var(--s5); }
+    .settings-h1 { font-size: 22px; font-weight: 800; color: var(--ink); letter-spacing: -.8px; }
+
+    .s-sect { margin-bottom: var(--s4); }
+    .s-sect-lbl {
+      font-size: 11px; font-weight: 600; color: var(--ink-30); text-transform: uppercase;
+      letter-spacing: .8px; padding: 0 var(--s5) var(--s2);
+    }
+    .s-group {
+      background: var(--white); border-radius: var(--r-lg); overflow: hidden;
+      border: 1px solid var(--ink-08); margin: 0 var(--s4);
+    }
+    .s-item {
+      display: flex; align-items: center; padding: var(--s4) var(--s5);
+      border-bottom: 1px solid var(--ink-04); cursor: pointer; transition: background .12s;
+    }
+    .s-item:last-child { border-bottom: none; }
+    .s-item:active { background: var(--ink-04); }
+    .s-ico {
+      width: 36px; height: 36px; border-radius: var(--r-sm);
+      display: flex; align-items: center; justify-content: center;
+      margin-right: var(--s3); flex-shrink: 0; font-size: 18px;
+    }
+    .s-content { flex: 1; min-width: 0; }
+    .s-lbl { font-size: 15px; font-weight: 500; color: var(--ink); letter-spacing: -.3px; }
+    .s-sub { font-size: 12px; color: var(--ink-30); margin-top: 1px; }
+    .s-right { display: flex; align-items: center; gap: var(--s2); flex-shrink: 0; }
+
+    /* Toggle */
+    .tog {
+      width: 44px; height: 26px; border-radius: var(--r-full);
+      background: var(--ink-15); position: relative; cursor: pointer; transition: background .2s; flex-shrink: 0;
+    }
+    .tog.on { background: var(--terra); }
+    .tog::after {
+      content: ''; position: absolute; width: 20px; height: 20px;
+      border-radius: 50%; background: #fff; top: 3px; left: 3px;
+      transition: transform .2s cubic-bezier(.4,0,.2,1);
+      box-shadow: 0 1px 4px rgba(0,0,0,.2);
+    }
+    .tog.on::after { transform: translateX(18px); }
+
+    /* Status chips */
+    .schip { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: var(--r-full); }
+    .schip.ok  { background: var(--jade-15); color: var(--jade); }
+    .schip.off { background: var(--ink-08);  color: var(--ink-30); }
+
+    /* Search query card */
+    .query-card {
+      background: var(--white); border-radius: var(--r-lg); border: 1px solid var(--ink-08);
+      padding: var(--s4) var(--s5); margin: 0 var(--s4);
+      display: flex; align-items: center; gap: var(--s3);
+    }
+    .query-tags { flex: 1; display: flex; flex-wrap: wrap; gap: var(--s2); }
+    .qtag {
+      background: var(--terra-08); color: var(--terra);
+      font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: var(--r-full); letter-spacing: -.1px;
+    }
+    .qedit { font-size: 13px; font-weight: 600; color: var(--terra); flex-shrink: 0; }
+
+    /* Chevron */
+    .chev { color: var(--ink-30); }
+  </style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="d-island"></div>
+
+  <!-- Status bar -->
+  <div class="status">
+    <span class="status-time">9:41</span>
+    <div class="status-icons">
+      <!-- signal bars -->
+      <svg width="17" height="12" fill="currentColor" color="var(--ink)">
+        <rect x="0"  y="7" width="3" height="5" rx="1" opacity=".25"/>
+        <rect x="4.5" y="5" width="3" height="7" rx="1" opacity=".55"/>
+        <rect x="9"  y="2.5" width="3" height="9.5" rx="1" opacity=".8"/>
+        <rect x="13.5" y="0" width="3" height="12" rx="1"/>
+      </svg>
+      <!-- wifi -->
+      <svg width="16" height="12" fill="currentColor" color="var(--ink)">
+        <path d="M8 8.5a2 2 0 110 4 2 2 0 010-4z"/>
+        <path d="M4.3 6.3a5.2 5.2 0 017.4 0l-1.1 1.1a3.7 3.7 0 00-5.2 0L4.3 6.3z"/>
+        <path d="M1.1 3.1a9.4 9.4 0 0113.8 0L13.8 4.2a7.9 7.9 0 00-11.6 0L1.1 3.1z"/>
+      </svg>
+      <!-- battery -->
+      <svg width="26" height="12" fill="currentColor" color="var(--ink)">
+        <rect x=".5" y=".5" width="22" height="11" rx="3.5" stroke="currentColor" stroke-opacity=".35" fill="none"/>
+        <rect x="2" y="2" width="18" height="8" rx="2"/>
+        <path d="M23.5 4v4a2.5 2.5 0 000-4z"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ============== SCREENS ============== -->
+  <div class="screens">
+
+    <!-- ======= SCREEN 1: KHÁM PHÁ ======= -->
+    <div class="screen active" id="s-discover">
+
+      <div class="disc-header">
+        <div class="search-pill">
+          <div class="pill-dot"></div>
+          <span class="pill-text">Bình Thạnh · 2PN · ≤ 12tr</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-30)" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="header-right">
+          <span class="count-tag" id="count-tag">8 mới</span>
+          <div class="icon-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="10" y1="18" x2="14" y2="18"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Stack -->
+      <div class="stack-area">
+        <div class="card-stack" id="card-stack">
+
+          <!-- Card 3 — deepest -->
+          <div class="r-card" style="z-index:1;transform:translateY(24px) scale(.91)">
+            <div class="card-bg" style="background-image:url('https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500&q=75')"></div>
+            <div class="card-grad"></div>
+            <div class="card-body">
+              <div class="card-price">10 triệu <span class="card-price-unit">/ tháng</span></div>
+            </div>
+          </div>
+
+          <!-- Card 2 — middle -->
+          <div class="r-card" style="z-index:2;transform:translateY(12px) scale(.955)">
+            <div class="card-bg" style="background-image:url('https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?w=500&q=75')"></div>
+            <div class="card-grad"></div>
+            <div class="card-body">
+              <div class="card-price">15 triệu <span class="card-price-unit">/ tháng</span></div>
+            </div>
+          </div>
+
+          <!-- Card 1 — TOP, interactive -->
+          <div class="r-card" id="top-card" style="z-index:3">
+            <div class="card-bg" style="background-image:url('https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=500&q=80')"></div>
+            <div class="card-grad"></div>
+
+            <div class="source-tag">BDS</div>
+
+            <!-- Khảo sát arc — SIGNATURE ELEMENT -->
+            <div class="score-arc">
+              <svg viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="27" cy="27" r="19" fill="rgba(0,0,0,.35)"/>
+                <circle cx="27" cy="27" r="19" class="arc-ring-bg" stroke-dasharray="119.4"/>
+                <!-- 8.1/10 = 81% → dashoffset = 119.4 * .19 = 22.7 -->
+                <circle cx="27" cy="27" r="19" class="arc-ring hi"
+                  stroke-dasharray="119.4" stroke-dashoffset="22.7"/>
+                <text x="27" y="30" class="arc-num" font-family="Inter">8.1</text>
+              </svg>
+            </div>
+
+            <div class="sw-ind sw-like" id="ind-like">Thêm</div>
+            <div class="sw-ind sw-skip" id="ind-skip">Bỏ</div>
+
+            <div class="card-body">
+              <div class="card-price">11 triệu <span class="card-price-unit">/ tháng</span></div>
+              <div class="card-specs">
+                <div class="card-spec">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+                  2 PN
+                </div>
+                <div class="card-spec">80 m²</div>
+                <div class="card-spec">Nội thất đầy đủ</div>
+              </div>
+              <div class="card-loc">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                Richmond · Nguyễn Xí, Bình Thạnh
+              </div>
+            </div>
+          </div>
+
+        </div><!-- end card-stack -->
+
+        <!-- Empty state -->
+        <div class="disc-empty" id="disc-empty">
+          <div class="empty-icon-wrap">🏠</div>
+          <div class="empty-h">Đã xem hết rồi!</div>
+          <div class="empty-p">Bot sẽ quét thêm tin mới.<br>Bạn sẽ nhận thông báo khi có căn phù hợp.</div>
+        </div>
+
+      </div><!-- end stack-area -->
+
+      <!-- Action Buttons -->
+      <div class="actions" id="actions">
+        <button class="act-btn act-skip" onclick="doAction('skip')">
+          <div class="act-circle">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </div>
+          <span class="act-lbl">Bỏ qua</span>
+        </button>
+
+        <button class="act-btn act-like" onclick="doAction('like')">
+          <div class="act-circle">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="#fff" stroke="#fff" stroke-width="1.5" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+          </div>
+          <span class="act-lbl">Xem thêm</span>
+        </button>
+
+        <button class="act-btn act-contact" onclick="doAction('contact')">
+          <div class="act-circle">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <span class="act-lbl">Liên hệ luôn</span>
+        </button>
+      </div>
+
+    </div><!-- end s-discover -->
+
+
+    <!-- ======= SCREEN 2: THEO DÕI ======= -->
+    <div class="screen" id="s-track">
+
+      <div class="track-hdr">
+        <div class="track-h1">Đang theo dõi</div>
+        <div class="track-sub">4 căn đang trong quá trình</div>
+      </div>
+
+      <!-- Section: Đang xem xét -->
+      <div class="track-sect">
+        <div class="sect-hdr">
+          <div class="sect-label">
+            <div class="sect-dot" style="background:var(--amber)"></div>
+            <span class="sect-name">Đang xem xét</span>
+          </div>
+          <span class="sect-ct">2 căn</span>
+        </div>
+        <div class="track-list">
+
+          <div class="t-card">
+            <div class="t-thumb" style="background-image:url('https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=200&q=75')"></div>
+            <div class="t-body">
+              <div class="t-name">2PN Saigonres 75m²</div>
+              <div class="t-price">11 triệu/tháng</div>
+              <div class="t-chips">
+                <span class="t-chip">2PN</span>
+                <span class="t-chip">75m²</span>
+                <span class="t-chip">Bình Thạnh</span>
+              </div>
+            </div>
+            <div class="t-right">
+              <div class="rbadge running"><div class="pulse"></div>Khảo sát</div>
+              <span class="t-time">2 phút trước</span>
+            </div>
+          </div>
+
+          <div class="t-card">
+            <div class="t-thumb" style="background-image:url('https://images.unsplash.com/photo-1484154218962-a197022b5858?w=200&q=75')"></div>
+            <div class="t-body">
+              <div class="t-name">2PN Wilton Tower · 68m²</div>
+              <div class="t-price">15 triệu/tháng</div>
+              <div class="t-chips">
+                <span class="t-chip">2PN</span>
+                <span class="t-chip">68m²</span>
+                <span class="t-chip">Bình Thạnh</span>
+              </div>
+            </div>
+            <div class="t-right">
+              <div class="rbadge done">★ 7.9</div>
+              <span class="t-time">1 giờ trước</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Section: Đã liên hệ -->
+      <div class="track-sect">
+        <div class="sect-hdr">
+          <div class="sect-label">
+            <div class="sect-dot" style="background:var(--terra)"></div>
+            <span class="sect-name">Đã liên hệ</span>
+          </div>
+          <span class="sect-ct">2 căn</span>
+        </div>
+        <div class="track-list">
+
+          <div class="t-card">
+            <div class="t-thumb" style="background-image:url('https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?w=200&q=75')"></div>
+            <div class="t-body">
+              <div class="t-name">Studio · Phạm Thế Hiến Q.8</div>
+              <div class="t-price">3,699k/tháng</div>
+              <div class="t-chips">
+                <span class="t-chip">0PN</span>
+                <span class="t-chip">Quận 8</span>
+              </div>
+            </div>
+            <div class="t-right">
+              <div class="rbadge reached">★ 6.9</div>
+              <span class="t-time">Zalo</span>
+            </div>
+          </div>
+
+          <div class="t-card">
+            <div class="t-thumb" style="background-image:url('https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=200&q=75')"></div>
+            <div class="t-body">
+              <div class="t-name">1PN ban công · Quận 10</div>
+              <div class="t-price">Liên hệ giá</div>
+              <div class="t-chips">
+                <span class="t-chip">1PN</span>
+                <span class="t-chip">Quận 10</span>
+              </div>
+            </div>
+            <div class="t-right">
+              <div class="rbadge pending">Chờ phản hồi</div>
+              <span class="t-time">FB</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div><!-- end s-track -->
+
+
+    <!-- ======= SCREEN 3: CÀI ĐẶT ======= -->
+    <div class="screen" id="s-settings">
+
+      <div class="settings-hdr">
+        <div class="settings-h1">Cài đặt</div>
+      </div>
+
+      <!-- Search query -->
+      <div class="s-sect">
+        <div class="s-sect-lbl">Tìm kiếm hiện tại</div>
+        <div class="query-card">
+          <div class="query-tags">
+            <span class="qtag">Bình Thạnh</span>
+            <span class="qtag">2PN</span>
+            <span class="qtag">≤ 12 triệu</span>
+            <span class="qtag">≥ 50m²</span>
+          </div>
+          <button class="qedit">Sửa</button>
+        </div>
+      </div>
+
+      <!-- Connections -->
+      <div class="s-sect">
+        <div class="s-sect-lbl">Kết nối</div>
+        <div class="s-group">
+          <div class="s-item">
+            <div class="s-ico" style="background:#e6f4ec">💬</div>
+            <div class="s-content">
+              <div class="s-lbl">Zalo</div>
+              <div class="s-sub">Nhắn tin và nhận thông báo</div>
+            </div>
+            <div class="s-right">
+              <span class="schip ok">Đã kết nối</span>
+              <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+          </div>
+          <div class="s-item">
+            <div class="s-ico" style="background:#e8edf8">📘</div>
+            <div class="s-content">
+              <div class="s-lbl">Facebook</div>
+              <div class="s-sub">Quét tin từ các nhóm cho thuê</div>
+            </div>
+            <div class="s-right">
+              <span class="schip off">Chưa kết nối</span>
+              <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+          </div>
+          <div class="s-item">
+            <div class="s-ico" style="background:#f5ece8">🏠</div>
+            <div class="s-content">
+              <div class="s-lbl">BDS.com.vn</div>
+              <div class="s-sub">Nguồn tin chính</div>
+            </div>
+            <div class="s-right">
+              <span class="schip ok">Hoạt động</span>
+              <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Schedule -->
+      <div class="s-sect">
+        <div class="s-sect-lbl">Lịch hoạt động</div>
+        <div class="s-group">
+          <div class="s-item">
+            <div class="s-ico" style="background:#fdf2e7">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="s-content">
+              <div class="s-lbl">Quét tự động</div>
+              <div class="s-sub">Mỗi 2 giờ · 7:00 – 22:00</div>
+            </div>
+            <div class="s-right">
+              <div class="tog on" onclick="this.classList.toggle('on')"></div>
+            </div>
+          </div>
+          <div class="s-item">
+            <div class="s-ico" style="background:#f5ece8">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--terra)" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            </div>
+            <div class="s-content">
+              <div class="s-lbl">Thông báo tin mới</div>
+              <div class="s-sub">Ngay khi có tin phù hợp</div>
+            </div>
+            <div class="s-right">
+              <div class="tog on" onclick="this.classList.toggle('on')"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Research -->
+      <div class="s-sect">
+        <div class="s-sect-lbl">Phân tích khu vực</div>
+        <div class="s-group">
+          <div class="s-item">
+            <div class="s-ico" style="background:#e8f2ee">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            </div>
+            <div class="s-content">
+              <div class="s-lbl">Khảo sát tự động</div>
+              <div class="s-sub">Khi bạn nhấn "Xem thêm"</div>
+            </div>
+            <div class="s-right">
+              <div class="tog on" onclick="this.classList.toggle('on')"></div>
+            </div>
+          </div>
+          <div class="s-item">
+            <div class="s-ico" style="background:#e8f2ee">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--jade)" stroke-width="2" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 015 12.84 19.79 19.79 0 011.88 4.2 2 2 0 013.88 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+            </div>
+            <div class="s-content">
+              <div class="s-lbl">Thông báo kết quả khảo sát</div>
+              <div class="s-sub">Khi phân tích khu vực xong</div>
+            </div>
+            <div class="s-right">
+              <div class="tog on" onclick="this.classList.toggle('on')"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end s-settings -->
+
+  </div><!-- end screens -->
+
+  <!-- Bottom Nav -->
+  <nav class="bnav">
+    <button class="bnav-btn active" onclick="goTab('discover',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      <span class="bnav-label">Khám phá</span>
+    </button>
+    <button class="bnav-btn" onclick="goTab('track',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span class="bnav-label">Theo dõi</span>
+    </button>
+    <button class="bnav-btn" onclick="goTab('settings',this)">
+      <svg class="bnav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      <span class="bnav-label">Cài đặt</span>
+    </button>
+  </nav>
+
+</div><!-- end phone -->
+
+<script>
+  /* ===== TAB SWITCHING ===== */
+  function goTab(id, btn) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('s-' + id).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  /* ===== CARD DATA ===== */
+  const cards = [
+    { img:'https://images.unsplash.com/photo-1555854877-bab0e564b8d5?w=500&q=80', price:'11', specs:'2 PN · 80m²', loc:'Richmond · Nguyễn Xí, Bình Thạnh', src:'BDS', score:'8.1', hi:true },
+    { img:'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=500&q=80', price:'11', specs:'2 PN · 75m²', loc:'Saigonres · Bình Thạnh', src:'BDS', score:'8.1', hi:true },
+    { img:'https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?w=500&q=80', price:'15', specs:'2 PN · 68m²', loc:'Wilton Tower · Bình Thạnh', src:'NT', score:'7.9', hi:false },
+    { img:'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500&q=80', price:'11', specs:'2 PN · 83m²', loc:'Hyco4 · Nguyễn Xí, Bình Thạnh', src:'BDS', score:null, hi:false },
+    { img:'https://images.unsplash.com/photo-1484154218962-a197022b5858?w=500&q=80', price:'12', specs:'1 PN · 45m²', loc:'Ban công · Bình Thạnh', src:'FB', score:null, hi:false },
+    { img:'https://images.unsplash.com/photo-1536376072261-38c75010e6c9?w=500&q=80', price:'9', specs:'1 PN · 40m²', loc:'Nơ Trang Long · Bình Thạnh', src:'NT', score:null, hi:false },
+  ];
+
+  let idx = 0;
+  let drag = false, sx = 0, sy = 0, dx = 0;
+
+  function arcHTML(score, hi) {
+    if (!score) return '';
+    const circ = 119.4;
+    const offset = circ * (1 - parseFloat(score) / 10);
+    return `<div class="score-arc">
+      <svg viewBox="0 0 54 54" fill="none">
+        <circle cx="27" cy="27" r="19" fill="rgba(0,0,0,.35)"/>
+        <circle cx="27" cy="27" r="19" class="arc-ring-bg" stroke-dasharray="${circ}"/>
+        <circle cx="27" cy="27" r="19" class="arc-ring ${hi?'hi':'md'}"
+          stroke-dasharray="${circ}" stroke-dashoffset="${offset.toFixed(1)}"/>
+        <text x="27" y="30" class="arc-num" font-family="Inter">${score}</text>
+      </svg>
+    </div>`;
+  }
+
+  function makeCard(d, pos) {
+    const el = document.createElement('div');
+    el.className = 'r-card';
+    if (pos === 0) el.id = 'top-card';
+    el.style.zIndex = 3 - pos;
+    if (pos === 1) el.style.transform = 'translateY(12px) scale(.955)';
+    if (pos === 2) el.style.transform = 'translateY(24px) scale(.91)';
+
+    const inds = pos === 0 ? `
+      <div class="sw-ind sw-like" id="ind-like">Thêm</div>
+      <div class="sw-ind sw-skip" id="ind-skip">Bỏ</div>` : '';
+
+    el.innerHTML = `
+      <div class="card-bg" style="background-image:url('${d.img}')"></div>
+      <div class="card-grad"></div>
+      <div class="source-tag">${d.src}</div>
+      ${arcHTML(d.score, d.hi)}
+      ${inds}
+      <div class="card-body">
+        <div class="card-price">${d.price} triệu <span class="card-price-unit">/ tháng</span></div>
+        <div class="card-specs">
+          <div class="card-spec">${d.specs}</div>
+        </div>
+        <div class="card-loc">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.6)" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          ${d.loc}
+        </div>
+      </div>`;
+
+    if (pos === 0) attachDrag(el);
+    return el;
+  }
+
+  function attachDrag(card) {
+    card.addEventListener('pointerdown', e => {
+      drag = true; sx = e.clientX; sy = e.clientY; dx = 0;
+      card.classList.add('dragging');
+      card.setPointerCapture(e.pointerId);
+    });
+    card.addEventListener('pointermove', e => {
+      if (!drag) return;
+      dx = e.clientX - sx;
+      const dy = (e.clientY - sy) * 0.25;
+      const rot = dx * 0.07;
+      card.style.transform = `translate(${dx}px,${dy}px) rotate(${rot}deg)`;
+      const t = Math.min(Math.abs(dx) / 90, 1);
+      const likeInd = document.getElementById('ind-like');
+      const skipInd = document.getElementById('ind-skip');
+      if (likeInd && skipInd) {
+        likeInd.style.opacity = dx > 20 ? t : 0;
+        skipInd.style.opacity = dx < -20 ? t : 0;
+      }
+    });
+    card.addEventListener('pointerup', () => {
+      if (!drag) return;
+      drag = false;
+      card.classList.remove('dragging');
+      if (dx > 85) animOut('like');
+      else if (dx < -85) animOut('skip');
+      else {
+        card.style.transition = 'transform .4s cubic-bezier(.4,0,.2,1)';
+        card.style.transform = '';
+        setTimeout(() => card.style.transition = '', 400);
+        const likeInd = document.getElementById('ind-like');
+        const skipInd = document.getElementById('ind-skip');
+        if (likeInd) likeInd.style.opacity = 0;
+        if (skipInd) skipInd.style.opacity = 0;
+      }
+    });
+  }
+
+  function animOut(dir) {
+    const tc = document.getElementById('top-card');
+    if (!tc) return;
+    const tx = dir === 'skip' ? -520 : 520;
+    const ty = dir === 'skip' ? 60 : -40;
+    const rot = dir === 'skip' ? -22 : 22;
+    tc.style.transition = 'transform .38s cubic-bezier(.4,0,.2,1), opacity .28s ease';
+    tc.style.transform = `translate(${tx}px,${ty}px) rotate(${rot}deg)`;
+    tc.style.opacity = '0';
+    setTimeout(() => {
+      tc.remove();
+      idx++;
+      const stack = document.getElementById('card-stack');
+      const existing = stack.querySelectorAll('.r-card');
+
+      /* Promote existing cards forward */
+      existing.forEach((c, i) => {
+        c.style.transition = 'transform .3s cubic-bezier(.4,0,.2,1)';
+        if (i === 0) {
+          c.id = 'top-card'; c.style.zIndex = 3;
+          c.style.transform = 'translateY(0) scale(1)';
+          /* add indicators */
+          const l = document.createElement('div');
+          l.className = 'sw-ind sw-like'; l.id = 'ind-like'; l.textContent = 'Thêm';
+          const s = document.createElement('div');
+          s.className = 'sw-ind sw-skip'; s.id = 'ind-skip'; s.textContent = 'Bỏ';
+          c.appendChild(l); c.appendChild(s);
+          attachDrag(c);
+        } else if (i === 1) {
+          c.style.zIndex = 2;
+          c.style.transform = 'translateY(12px) scale(.955)';
+        }
+      });
+
+      /* Add new card at back if available */
+      const nextIdx = idx + 2;
+      if (nextIdx < cards.length) {
+        const nc = makeCard(cards[nextIdx], 2);
+        nc.style.zIndex = 1;
+        stack.appendChild(nc);
+      }
+
+      /* Update counter */
+      const rem = Math.max(0, cards.length - idx);
+      const ct = document.getElementById('count-tag');
+      if (ct) ct.textContent = rem + ' mới';
+
+      /* Empty state */
+      if (idx >= cards.length) {
+        document.getElementById('card-stack').style.display = 'none';
+        document.getElementById('disc-empty').classList.add('show');
+        document.getElementById('actions').style.display = 'none';
+      }
+    }, 380);
+  }
+
+  function doAction(dir) { animOut(dir); }
+</script>
+
+</body>
+</html>

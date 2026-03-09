@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { SetupWizard } from "@/components/setup/setup-wizard";
-import { Dashboard } from "@/components/dashboard/dashboard";
+import { App } from "@/components/app/app";
 import { useCampaignStore } from "@/stores/campaign-store";
 
 export default function Home() {
@@ -15,32 +15,32 @@ export default function Home() {
 
   useEffect(() => {
     fetchCampaignsRef.current().then(() => setReady(true));
-  }, []); // Run once on mount
+  }, []);
 
-  // Once campaigns are loaded, auto-select the first active one
   useEffect(() => {
     if (!ready) return;
     if (activeCampaignId) return;
 
-    const active = campaigns.find((c) => c.status === "active");
+    const active = campaigns.find((c) => c.status === "active") ?? campaigns[0];
     if (active) {
       setActiveCampaignId(active.id);
     }
   }, [ready, campaigns, activeCampaignId]);
 
-  // Show loading spinner only during initial campaign list fetch
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--cream)" }}>
         <div className="text-center space-y-2">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-muted-foreground">Đang tải...</p>
+          <div
+            className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin mx-auto"
+            style={{ borderColor: "var(--terra)", borderTopColor: "transparent" }}
+          />
+          <p className="text-sm" style={{ color: "var(--ink-50)" }}>Đang tải...</p>
         </div>
       </div>
     );
   }
 
-  // No campaign? Show setup wizard
   if (!activeCampaignId) {
     return (
       <SetupWizard
@@ -51,6 +51,5 @@ export default function Home() {
     );
   }
 
-  // Dashboard
-  return <Dashboard campaignId={activeCampaignId} />;
+  return <App campaignId={activeCampaignId} />;
 }

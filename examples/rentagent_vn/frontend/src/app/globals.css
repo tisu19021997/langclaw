@@ -49,6 +49,34 @@
 
 :root {
   --radius: 0.625rem;
+
+  /* Design system tokens */
+  --cream: #FAF7F2;
+  --cream-100: #F3EDE2;
+  --cream-200: #E8E0D0;
+  --ink: #1A1815;
+  --ink-70: rgba(26,24,21,.70);
+  --ink-50: rgba(26,24,21,.50);
+  --ink-30: rgba(26,24,21,.30);
+  --ink-15: rgba(26,24,21,.15);
+  --ink-08: rgba(26,24,21,.08);
+  --ink-04: rgba(26,24,21,.04);
+  --terra: #C4562A;
+  --terra-15: rgba(196,86,42,.15);
+  --terra-08: rgba(196,86,42,.08);
+  --jade: #3D7A63;
+  --jade-15: rgba(61,122,99,.15);
+  --amber: #B87B2A;
+  --amber-15: rgba(184,123,42,.15);
+  --ds-white: #FFFFFF;
+  --shadow-card: 0 2px 8px rgba(26,24,21,.06), 0 8px 32px rgba(26,24,21,.10);
+  --shadow-float: 0 4px 24px rgba(26,24,21,.12), 0 12px 48px rgba(26,24,21,.12);
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 26px;
+  --r-full: 999px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -123,4 +151,12 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .25; }
+}
+.pulse-dot {
+  animation: blink 1.5s ease-in-out infinite;
 }
