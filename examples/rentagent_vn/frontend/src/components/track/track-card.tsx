@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useResearchStore } from "@/stores/research-store";
-import { ResearchLiveSheet } from "./research-live-sheet";
 import { ListingDetailSheet } from "@/components/listing";
 import type { Listing } from "@/types";
 
@@ -78,7 +77,7 @@ function ResearchBadge({ listing }: { listing: Listing }) {
 }
 
 function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  const diff = Date.now() - new Date(dateStr + "Z").getTime();
   const mins = Math.floor(diff / 60_000);
   if (mins < 1) return "Just now";
   if (mins < 60) return `${mins}m ago`;
@@ -88,21 +87,20 @@ function timeAgo(dateStr: string): string {
 }
 
 export function TrackCard({ listing, campaignId }: TrackCardProps) {
-  const { researching, researchByListing } = useResearchStore();
+  const { researching, researchByListing, liveState } = useResearchStore();
   const researchId = listing.research_id ?? researchByListing[listing.id];
   const research = researchId ? researching[researchId] : null;
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const live = researchId ? liveState[researchId] : null;
   const [detailOpen, setDetailOpen] = useState(false);
 
   const isResearchRunning =
     listing.stage === "researching" && research?.status === "running";
+  const browserUrl = live?.browserUrl;
 
   const handleTap = () => {
     setDetailOpen(true);
   };
 
-  // Use <div role="button"> instead of <button> to avoid nested button violation
-  // (the "Watch live →" inside is a real <button>)
   return (
     <>
       <div
@@ -175,38 +173,40 @@ export function TrackCard({ listing, campaignId }: TrackCardProps) {
           </div>
         </div>
 
+        {/* Inline live preview */}
+        {isResearchRunning && browserUrl && (
+          <div
+            className="flex-shrink-0 overflow-hidden relative"
+            style={{
+              width: 120,
+              height: 80,
+              borderRadius: "var(--r-md)",
+              background: "var(--cream-100)",
+            }}
+          >
+            <iframe
+              src={browserUrl}
+              className="absolute inset-0 border-0 pointer-events-none"
+              style={{
+                width: "100%",
+                height: "100%",
+                transform: "scale(1.5)",
+                transformOrigin: "top center",
+              }}
+              sandbox="allow-scripts allow-same-origin"
+              title="Research live preview"
+            />
+          </div>
+        )}
+
         {/* Right column */}
         <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
           <ResearchBadge listing={listing} />
-
-          {isResearchRunning && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setSheetOpen(true);
-              }}
-              className="text-[11px] font-medium"
-              style={{ color: "var(--terra)" }}
-            >
-              Watch live →
-            </button>
-          )}
-
           <span className="text-[11px]" style={{ color: "var(--ink-30)" }}>
             {timeAgo(listing.updated_at)}
           </span>
         </div>
       </div>
-
-      {/* Research live sheet */}
-      {sheetOpen && researchId && (
-        <ResearchLiveSheet
-          open={sheetOpen}
-          onClose={() => setSheetOpen(false)}
-          listing={listing}
-          researchId={researchId}
-        />
-      )}
 
       {/* Listing detail sheet */}
       <ListingDetailSheet

@@ -220,7 +220,7 @@ export function OutreachDialog({
               ) : (
                 <>
                   <Send className="h-4 w-4 mr-2" />
-                  Send message
+                  Send
                 </>
               )}
             </Button>

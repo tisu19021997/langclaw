@@ -62,12 +62,21 @@ export function ScanLiveSheet({ open, onClose }: ScanLiveSheetProps) {
         </div>
       )}
 
-      {/* iFrame area */}
-      <div className="flex-1 relative min-h-0" style={{ minHeight: "60vh" }}>
+      {/* iFrame area — scaled up for better visibility */}
+      <div
+        className="flex-1 relative min-h-0 overflow-hidden"
+        style={{ minHeight: "60vh" }}
+      >
         {iframeUrl ? (
           <iframe
             src={iframeUrl}
-            className="w-full h-full border-0"
+            className="absolute inset-0 border-0"
+            style={{
+              width: "100%",
+              height: "100%",
+              transform: "scale(1.5)",
+              transformOrigin: "top center",
+            }}
             sandbox="allow-scripts allow-same-origin"
             title="Scan live preview"
           />

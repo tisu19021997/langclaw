@@ -1,8 +1,12 @@
 "use client";
 
 import { useRef, useCallback } from "react";
-import { Bed, Maximize2 } from "lucide-react";
+import { Bed, Maximize2, Phone, Search } from "lucide-react";
 import type { Listing, AreaResearch } from "@/types";
+
+function hasContactInfo(listing: Listing): boolean {
+  return !!(listing.landlord_phone || listing.landlord_zalo || listing.landlord_facebook_url);
+}
 
 interface RentalCardProps {
   listing: Listing;
@@ -202,20 +206,49 @@ export function RentalCard({
         }}
       />
 
-      {/* Source tag — top left */}
-      {listing.source_platform && (
+      {/* Top left badges */}
+      <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+        {/* Source tag */}
+        {listing.source_platform && (
+          <div
+            className="px-3 py-1 text-[11px] font-semibold text-white"
+            style={{
+              background: "rgba(255,255,255,.15)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              borderRadius: "var(--r-full)",
+            }}
+          >
+            {listing.source_platform}
+          </div>
+        )}
+
+        {/* Contact status chip */}
         <div
-          className="absolute top-3 left-3 px-3 py-1 text-[11px] font-semibold text-white"
+          className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold"
           style={{
-            background: "rgba(255,255,255,.15)",
+            background: hasContactInfo(listing)
+              ? "rgba(87,217,154,.85)"
+              : "rgba(255,255,255,.15)",
             backdropFilter: "blur(12px)",
             WebkitBackdropFilter: "blur(12px)",
             borderRadius: "var(--r-full)",
+            color: "white",
           }}
         >
-          {listing.source_platform}
+          {hasContactInfo(listing) ? (
+            <>
+              <Phone size={10} />
+              Contact found
+            </>
+          ) : (
+            <>
+              <Search size={10} />
+              No contact
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Score arc badge — top right */}
       {overallScore !== null && <ScoreArcBadge score={overallScore} />}

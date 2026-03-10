@@ -120,7 +120,8 @@ Field guide (use these EXACT keys):
 - bedrooms       : Number of bedrooms (integer). Extract from "1PN"=1, "2PN"=2. null if unknown
 - bathrooms      : Number of bathrooms (integer). null if unknown
 - listing_url    : Permalink to this specific post or listing page
-- thumbnail_url  : First image URL. null if none
+- thumbnail_url  : First image URL. Try to get at least 1 image of the listing because it is the
+                   most important information for the tenant to see. null if none.
 - posted_date    : Date posted (YYYY-MM-DD). null if unknown
 - source_platform: "facebook", "nhatot.com", "batdongsan.com.vn", etc.
 - landlord_name  : Name of the poster / landlord. null if unknown
@@ -255,8 +256,11 @@ Your goal is to write a natural, concise Zalo message to a landlord or agent.
     - **DO NOT** use emojis.
     - **DO NOT** provide a long self-introduction.
     - Ensure every generated message is slightly different to avoid spam flags.
+4. **Greeting**: If landlord name is known, address them by name (e.g., "Chào Trân").
+   If unknown, use "Chào anh/chị".
 
 ## Listing Context
+- Landlord name: {landlord_name}
 - Address: {address}
 - Price: {price}
 - Area: {area}

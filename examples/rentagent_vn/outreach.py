@@ -54,12 +54,14 @@ async def draft_outreach_message(
     price = _format_price(listing.get("price_vnd"))
     area = _format_area(listing.get("area_sqm"))
     district = listing.get("district") or "this area"
+    landlord_name = listing.get("landlord_name") or "unknown"
 
     custom_notes_section = ""
     if custom_notes:
         custom_notes_section = f"## Additional notes from tenant:\n{custom_notes}"
 
     prompt = OUTREACH_DRAFT_PROMPT.format(
+        landlord_name=landlord_name,
         address=address,
         price=price,
         area=area,
@@ -68,7 +70,7 @@ async def draft_outreach_message(
     )
 
     model_name = os.environ.get("LANGCLAW__AGENTS__MODEL", "azure_openai:gpt-5")
-    llm = init_chat_model(model=model_name, temperature=0.8)
+    llm = init_chat_model(model=model_name, temperature=1.0)
 
     logger.info(f"Drafting outreach message for listing {listing.get('id')}")
 

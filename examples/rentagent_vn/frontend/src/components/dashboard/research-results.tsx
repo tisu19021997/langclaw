@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   MapPin,
   RefreshCw,
-  Send,
   ChevronDown,
   ExternalLink,
 } from "lucide-react";
@@ -18,7 +17,7 @@ import {
 } from "@/components/ui/collapsible";
 import { ScoreBadge } from "./score-badge";
 import { CriteriaScores } from "./criteria-scores";
-import type { AreaResearch, PipelineStage } from "@/types";
+import type { AreaResearch } from "@/types";
 import { useListingStore } from "@/stores/listing-store";
 import { useResearchStore } from "@/stores/research-store";
 
@@ -36,17 +35,12 @@ export function ResearchResults({
   const [activeTab, setActiveTab] = useState<"overview" | "details" | "street">(
     "overview"
   );
-  const { updateStage, fetchListings } = useListingStore();
+  const { fetchListings } = useListingStore();
   const { retryResearch } = useResearchStore();
 
   if (research.status !== "done" || !research.scores) return null;
 
   const { scores, verdict, overall_score } = research;
-
-  const handleMoveStage = async (stage: PipelineStage) => {
-    await updateStage(campaignId, listingId, stage);
-    await fetchListings(campaignId);
-  };
 
   const handleRetry = async () => {
     await retryResearch(campaignId, research.id);
@@ -187,14 +181,6 @@ export function ResearchResults({
 
       {/* Action buttons */}
       <div className="flex gap-2">
-        <Button
-          size="sm"
-          className="flex-1"
-          onClick={() => handleMoveStage("contacted")}
-        >
-          <Send className="h-3.5 w-3.5 mr-1.5" />
-          Contact now
-        </Button>
         <Button
           variant="outline"
           size="sm"
