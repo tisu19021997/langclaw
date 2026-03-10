@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
 import { useResearchStore } from "@/stores/research-store";
 import { ResearchLiveSheet } from "./research-live-sheet";
+import { ListingDetailSheet } from "@/components/listing";
 import type { Listing } from "@/types";
 
 interface TrackCardProps {
   listing: Listing;
+  campaignId: string;
 }
 
 function ResearchBadge({ listing }: { listing: Listing }) {
@@ -86,17 +87,18 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hrs / 24)} ngày trước`;
 }
 
-export function TrackCard({ listing }: TrackCardProps) {
+export function TrackCard({ listing, campaignId }: TrackCardProps) {
   const { researching, researchByListing } = useResearchStore();
   const researchId = listing.research_id ?? researchByListing[listing.id];
   const research = researchId ? researching[researchId] : null;
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const isResearchRunning =
     listing.stage === "researching" && research?.status === "running";
 
   const handleTap = () => {
-    toast("Chi tiết sắp ra mắt", { description: "Tính năng đang phát triển" });
+    setDetailOpen(true);
   };
 
   // Use <div role="button"> instead of <button> to avoid nested button violation
@@ -205,6 +207,15 @@ export function TrackCard({ listing }: TrackCardProps) {
           researchId={researchId}
         />
       )}
+
+      {/* Listing detail sheet */}
+      <ListingDetailSheet
+        open={detailOpen}
+        onClose={() => setDetailOpen(false)}
+        listing={listing}
+        campaignId={campaignId}
+        mode="track"
+      />
     </>
   );
 }

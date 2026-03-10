@@ -10,6 +10,7 @@ interface TrackSectionProps {
   dotColor: string;
   listings: Listing[];
   collapsedByDefault?: boolean;
+  campaignId: string;
 }
 
 export function TrackSection({
@@ -17,6 +18,7 @@ export function TrackSection({
   dotColor,
   listings,
   collapsedByDefault = false,
+  campaignId,
 }: TrackSectionProps) {
   const [collapsed, setCollapsed] = useState(collapsedByDefault);
 
@@ -59,7 +61,7 @@ export function TrackSection({
       {!collapsed && (
         <div className="space-y-2">
           {listings.map((listing) => (
-            <TrackCard key={listing.id} listing={listing} />
+            <TrackCard key={listing.id} listing={listing} campaignId={campaignId} />
           ))}
         </div>
       )}

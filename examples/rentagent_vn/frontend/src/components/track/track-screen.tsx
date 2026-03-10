@@ -7,7 +7,7 @@ interface TrackScreenProps {
   campaignId: string;
 }
 
-export function TrackScreen({ campaignId: _campaignId }: TrackScreenProps) {
+export function TrackScreen({ campaignId }: TrackScreenProps) {
   const { listings } = useListingStore();
 
   // Filter by sections per PRD stage mapping
@@ -68,17 +68,20 @@ export function TrackScreen({ campaignId: _campaignId }: TrackScreenProps) {
               title="Đang xem xét"
               dotColor="var(--amber)"
               listings={researching}
+              campaignId={campaignId}
             />
             <TrackSection
               title="Đã liên hệ"
               dotColor="var(--terra)"
               listings={contacted}
+              campaignId={campaignId}
             />
             <TrackSection
               title="Xong"
               dotColor="var(--ink-30)"
               listings={done}
               collapsedByDefault={done.length > 0}
+              campaignId={campaignId}
             />
           </>
         )}

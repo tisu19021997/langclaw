@@ -11,6 +11,7 @@ interface RentalCardProps {
   stackIndex: number;
   onSwipe: (direction: "like" | "skip" | "contact") => void;
   isDraggable: boolean;
+  onTap?: () => void;
 }
 
 function ScoreArcBadge({ score }: { score: number }) {
@@ -70,6 +71,7 @@ export function RentalCard({
   stackIndex,
   onSwipe,
   isDraggable,
+  onTap,
 }: RentalCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const dragState = useRef({
@@ -148,16 +150,19 @@ export function RentalCard({
   const onPointerUp = useCallback(() => {
     if (!dragState.current.isDragging) return;
     dragState.current.isDragging = false;
-    const { dx } = dragState.current;
+    const { dx, dy } = dragState.current;
 
     if (dx > 85) {
       animateOff("like");
     } else if (dx < -85) {
       animateOff("skip");
     } else {
+      if (Math.abs(dx) < 5 && Math.abs(dy) < 10) {
+        onTap?.();
+      }
       resetCard();
     }
-  }, [animateOff, resetCard]);
+  }, [animateOff, resetCard, onTap]);
 
   const overallScore = research?.overall_score ?? null;
 

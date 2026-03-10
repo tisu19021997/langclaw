@@ -14,6 +14,7 @@ import { CardStack } from "./card-stack";
 import { ActionBar } from "./action-bar";
 import { EmptyDiscover } from "./empty-discover";
 import { ScanLiveSheet } from "./scan-live-sheet";
+import { ListingDetailSheet } from "@/components/listing";
 
 interface DiscoverScreenProps {
   campaignId: string;
@@ -27,6 +28,7 @@ export function DiscoverScreen({ campaignId }: DiscoverScreenProps) {
   const { isScanning, triggerScan } = useActivityStore();
   const [scanSheetOpen, setScanSheetOpen] = useState(false);
   const [removing, setRemoving] = useState<Set<string>>(new Set());
+  const [detailListing, setDetailListing] = useState<Listing | null>(null);
 
   // Only new listings
   const newListings = listings.filter(
@@ -206,6 +208,7 @@ export function DiscoverScreen({ campaignId }: DiscoverScreenProps) {
               listings={newListings}
               getResearch={getResearch}
               onSwipe={handleSwipe}
+              onTap={(listing) => setDetailListing(listing)}
             />
           </div>
 
@@ -219,6 +222,20 @@ export function DiscoverScreen({ campaignId }: DiscoverScreenProps) {
 
       {/* Scan live sheet */}
       <ScanLiveSheet open={scanSheetOpen} onClose={() => setScanSheetOpen(false)} />
+
+      {/* Listing detail sheet */}
+      {detailListing && (
+        <ListingDetailSheet
+          open={!!detailListing}
+          onClose={() => setDetailListing(null)}
+          listing={detailListing}
+          campaignId={campaignId}
+          mode="discover"
+          onLike={() => handleSwipe(detailListing, "like")}
+          onSkip={() => handleSwipe(detailListing, "skip")}
+          onContact={() => handleSwipe(detailListing, "contact")}
+        />
+      )}
     </div>
   );
 }
