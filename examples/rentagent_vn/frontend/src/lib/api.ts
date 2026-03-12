@@ -286,3 +286,20 @@ export async function retryResearch(
     { method: "POST" }
   );
 }
+
+// ---------------------------------------------------------------------------
+// Preferences Preview
+// ---------------------------------------------------------------------------
+
+export async function previewPreferences(
+  campaignId: string,
+  preferences: CampaignPreferences
+): Promise<{ matching_count: number }> {
+  return request<{ matching_count: number }>(
+    `/api/v1/campaigns/${campaignId}/preferences/preview`,
+    {
+      method: "POST",
+      body: JSON.stringify(preferences),
+    }
+  );
+}

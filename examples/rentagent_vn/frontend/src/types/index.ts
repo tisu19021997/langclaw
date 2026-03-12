@@ -86,6 +86,13 @@ export interface Campaign {
   updated_at: string;
 }
 
+export interface NotificationSettings {
+  new_listings: boolean;
+  research_done: boolean;
+  price_drop: boolean;
+  outreach_reminder: boolean;
+}
+
 export interface CampaignPreferences {
   district?: string;
   city?: string;
@@ -98,6 +105,7 @@ export interface CampaignPreferences {
   property_type?: string;
   notes?: string;
   outreach_auto_send?: boolean;
+  notification_settings?: NotificationSettings;
   [key: string]: unknown;
 }
 

@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { useZaloStore } from "@/stores/zalo-store";
+import {
+  SettingsGroup,
+  SettingsSectionLabel,
+} from "@/components/shared";
+import { ZaloSettingsSheet } from "./zalo-settings-sheet";
 
-interface ConnectionRowProps {
+interface ChannelRowProps {
   iconBg: string;
   emoji: string;
   label: string;
@@ -13,14 +18,14 @@ interface ConnectionRowProps {
   onClick?: () => void;
 }
 
-function ConnectionRow({
+function ChannelRow({
   iconBg,
   emoji,
   label,
   sub,
   connected,
   onClick,
-}: ConnectionRowProps) {
+}: ChannelRowProps) {
   return (
     <button
       onClick={onClick}
@@ -69,7 +74,8 @@ function ConnectionRow({
   );
 }
 
-export function ConnectionsSection() {
+export function ChannelsSection() {
+  const [zaloSheetOpen, setZaloSheetOpen] = useState(false);
   const { status, fetchStatus } = useZaloStore();
 
   useEffect(() => {
@@ -79,41 +85,22 @@ export function ConnectionsSection() {
   const zaloConnected = status?.connected ?? false;
 
   return (
-    <div
-      style={{
-        background: "var(--ds-white)",
-        borderRadius: "var(--r-lg)",
-        border: "1px solid var(--ink-08)",
-        overflow: "hidden",
-      }}
-    >
-      <ConnectionRow
-        iconBg="#e6f4ec"
-        emoji="💬"
-        label="Zalo"
-        sub="Messaging and notifications"
-        connected={zaloConnected}
-        onClick={() => {
-          // TODO: open ZaloSettingsDialog — wire in Phase 2 or reuse existing component
-        }}
-      />
-      <div style={{ borderTop: "1px solid var(--ink-04)" }} />
-      <ConnectionRow
-        iconBg="#e8edf8"
-        emoji="📘"
-        label="Facebook"
-        sub="Scan listings from rental groups"
-        connected={false}
-        onClick={() => {}}
-      />
-      <div style={{ borderTop: "1px solid var(--ink-04)" }} />
-      <ConnectionRow
-        iconBg="#f5ece8"
-        emoji="🏠"
-        label="BDS.com.vn"
-        sub="Primary listing source"
-        connected={true}
-        onClick={() => {}}
+    <div>
+      <SettingsSectionLabel>Channels</SettingsSectionLabel>
+      <SettingsGroup>
+        <ChannelRow
+          iconBg="#e6f4ec"
+          emoji="💬"
+          label="Zalo"
+          sub="Messaging and notifications"
+          connected={zaloConnected}
+          onClick={() => setZaloSheetOpen(true)}
+        />
+      </SettingsGroup>
+
+      <ZaloSettingsSheet
+        open={zaloSheetOpen}
+        onClose={() => setZaloSheetOpen(false)}
       />
     </div>
   );

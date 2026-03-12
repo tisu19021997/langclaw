@@ -1,8 +1,13 @@
 "use client";
 
-import { SearchQueryCard } from "./search-query-card";
-import { ConnectionsSection } from "./connections-section";
+import { SearchPreferencesCard } from "./search-preferences-card";
+import { SourcesCard } from "./sources-card";
 import { ScheduleSection } from "./schedule-section";
+import { NotificationsSection } from "./notifications-section";
+import { OutreachSection } from "./outreach-section";
+import { ChannelsSection } from "./channels-section";
+import { AboutSection } from "./about-section";
+import { SettingsSectionLabel } from "@/components/shared";
 
 interface SettingsScreenProps {
   campaignId: string;
@@ -18,7 +23,7 @@ export function SettingsScreen({ campaignId, campaignPill }: SettingsScreenProps
       {/* Header */}
       <div className="px-5 pt-4 pb-4">
         {/* Campaign pill */}
-        <div className="mb-2">{campaignPill}</div>
+        {campaignPill && <div className="mb-2">{campaignPill}</div>}
         <h1
           className="text-[22px] font-extrabold"
           style={{ color: "var(--ink)", letterSpacing: "-0.8px" }}
@@ -28,30 +33,29 @@ export function SettingsScreen({ campaignId, campaignPill }: SettingsScreenProps
       </div>
 
       <div className="px-5 space-y-6">
-        {/* Section: Current search */}
+        {/* Section: Search Settings */}
         <div>
-          <p
-            className="text-[11px] font-semibold uppercase mb-2 px-1"
-            style={{ color: "var(--ink-30)", letterSpacing: "0.8px" }}
-          >
-            Current search
-          </p>
-          <SearchQueryCard />
+          <SettingsSectionLabel>Search</SettingsSectionLabel>
+          <div className="space-y-3">
+            <SearchPreferencesCard campaignId={campaignId} />
+            <SourcesCard campaignId={campaignId} />
+          </div>
         </div>
 
-        {/* Section: Connections */}
-        <div>
-          <p
-            className="text-[11px] font-semibold uppercase mb-2 px-1"
-            style={{ color: "var(--ink-30)", letterSpacing: "0.8px" }}
-          >
-            Connections
-          </p>
-          <ConnectionsSection />
-        </div>
-
-        {/* Schedules + research toggles */}
+        {/* Section: Schedule */}
         <ScheduleSection campaignId={campaignId} />
+
+        {/* Section: Notifications */}
+        <NotificationsSection campaignId={campaignId} />
+
+        {/* Section: Outreach */}
+        <OutreachSection campaignId={campaignId} />
+
+        {/* Section: Channels */}
+        <ChannelsSection />
+
+        {/* Section: About */}
+        <AboutSection />
       </div>
     </div>
   );
