@@ -51,3 +51,4 @@ logs/
 # Secret
 tisu.py
 examples/photography/*
+examples/rentagent_vn/memories/*
