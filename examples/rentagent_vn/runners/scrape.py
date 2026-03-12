@@ -28,6 +28,11 @@ ScrapeResultCallback = Callable[
     Awaitable[None],
 ]
 
+UrlCompleteCallback = Callable[
+    [Langclaw, str, str, int, dict[str, Any]],
+    Awaitable[None],
+]
+
 
 class BackgroundScrapeRunner(BaseTinyFishRunner):
     """Runs multi-URL scrape jobs in the background using TinyFish.
@@ -39,6 +44,7 @@ class BackgroundScrapeRunner(BaseTinyFishRunner):
         progress_callback: Called on PROGRESS events.
         streaming_url_callback: Called on STREAMING_URL events.
         error_callback: Called on ERROR events.
+        url_complete_callback: Called when a single URL finishes scanning.
     """
 
     def __init__(
@@ -50,6 +56,7 @@ class BackgroundScrapeRunner(BaseTinyFishRunner):
         progress_callback: ProgressCallback | None = None,
         streaming_url_callback: StreamingUrlCallback | None = None,
         error_callback: ErrorCallback | None = None,
+        url_complete_callback: UrlCompleteCallback | None = None,
     ) -> None:
         super().__init__(
             app,
@@ -59,6 +66,7 @@ class BackgroundScrapeRunner(BaseTinyFishRunner):
             error_callback=error_callback,
         )
         self._result_callback = result_callback
+        self._url_complete_callback = url_complete_callback
 
     async def start(
         self,
@@ -113,6 +121,14 @@ class BackgroundScrapeRunner(BaseTinyFishRunner):
                             url,
                             len(validated.listings),
                         )
+                        if self._url_complete_callback:
+                            await self._url_complete_callback(
+                                self._app,
+                                job_id,
+                                url,
+                                len(validated.listings),
+                                channel_context,
+                            )
                     elif event.type == "ERROR":
                         all_errors.append({"url": url, "error": event.message or "Unknown error"})
                         if self._error_callback:

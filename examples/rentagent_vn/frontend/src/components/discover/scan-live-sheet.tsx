@@ -21,6 +21,7 @@ export function ScanLiveSheet({ open, onClose }: ScanLiveSheetProps) {
     activeUrl,
     streamingUrls,
     completedUrls,
+    completedSourceUrls,
     totalUrls,
     listingsFound,
     setActiveUrl,
@@ -29,6 +30,10 @@ export function ScanLiveSheet({ open, onClose }: ScanLiveSheetProps) {
   const iframeUrl = activeUrl ? streamingUrls[activeUrl] : null;
   const urlKeys = Object.keys(streamingUrls);
   const hasMultipleTabs = urlKeys.length > 1;
+
+  // Debug logging
+  console.log("[scan-live-sheet] urlKeys:", urlKeys);
+  console.log("[scan-live-sheet] completedSourceUrls:", [...completedSourceUrls]);
 
   return (
     <BottomSheet
@@ -44,21 +49,37 @@ export function ScanLiveSheet({ open, onClose }: ScanLiveSheetProps) {
           className="flex-shrink-0 flex gap-1.5 px-4 py-2 overflow-x-auto"
           style={{ borderBottom: "1px solid var(--ink-04)" }}
         >
-          {urlKeys.map((url) => (
-            <button
-              key={url}
-              onClick={() => setActiveUrl(url)}
-              className="px-3 py-1.5 rounded-full text-[12px] whitespace-nowrap transition-colors"
-              style={{
-                background:
-                  url === activeUrl ? "var(--amber)" : "var(--ink-08)",
-                color: url === activeUrl ? "white" : "var(--ink-70)",
-                fontWeight: url === activeUrl ? 600 : 400,
-              }}
-            >
-              {getTabLabel(url)}
-            </button>
-          ))}
+          {urlKeys.map((url) => {
+            const isComplete = completedSourceUrls.has(url);
+            const isActive = url === activeUrl;
+
+            return isComplete ? (
+              <div
+                key={url}
+                className="px-3 py-1.5 rounded-full text-[12px] whitespace-nowrap"
+                style={{
+                  background: "var(--jade-15)",
+                  color: "var(--jade)",
+                  fontWeight: 600,
+                }}
+              >
+                ✓ {getTabLabel(url)}
+              </div>
+            ) : (
+              <button
+                key={url}
+                onClick={() => setActiveUrl(url)}
+                className="px-3 py-1.5 rounded-full text-[12px] whitespace-nowrap transition-colors"
+                style={{
+                  background: isActive ? "var(--amber)" : "var(--ink-08)",
+                  color: isActive ? "white" : "var(--ink-70)",
+                  fontWeight: isActive ? 600 : 400,
+                }}
+              >
+                {getTabLabel(url)}
+              </button>
+            );
+          })}
         </div>
       )}
 

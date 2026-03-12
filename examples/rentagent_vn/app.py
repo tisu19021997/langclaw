@@ -12,6 +12,7 @@ from examples.rentagent_vn.runners.callbacks import (
     research_streaming_url_callback,
     result_callback,
     streaming_url_callback,
+    url_complete_callback,
 )
 from examples.rentagent_vn.tinyfish.client import TinyFishClient
 from examples.rentagent_vn.tools import (
@@ -98,6 +99,7 @@ scrape_runner = BackgroundScrapeRunner(
     result_callback=result_callback,
     streaming_url_callback=streaming_url_callback,
     progress_callback=progress_callback,
+    url_complete_callback=url_complete_callback,
     tinyfish_client=tinyfish_client,
 )
 

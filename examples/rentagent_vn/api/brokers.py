@@ -13,7 +13,7 @@ from examples.rentagent_vn.api.broker import EventBroker
 class ScanEvent:
     """A single event in the scan stream."""
 
-    type: str  # started | progress | streaming_url | error | complete
+    type: str  # started | progress | streaming_url | url_complete | error | complete
     url: str | None
     data: dict[str, Any]
     timestamp: float = field(default_factory=time.monotonic)

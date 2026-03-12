@@ -30,7 +30,7 @@ export function ScheduleSection({ campaignId }: ScheduleSectionProps) {
       <SettingsGroup>
         <SettingsRow
           label="Auto scan"
-          sub="Every 2 hours · 7:00 AM – 10:00 PM"
+          sub="Daily"
           toggle={
             <SettingsToggle
               on={autoScanOn}

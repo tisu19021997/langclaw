@@ -22,6 +22,7 @@ const initialState: ScanStreamState = {
   activeUrl: null,
   totalUrls: 0,
   completedUrls: 0,
+  completedSourceUrls: new Set<string>(),
   listingsFound: 0,
   startedAt: null,
 };
@@ -79,6 +80,17 @@ export const useScanStreamStore = create<ScanStreamState & ScanStreamActions>(
               },
               activeUrl: s.activeUrl ?? event.url!,
             }));
+          }
+          break;
+
+        case "url_complete":
+          console.log("[scan-stream] url_complete event received:", event.url);
+          if (event.url) {
+            set((s) => {
+              const newSet = new Set([...s.completedSourceUrls, event.url!]);
+              console.log("[scan-stream] completedSourceUrls updated:", [...newSet]);
+              return { completedSourceUrls: newSet };
+            });
           }
           break;
 

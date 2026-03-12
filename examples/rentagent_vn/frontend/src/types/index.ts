@@ -177,6 +177,7 @@ export type ScanSSEEventType =
   | "started"
   | "progress"
   | "streaming_url"
+  | "url_complete"
   | "error"
   | "complete"
   | "done";
@@ -193,6 +194,7 @@ export interface ScanSSEEvent {
   job_id?: string; // started
   total_urls?: number; // started
   urls?: string[]; // started
+  listings_count?: number; // url_complete
   listings_found?: number; // complete
   errors?: number; // complete
   urls_scanned?: number; // complete
@@ -222,6 +224,7 @@ export interface ScanStreamState {
   activeUrl: string | null;
   totalUrls: number;
   completedUrls: number;
+  completedSourceUrls: Set<string>;
   listingsFound: number;
   startedAt: number | null;
 }

@@ -140,6 +140,33 @@ async def error_callback(
     pass
 
 
+async def url_complete_callback(
+    app: Langclaw,
+    job_id: str,
+    url: str,
+    listings_count: int,
+    channel_context: dict[str, Any],
+) -> None:
+    """Called when a single URL finishes scanning."""
+    scan_id = (channel_context.get("metadata") or {}).get("scan_id")
+    logger.info(
+        "URL complete callback: url={}, listings={}, scan_id={}",
+        url,
+        listings_count,
+        scan_id,
+    )
+    if scan_id:
+        scan_broker.publish(
+            scan_id,
+            ScanEvent(
+                type="url_complete",
+                url=url,
+                data={"listings_count": listings_count},
+                timestamp=time.monotonic(),
+            ),
+        )
+
+
 @observe
 async def result_callback(
     app: Langclaw,
