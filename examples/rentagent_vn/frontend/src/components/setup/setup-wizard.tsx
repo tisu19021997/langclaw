@@ -11,16 +11,54 @@ import { FrequencyStep } from "./frequency-step";
 
 type Step = "chat" | "confirm" | "sources" | "frequency";
 
+const STEPS: Step[] = ["chat", "confirm", "sources", "frequency"];
+
 interface SetupWizardProps {
   onComplete: (campaignId: string) => void;
+}
+
+function ProgressDots({ currentStep }: { currentStep: Step }) {
+  const currentIndex = STEPS.indexOf(currentStep);
+
+  return (
+    <div
+      className="fixed top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-4 py-2 backdrop-blur-md"
+      style={{
+        background: "rgba(250,247,242,.9)",
+        borderRadius: "var(--r-full)",
+      }}
+    >
+      {STEPS.map((step, i) => {
+        const isActive = i === currentIndex;
+        const isCompleted = i < currentIndex;
+
+        return (
+          <div
+            key={step}
+            className="transition-all duration-300"
+            style={{
+              width: isActive || isCompleted ? 8 : 6,
+              height: isActive || isCompleted ? 8 : 6,
+              borderRadius: "50%",
+              background: isActive
+                ? "var(--terra)"
+                : isCompleted
+                ? "rgba(196,86,42,.5)"
+                : "var(--ink-15)",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
 }
 
 export function SetupWizard({ onComplete }: SetupWizardProps) {
   const [step, setStep] = useState<Step>("chat");
   const [preferences, setPreferences] = useState<CampaignPreferences>({});
   const [sources, setSources] = useState<string[]>([]);
-  const [frequency, setFrequency] = useState("manual");
-  const { createCampaign } = useCampaignStore();
+  // Use selector to avoid subscribing to entire store
+  const createCampaign = useCampaignStore((s) => s.createCampaign);
 
   const handlePreferencesExtracted = (prefs: CampaignPreferences) => {
     setPreferences(prefs);
@@ -38,7 +76,6 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
   };
 
   const handleFrequencyConfirmed = async (freq: string) => {
-    setFrequency(freq);
     try {
       const campaign = await createCampaign({
         name: buildCampaignName(preferences),
@@ -49,38 +86,15 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
       onComplete(campaign.id);
     } catch (e) {
       console.error("Failed to create campaign:", e);
-      toast.error("Failed to create campaign. Check if backend is running.");
+      toast.error("Không thể tạo chiến dịch. Vui lòng thử lại.");
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-2xl">
-        {/* Step indicator */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          {(["chat", "confirm", "sources", "frequency"] as Step[]).map(
-            (s, i) => (
-              <div key={s} className="flex items-center gap-2">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                    step === s
-                      ? "bg-primary text-primary-foreground"
-                      : i <
-                        ["chat", "confirm", "sources", "frequency"].indexOf(step)
-                      ? "bg-primary/20 text-primary"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {i + 1}
-                </div>
-                {i < 3 && (
-                  <div className="w-8 h-px bg-border" />
-                )}
-              </div>
-            )
-          )}
-        </div>
+    <div className="min-h-screen flex flex-col" style={{ background: "var(--cream)" }}>
+      <ProgressDots currentStep={step} />
 
+      <div className="flex-1 flex flex-col">
         {step === "chat" && (
           <ChatStep onExtracted={handlePreferencesExtracted} />
         )}
@@ -93,6 +107,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         )}
         {step === "sources" && (
           <SourcesStep
+            preferences={preferences}
             onConfirm={handleSourcesConfirmed}
             onBack={() => setStep("confirm")}
           />
@@ -112,6 +127,6 @@ function buildCampaignName(prefs: CampaignPreferences): string {
   const parts: string[] = [];
   if (prefs.property_type) parts.push(prefs.property_type);
   if (prefs.district) parts.push(prefs.district);
-  if (prefs.bedrooms) parts.push(`${prefs.bedrooms}BR`);
-  return parts.length > 0 ? parts.join(" · ") : "New Campaign";
+  if (prefs.bedrooms) parts.push(`${prefs.bedrooms}PN`);
+  return parts.length > 0 ? parts.join(" · ") : "Chiến dịch mới";
 }

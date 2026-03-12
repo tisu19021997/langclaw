@@ -1,12 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Check, Pencil } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Pencil } from "lucide-react";
 import type { CampaignPreferences } from "@/types";
 
 interface ConfirmStepProps {
@@ -16,39 +11,61 @@ interface ConfirmStepProps {
 }
 
 const PREF_FIELDS: {
-  key: string;
+  key: keyof CampaignPreferences;
   label: string;
   placeholder: string;
   type?: string;
 }[] = [
-  { key: "district", label: "Area", placeholder: "e.g. District 7, Binh Thanh" },
-  { key: "property_type", label: "Property type", placeholder: "e.g. Apartment, room, studio" },
+  { key: "district", label: "Khu vực", placeholder: "Quận 7, Bình Thạnh..." },
+  {
+    key: "property_type",
+    label: "Loại hình",
+    placeholder: "Phòng trọ, căn hộ mini...",
+  },
   {
     key: "bedrooms",
-    label: "Bedrooms",
-    placeholder: "e.g. 2",
+    label: "Phòng ngủ",
+    placeholder: "1, 2, 3...",
     type: "number",
   },
   {
     key: "min_price",
-    label: "Min price (VND)",
-    placeholder: "e.g. 5000000",
+    label: "Giá tối thiểu",
+    placeholder: "5,000,000",
     type: "number",
   },
   {
     key: "max_price",
-    label: "Max price (VND)",
-    placeholder: "e.g. 15000000",
+    label: "Giá tối đa",
+    placeholder: "10,000,000",
     type: "number",
   },
   {
     key: "min_area",
-    label: "Min area (m²)",
-    placeholder: "e.g. 30",
+    label: "Diện tích tối thiểu",
+    placeholder: "25 m²",
     type: "number",
   },
-  { key: "notes", label: "Additional notes", placeholder: "e.g. Has balcony, near school..." },
+  {
+    key: "notes",
+    label: "Yêu cầu khác",
+    placeholder: "Có ban công, gần metro...",
+  },
 ];
+
+function formatValue(key: string, value: unknown): string {
+  if (value === undefined || value === null || value === "") return "";
+  if (key === "min_price" || key === "max_price") {
+    return `${Number(value).toLocaleString("vi-VN")}đ`;
+  }
+  if (key === "min_area") {
+    return `${value}m²`;
+  }
+  if (key === "bedrooms") {
+    return `${value} PN`;
+  }
+  return String(value);
+}
 
 export function ConfirmStep({
   preferences,
@@ -58,7 +75,9 @@ export function ConfirmStep({
   const [prefs, setPrefs] = useState<CampaignPreferences>({ ...preferences });
   const [editing, setEditing] = useState<string | null>(null);
   const [inputValues, setInputValues] = useState<Record<string, string>>(
-    Object.fromEntries(PREF_FIELDS.map((f) => [f.key, String(preferences[f.key] ?? "")]))
+    Object.fromEntries(
+      PREF_FIELDS.map((f) => [f.key, String(prefs[f.key] ?? "")])
+    )
   );
 
   const commitField = (key: string) => {
@@ -69,7 +88,10 @@ export function ConfirmStep({
     setEditing(null);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, key: string) => {
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    key: string
+  ) => {
     if (e.key === "Enter") {
       e.preventDefault();
       commitField(key);
@@ -84,73 +106,156 @@ export function ConfirmStep({
   );
 
   return (
-    <Card className="p-6">
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold">Confirm criteria</h2>
-        <p className="text-sm text-muted-foreground">
-          Review and edit if needed. You can change this later.
+    <div
+      className="flex flex-col min-h-screen"
+      style={{ background: "var(--cream)" }}
+    >
+      {/* Header */}
+      <div className="flex-shrink-0 pt-[60px] px-5 pb-6">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1 text-[13px] font-medium mb-4 -ml-1"
+          style={{ color: "var(--ink-50)" }}
+        >
+          <ArrowLeft size={16} />
+          Quay lại
+        </button>
+        <h1
+          className="text-[22px] font-extrabold tracking-tight"
+          style={{ color: "var(--ink)" }}
+        >
+          Xác nhận tiêu chí
+        </h1>
+        <p
+          className="text-[13px] font-medium mt-1"
+          style={{ color: "var(--ink-50)" }}
+        >
+          Chạm vào để chỉnh sửa
         </p>
       </div>
 
-      <div className="space-y-4">
-        {/* Filled preferences as chips */}
-        {filledFields.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            {filledFields.map((field) => (
-              <Badge
-                key={field.key}
-                variant="secondary"
-                className="cursor-pointer hover:bg-accent text-sm py-1 px-3"
-                onClick={() => {
-                  setInputValues((prev) => ({ ...prev, [field.key]: String(prefs[field.key] ?? "") }));
-                  setEditing(editing === field.key ? null : field.key);
-                }}
-              >
-                {field.label}: {String(prefs[field.key])}
-                <Pencil className="h-3 w-3 ml-1" />
-              </Badge>
-            ))}
-          </div>
-        )}
+      {/* Tags */}
+      <div className="flex-1 px-5 overflow-y-auto">
+        <div className="flex flex-wrap gap-[10px]">
+          {/* Filled fields as tag pills */}
+          {filledFields.map((field) => (
+            <button
+              key={field.key}
+              onClick={() => {
+                setInputValues((prev) => ({
+                  ...prev,
+                  [field.key]: String(prefs[field.key] ?? ""),
+                }));
+                setEditing(editing === field.key ? null : field.key);
+              }}
+              className="flex items-center gap-2 px-4 py-2 transition-all"
+              style={{
+                background:
+                  editing === field.key
+                    ? "var(--terra-08)"
+                    : "var(--ds-white)",
+                border:
+                  editing === field.key
+                    ? "2px solid var(--terra)"
+                    : "1px solid var(--ink-08)",
+                borderRadius: "var(--r-full)",
+              }}
+            >
+              <div className="flex flex-col items-start">
+                <span
+                  className="text-[11px] font-semibold uppercase tracking-wide"
+                  style={{ color: "var(--ink-30)" }}
+                >
+                  {field.label}
+                </span>
+                <span
+                  className="text-[14px] font-semibold"
+                  style={{ color: "var(--ink)" }}
+                >
+                  {formatValue(field.key, prefs[field.key])}
+                </span>
+              </div>
+              <Pencil size={14} style={{ color: "var(--ink-30)" }} />
+            </button>
+          ))}
 
-        {/* Edit fields */}
-        {PREF_FIELDS.map((field) => (
-          <div
-            key={field.key}
-            className={
-              editing === field.key || emptyFields.includes(field)
-                ? "block"
-                : "hidden"
-            }
-          >
-            <Label htmlFor={field.key} className="text-sm mb-1.5">
-              {field.label}
-            </Label>
-            <Input
-              id={field.key}
-              type={field.type || "text"}
-              value={inputValues[field.key] ?? ""}
-              onChange={(e) =>
-                setInputValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+          {/* Empty fields as add buttons */}
+          {emptyFields.map((field) => (
+            <button
+              key={field.key}
+              onClick={() => {
+                setInputValues((prev) => ({ ...prev, [field.key]: "" }));
+                setEditing(field.key);
+              }}
+              className="px-4 py-2 text-[13px] font-medium transition-all"
+              style={{
+                background:
+                  editing === field.key
+                    ? "var(--terra-08)"
+                    : "transparent",
+                border:
+                  editing === field.key
+                    ? "2px solid var(--terra)"
+                    : "1px dashed var(--ink-15)",
+                borderRadius: "var(--r-full)",
+                color: "var(--ink-30)",
+              }}
+            >
+              + Thêm {field.label.toLowerCase()}
+            </button>
+          ))}
+        </div>
+
+        {/* Edit field */}
+        {editing && (
+          <div className="mt-6">
+            <label
+              className="block text-[11px] font-semibold uppercase tracking-wide mb-2"
+              style={{ color: "var(--ink-30)" }}
+            >
+              {PREF_FIELDS.find((f) => f.key === editing)?.label}
+            </label>
+            <input
+              type={
+                PREF_FIELDS.find((f) => f.key === editing)?.type || "text"
               }
-              onKeyDown={(e) => handleKeyDown(e, field.key)}
-              onBlur={() => commitField(field.key)}
-              placeholder={field.placeholder}
+              value={inputValues[editing] ?? ""}
+              onChange={(e) =>
+                setInputValues((prev) => ({
+                  ...prev,
+                  [editing]: e.target.value,
+                }))
+              }
+              onKeyDown={(e) => handleKeyDown(e, editing)}
+              onBlur={() => commitField(editing)}
+              placeholder={PREF_FIELDS.find((f) => f.key === editing)?.placeholder}
+              autoFocus
+              className="w-full px-4 py-3 text-[14px] font-medium outline-none transition-colors"
+              style={{
+                background: "var(--ds-white)",
+                border: "1px solid var(--ink-15)",
+                borderRadius: "var(--r-sm)",
+                color: "var(--ink)",
+              }}
             />
           </div>
-        ))}
+        )}
       </div>
 
-      <div className="flex justify-between mt-6">
-        <Button variant="ghost" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back
-        </Button>
-        <Button onClick={() => onConfirm(prefs)}>
-          <Check className="h-4 w-4 mr-1" />
-          Confirm
-        </Button>
+      {/* Footer */}
+      <div className="flex-shrink-0 px-5 pt-4 pb-8">
+        <button
+          onClick={() => onConfirm(prefs)}
+          className="w-full h-[52px] text-[15px] font-semibold transition-colors"
+          style={{
+            background: "var(--terra)",
+            color: "white",
+            borderRadius: "var(--r-lg)",
+          }}
+        >
+          Tiếp tục →
+        </button>
       </div>
-    </Card>
+    </div>
   );
 }

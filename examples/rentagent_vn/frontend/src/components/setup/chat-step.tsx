@@ -1,11 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Send } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useState, useRef, useEffect } from "react";
+import { ArrowUp } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import type { CampaignPreferences, WSOutbound } from "@/types";
 import { WebSocketManager } from "@/lib/websocket";
 
@@ -33,63 +30,65 @@ export function ChatStep({ onExtracted }: ChatStepProps) {
   const wsRef = useRef<WebSocketManager | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const onExtractedRef = useRef(onExtracted);
 
-  // Auto-scroll to bottom
+  // Keep ref in sync without triggering re-renders
+  useEffect(() => {
+    onExtractedRef.current = onExtracted;
+  }, [onExtracted]);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
-  // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  const handleWSMessage = useCallback((msg: WSOutbound) => {
-    if (msg.type === "pong") return;
-
-    if (msg.type === "ai") {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `ai-${Date.now()}`,
-          role: "assistant",
-          content: msg.content,
-        },
-      ]);
-      setIsTyping(false);
-
-      // Try to extract preferences from the AI message
-      const prefs = tryExtractPreferences(msg.content);
-      if (prefs) {
-        // Small delay so user can read the message
-        setTimeout(() => onExtracted(prefs), 1500);
-      }
-    } else if (msg.type === "tool_progress") {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `prog-${Date.now()}`,
-          role: "system",
-          content: msg.content,
-        },
-      ]);
-    }
-  }, [onExtracted]);
-
-  // Connect WebSocket
+  // WebSocket connection - runs only once on mount
   useEffect(() => {
     const ws = new WebSocketManager("web-user", "setup");
     wsRef.current = ws;
-    ws.onMessage(handleWSMessage);
+
+    ws.onMessage((msg: WSOutbound) => {
+      if (msg.type === "pong") return;
+
+      if (msg.type === "ai") {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `ai-${Date.now()}`,
+            role: "assistant",
+            content: msg.content,
+          },
+        ]);
+        setIsTyping(false);
+
+        const prefs = tryExtractPreferences(msg.content);
+        if (prefs) {
+          setTimeout(() => onExtractedRef.current(prefs), 1500);
+        }
+      } else if (msg.type === "tool_progress") {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `prog-${Date.now()}`,
+            role: "system",
+            content: msg.content,
+          },
+        ]);
+      }
+    });
+
     ws.connect();
 
     return () => {
       ws.disconnect();
       wsRef.current = null;
     };
-  }, [handleWSMessage]);
+  }, []);
 
   const handleSend = () => {
     const text = input.trim();
@@ -105,21 +104,37 @@ export function ChatStep({ onExtracted }: ChatStepProps) {
   };
 
   const handleSkipChat = () => {
-    // Allow user to skip chat and manually enter preferences
     onExtracted({});
   };
 
   return (
-    <Card className="flex flex-col h-[500px]">
-      <div className="p-4 border-b">
-        <h2 className="text-lg font-semibold">What are you looking for?</h2>
-        <p className="text-sm text-muted-foreground">
-          Describe your needs — I'll understand and summarize them for you.
+    <div
+      className="flex flex-col h-screen"
+      style={{ background: "var(--cream)" }}
+    >
+      {/* Header */}
+      <div className="flex-shrink-0 pt-[60px] px-5 pb-4">
+        <h1
+          className="text-[22px] font-extrabold tracking-tight"
+          style={{ color: "var(--ink)" }}
+        >
+          Yo bud! 👋
+        </h1>
+        <p
+          className="text-[14px] font-medium mt-1"
+          style={{ color: "var(--ink-50)" }}
+        >
+          Describe your rental needs and I'll help you find the best match.
         </p>
       </div>
 
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="space-y-3">
+      {/* Messages */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-5 pb-4"
+        style={{ scrollBehavior: "smooth" }}
+      >
+        <div className="flex flex-col gap-3">
           {messages.map((msg) => (
             <div
               key={msg.id}
@@ -127,67 +142,166 @@ export function ChatStep({ onExtracted }: ChatStepProps) {
                 msg.role === "user" ? "justify-end" : "justify-start"
               }`}
             >
-              <div
-                className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                  msg.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : msg.role === "system"
-                    ? "bg-muted text-muted-foreground text-xs italic"
-                    : "bg-muted"
-                }`}
-              >
-                {msg.content}
-              </div>
+              {msg.role === "system" ? (
+                <div
+                  className="text-[12px] italic"
+                  style={{ color: "var(--ink-30)" }}
+                >
+                  {msg.content}
+                </div>
+              ) : (
+                <div
+                  className="max-w-[85%] px-4 py-3 text-[14px] font-medium"
+                  style={
+                    msg.role === "user"
+                      ? {
+                          background: "var(--terra)",
+                          color: "white",
+                          borderRadius: "20px 20px 6px 20px",
+                        }
+                      : {
+                          background: "var(--ds-white)",
+                          color: "var(--ink)",
+                          border: "1px solid var(--ink-08)",
+                          borderRadius: "20px 20px 20px 6px",
+                          boxShadow: "var(--shadow-card)",
+                        }
+                  }
+                >
+                  {msg.role === "assistant" ? (
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                        ul: ({ children }) => <ul className="list-disc list-inside mb-2 last:mb-0 space-y-1">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal list-inside mb-2 last:mb-0 space-y-1">{children}</ol>,
+                        li: ({ children }) => <li>{children}</li>,
+                        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                        em: ({ children }) => <em className="italic">{children}</em>,
+                        code: ({ children }) => (
+                          <code
+                            className="px-1.5 py-0.5 rounded text-[13px] font-mono"
+                            style={{ background: "var(--ink-08)" }}
+                          >
+                            {children}
+                          </code>
+                        ),
+                        pre: ({ children }) => (
+                          <pre
+                            className="p-3 rounded-lg overflow-x-auto text-[13px] font-mono mb-2 last:mb-0"
+                            style={{ background: "var(--ink-08)" }}
+                          >
+                            {children}
+                          </pre>
+                        ),
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    msg.content
+                  )}
+                </div>
+              )}
             </div>
           ))}
+
+          {/* Typing indicator */}
           {isTyping && (
             <div className="flex justify-start">
-              <div className="bg-muted rounded-lg px-3 py-2 text-sm">
-                <span className="animate-pulse">Thinking...</span>
+              <div
+                className="px-4 py-3 flex items-center gap-1"
+                style={{
+                  background: "var(--ds-white)",
+                  border: "1px solid var(--ink-08)",
+                  borderRadius: "20px 20px 20px 6px",
+                  boxShadow: "var(--shadow-card)",
+                }}
+              >
+                <span
+                  className="w-2 h-2 rounded-full animate-bounce"
+                  style={{
+                    background: "var(--ink-30)",
+                    animationDelay: "0ms",
+                    animationDuration: "600ms",
+                  }}
+                />
+                <span
+                  className="w-2 h-2 rounded-full animate-bounce"
+                  style={{
+                    background: "var(--ink-30)",
+                    animationDelay: "150ms",
+                    animationDuration: "600ms",
+                  }}
+                />
+                <span
+                  className="w-2 h-2 rounded-full animate-bounce"
+                  style={{
+                    background: "var(--ink-30)",
+                    animationDelay: "300ms",
+                    animationDuration: "600ms",
+                  }}
+                />
               </div>
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
-      <div className="p-4 border-t">
+      {/* Input area */}
+      <div
+        className="flex-shrink-0 px-5 pt-4 pb-8"
+        style={{ background: "var(--cream)" }}
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSend();
           }}
-          className="flex gap-2"
+          className="flex items-center gap-2 p-2 pl-4"
+          style={{
+            background: "var(--ds-white)",
+            border: "1px solid var(--ink-15)",
+            borderRadius: "var(--r-lg)",
+          }}
         >
-          <Input
+          <input
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="e.g. Looking for a 2BR apartment in District 7, under 10 million..."
+            placeholder="Ví dụ: Phòng trọ Bình Thạnh, dưới 8 triệu..."
             disabled={isTyping}
+            className="flex-1 bg-transparent outline-none text-[14px] font-medium placeholder:font-normal"
+            style={{
+              color: "var(--ink)",
+            }}
           />
-          <Button type="submit" size="icon" disabled={!input.trim() || isTyping}>
-            <Send className="h-4 w-4" />
-          </Button>
+          <button
+            type="submit"
+            disabled={!input.trim() || isTyping}
+            className="w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+            style={{
+              background: input.trim() ? "var(--terra)" : "var(--ink-08)",
+            }}
+          >
+            <ArrowUp
+              size={20}
+              style={{ color: input.trim() ? "white" : "var(--ink-30)" }}
+            />
+          </button>
         </form>
         <button
           onClick={handleSkipChat}
-          className="mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="mt-3 w-full text-center text-[12px] font-medium hover:underline transition-colors"
+          style={{ color: "var(--ink-30)" }}
         >
-          Skip, enter criteria manually
+          Bỏ qua, nhập thủ công →
         </button>
       </div>
-    </Card>
+    </div>
   );
 }
 
-/**
- * Try to extract structured preferences from an AI message.
- * The agent should include a JSON block when it has enough info.
- */
-function tryExtractPreferences(
-  content: string
-): CampaignPreferences | null {
-  // Look for JSON block in the message
+function tryExtractPreferences(content: string): CampaignPreferences | null {
   const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
   if (jsonMatch) {
     try {
@@ -197,7 +311,6 @@ function tryExtractPreferences(
     }
   }
 
-  // Look for inline JSON object
   const inlineMatch = content.match(/\{[\s\S]*"district"[\s\S]*\}/);
   if (inlineMatch) {
     try {
