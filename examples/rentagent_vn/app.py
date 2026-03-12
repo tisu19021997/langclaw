@@ -1,7 +1,9 @@
-from examples.photography.tools.exif import make_read_exif_tool
 from examples.rentagent_vn.context import RentAgentContext
 from examples.rentagent_vn.prompts import SYSTEM_PROMPT
-from examples.rentagent_vn.runners import BackgroundResearchRunner, BackgroundScrapeRunner
+from examples.rentagent_vn.runners import (
+    BackgroundResearchRunner,
+    BackgroundScrapeRunner,
+)
 from examples.rentagent_vn.runners.callbacks import (
     progress_callback,
     research_error_callback,
@@ -17,12 +19,7 @@ from langclaw import Langclaw
 
 app = Langclaw(system_prompt=SYSTEM_PROMPT, context_schema=RentAgentContext)
 app.register_tools([search_rentals, contact_landlord, research_area])
-app.agent(
-    "buddy",
-    description="A buddy who help me with my daily tasks",
-    system_prompt="You are a GenZ buddy who help me with my daily tasks",
-    tools=[make_read_exif_tool(app.config.agents.workspace_dir)],
-)
+app.role("user", tools=["search_rentals", "contact_landlord", "research_area"])
 
 tinyfish_client = TinyFishClient(timeout=5000)
 

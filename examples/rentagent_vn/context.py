@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
+from examples.rentagent_vn.runners import (
+    BackgroundResearchRunner,
+    BackgroundScrapeRunner,
+)
 from langclaw import LangclawContext
-
-if TYPE_CHECKING:
-    from examples.rentagent_vn.runners import BackgroundResearchRunner, BackgroundScrapeRunner
 
 
 @dataclass(kw_only=True)
