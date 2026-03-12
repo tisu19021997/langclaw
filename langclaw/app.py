@@ -155,13 +155,22 @@ class Langclaw:
 
         return decorator
 
-    def register_tool(self, tool: Any) -> None:
+    def register_tool(self, tool: Any, roles: list[str] | None = None) -> None:
         """Register an existing ``BaseTool`` instance."""
         self._extra_tools.append(tool)
 
-    def register_tools(self, tools: list[Any]) -> None:
+        if roles:
+            for role_name in roles:
+                self._extra_roles.setdefault(role_name, []).append(tool.name)
+
+    def register_tools(self, tools: list[Any], roles: list[str] | None = None) -> None:
         """Register multiple ``BaseTool`` instances at once."""
         self._extra_tools.extend(tools)
+
+        if roles:
+            for role_name in roles:
+                for tool in tools:
+                    self._extra_roles.setdefault(role_name, []).append(tool.name)
 
     # ------------------------------------------------------------------
     # Command registration
