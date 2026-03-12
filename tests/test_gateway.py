@@ -299,3 +299,222 @@ def test_telegram_channel_allow_from():
     ch = TelegramChannel(config)
     assert ch._is_allowed("999", "alice") is True
     assert ch._is_allowed("999", "bob") is False
+
+
+# ---------------------------------------------------------------------------
+# GatewayManager — /agent command tests
+# ---------------------------------------------------------------------------
+
+
+class TestAgentCommand:
+    """Tests for the /agent command (list, switch, one-off message).
+
+    These tests manually set up the agent registry and command handler
+    to avoid triggering actual agent construction (which requires real
+    LLM config). This isolates the command routing logic.
+    """
+
+    def _setup_manager_with_agents(self, bus, agent_names):
+        """Helper to create a GatewayManager with mocked named agents.
+
+        Creates the manager without named_agent_specs to avoid agent
+        construction, then manually populates the agent map and
+        registers the /agent command.
+        """
+        from unittest.mock import MagicMock
+
+        config = MagicMock()
+        checkpointer = MagicMock()
+        checkpointer.get.return_value = MagicMock()
+        agent = MagicMock()
+
+        from langclaw.gateway.manager import GatewayManager
+
+        mgr = GatewayManager(
+            config=config,
+            bus=bus,
+            checkpointer_backend=checkpointer,
+            agent=agent,
+            channels=[],
+        )
+
+        # Manually populate agent registry (bypassing _build_named_agent)
+        for name in agent_names:
+            mgr._agent_map[name] = MagicMock()
+            mgr._agent_descriptions[name] = f"{name} agent"
+
+        # Register the /agent command
+        mgr._setup_agent_command()
+
+        return mgr
+
+    async def test_agent_list_shows_available_agents(self):
+        """``/agent`` with no args lists all agents with active marker."""
+        from unittest.mock import MagicMock
+
+        from langclaw.gateway.commands import CommandContext
+
+        bus = MagicMock()
+        mgr = self._setup_manager_with_agents(bus, ["researcher", "coder"])
+
+        cmd_entry = mgr._command_router._commands.get("agent")
+        assert cmd_entry is not None, "/agent command should be registered"
+        cmd_handler = cmd_entry.handler
+
+        ctx = CommandContext(
+            channel="test",
+            user_id="user1",
+            context_id="ctx1",
+            chat_id="chat1",
+            args=[],
+        )
+        result = await cmd_handler(ctx)
+
+        assert "Available agents:" in result
+        assert "default" in result
+        assert "researcher" in result
+        assert "coder" in result
+
+    async def test_agent_switch_persistent(self):
+        """``/agent <name>`` switches session persistently."""
+        from unittest.mock import MagicMock
+
+        from langclaw.gateway.commands import CommandContext
+
+        bus = MagicMock()
+        mgr = self._setup_manager_with_agents(bus, ["researcher"])
+
+        cmd_handler = mgr._command_router._commands.get("agent").handler
+        ctx = CommandContext(
+            channel="test",
+            user_id="user1",
+            context_id="ctx1",
+            chat_id="chat1",
+            args=["researcher"],
+        )
+        result = await cmd_handler(ctx)
+
+        assert "Switched to agent 'researcher'" in result
+        active = await mgr._sessions.get_active_agent("test", "user1")
+        assert active == "researcher"
+
+    async def test_agent_switch_to_default(self):
+        """``/agent default`` returns to main agent."""
+        from unittest.mock import MagicMock
+
+        from langclaw.gateway.commands import CommandContext
+
+        bus = MagicMock()
+        mgr = self._setup_manager_with_agents(bus, ["researcher"])
+
+        cmd_handler = mgr._command_router._commands.get("agent").handler
+        ctx = CommandContext(
+            channel="test",
+            user_id="user1",
+            context_id="ctx1",
+            chat_id="chat1",
+            args=["researcher"],
+        )
+        await cmd_handler(ctx)
+
+        # Now switch back to default
+        ctx.args = ["default"]
+        result = await cmd_handler(ctx)
+
+        assert "Switched back to the main agent" in result
+        active = await mgr._sessions.get_active_agent("test", "user1")
+        assert active == "default"
+
+    async def test_agent_unknown_name_returns_error(self):
+        """``/agent unknown`` returns error with available agents."""
+        from unittest.mock import MagicMock
+
+        from langclaw.gateway.commands import CommandContext
+
+        bus = MagicMock()
+        mgr = self._setup_manager_with_agents(bus, ["researcher"])
+
+        cmd_handler = mgr._command_router._commands.get("agent").handler
+        ctx = CommandContext(
+            channel="test",
+            user_id="user1",
+            context_id="ctx1",
+            chat_id="chat1",
+            args=["nonexistent"],
+        )
+        result = await cmd_handler(ctx)
+
+        assert "Unknown agent 'nonexistent'" in result
+        assert "researcher" in result
+        assert "/agent default" in result
+
+    async def test_agent_oneoff_message_publishes_to_bus(self):
+        """``/agent <name> <msg>`` publishes to bus, no session change."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from langclaw.bus.base import InboundMessage
+        from langclaw.gateway.commands import CommandContext
+
+        bus = MagicMock()
+        bus.publish = AsyncMock()
+        mgr = self._setup_manager_with_agents(bus, ["researcher"])
+
+        cmd_handler = mgr._command_router._commands.get("agent").handler
+        ctx = CommandContext(
+            channel="telegram",
+            user_id="user1",
+            context_id="ctx1",
+            chat_id="chat1",
+            args=["researcher", "What", "is", "the", "quarterly", "report?"],
+        )
+        result = await cmd_handler(ctx)
+
+        # Should return empty string (agent will reply)
+        assert result == ""
+
+        # Verify bus.publish was called with correct InboundMessage
+        bus.publish.assert_called_once()
+        call_args = bus.publish.call_args
+        msg = call_args[0][0]
+
+        assert isinstance(msg, InboundMessage)
+        assert msg.channel == "telegram"
+        assert msg.user_id == "user1"
+        assert msg.context_id == "ctx1"
+        assert msg.chat_id == "chat1"
+        assert msg.content == "What is the quarterly report?"
+        assert msg.metadata.get("agent_name") == "researcher"
+
+        # Session should NOT have changed
+        active = await mgr._sessions.get_active_agent("telegram", "user1")
+        assert active == "default"
+
+    async def test_agent_oneoff_preserves_active_session(self):
+        """One-off message does not change the user's active agent session."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from langclaw.gateway.commands import CommandContext
+
+        bus = MagicMock()
+        bus.publish = AsyncMock()
+        mgr = self._setup_manager_with_agents(bus, ["researcher", "coder"])
+
+        cmd_handler = mgr._command_router._commands.get("agent").handler
+
+        # First, switch to coder persistently
+        ctx = CommandContext(
+            channel="test",
+            user_id="user1",
+            context_id="ctx1",
+            chat_id="chat1",
+            args=["coder"],
+        )
+        await cmd_handler(ctx)
+        assert await mgr._sessions.get_active_agent("test", "user1") == "coder"
+
+        # Now send one-off to researcher
+        ctx.args = ["researcher", "Help", "me"]
+        await cmd_handler(ctx)
+
+        # Session should still be coder
+        assert await mgr._sessions.get_active_agent("test", "user1") == "coder"

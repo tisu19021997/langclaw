@@ -99,9 +99,9 @@ class GatewayManager:
                 self._agent_descriptions[spec_name] = spec.get("description", "")
                 self._agent_map[spec_name] = self._build_named_agent(spec, spec_name)
 
-        # Register /switch only when named agents exist (no-op otherwise).
+        # Register /agent only when named agents exist (no-op otherwise).
         if named_agent_specs:
-            self._setup_switch_command()
+            self._setup_agent_command()
 
         # Phase 2 hook point — auto-routing resolver (not yet wired):
         # self._agent_resolver: Callable[[InboundMessage], Awaitable[str | None]] | None = None
@@ -136,18 +136,25 @@ class GatewayManager:
             agent_name=agent_name,
         )
 
-    def _setup_switch_command(self) -> None:
-        """Register the built-in ``/switch`` command as a closure.
+    def _setup_agent_command(self) -> None:
+        """Register the built-in ``/agent`` command as a closure.
 
-        The closure captures ``_agent_map``, ``_agent_descriptions``, and
-        ``_sessions`` by reference so validation is always against the
-        fully-populated map.
+        The closure captures ``_agent_map``, ``_agent_descriptions``,
+        ``_sessions``, and ``_bus`` by reference so validation is always
+        against the fully-populated map.
+
+        Command syntax:
+          - ``/agent`` — list available agents with active marker
+          - ``/agent <name>`` — switch session to that agent persistently
+          - ``/agent <name> <message>`` — send one message to that agent
+            without changing the active session
         """
         agent_map = self._agent_map
         agent_descriptions = self._agent_descriptions
         sessions = self._sessions
+        bus = self._bus
 
-        async def _cmd_switch(ctx: CommandContext) -> str:
+        async def _cmd_agent(ctx: CommandContext) -> str:
             if not ctx.args:
                 current = await sessions.get_active_agent(ctx.channel, ctx.user_id)
                 lines = ["Available agents:"]
@@ -164,14 +171,31 @@ class GatewayManager:
                 return (
                     f"Unknown agent '{target}'. "
                     f"Available: {available or '(none registered)'}. "
-                    f"Use /switch default to return to the main agent."
+                    f"Use /agent default to return to the main agent."
                 )
-            await sessions.set_active_agent(ctx.channel, ctx.user_id, target)
-            if target == "default":
-                return "Switched back to the main agent."
-            return f"Switched to agent '{target}'."
 
-        self._command_router.register("switch", _cmd_switch, "switch to a named agent")
+            if len(ctx.args) == 1:
+                # Persistent switch
+                await sessions.set_active_agent(ctx.channel, ctx.user_id, target)
+                if target == "default":
+                    return "Switched back to the main agent."
+                return f"Switched to agent '{target}'."
+
+            # One-off message: publish to bus with agent_name in metadata
+            message_content = " ".join(ctx.args[1:])
+            await bus.publish(
+                InboundMessage(
+                    channel=ctx.channel,
+                    user_id=ctx.user_id,
+                    context_id=ctx.context_id,
+                    chat_id=ctx.chat_id,
+                    content=message_content,
+                    metadata={"agent_name": target},
+                )
+            )
+            return ""  # Empty response — agent will reply directly
+
+        self._command_router.register("agent", _cmd_agent, "send message to a named agent")
 
     async def _resolve_agent_name(self, msg: InboundMessage) -> str:
         """Determine which named agent should handle this message.
@@ -180,7 +204,7 @@ class GatewayManager:
           1. ``agent_name`` in message metadata — stamped at cron schedule time,
              deterministic and restart-safe.
           2. Phase 2 ``agent_resolver`` hook — not yet implemented.
-          3. Active agent from :meth:`SessionManager.get_active_agent` (set by ``/switch``).
+          3. Active agent from :meth:`SessionManager.get_active_agent` (set by ``/agent``).
           4. Falls back to ``"default"``.
 
         Args:
@@ -200,7 +224,7 @@ class GatewayManager:
         #     if resolved is not None and resolved in self._agent_map:
         #         return resolved
 
-        # 2. Stored user agent name from /switch command.
+        # 2. Stored user agent name from /agent command.
         agent_name = await self._sessions.get_active_agent(msg.channel, msg.user_id)
         return agent_name if agent_name in self._agent_map else "default"
 

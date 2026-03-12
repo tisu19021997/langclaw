@@ -202,6 +202,8 @@ class WebSocketChannel(BaseChannel):
                     if isinstance(a, dict)
                 ]
 
+                # Merge client metadata (allows agent_name passthrough)
+                client_metadata = data.get("metadata") or {}
                 await self._bus.publish(
                     InboundMessage(
                         channel=self.name,
@@ -213,6 +215,7 @@ class WebSocketChannel(BaseChannel):
                         attachments=attachments,
                         metadata={
                             "platform": "websocket",
+                            **client_metadata,
                         },
                     )
                 )
