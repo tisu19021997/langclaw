@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import traceback
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Final
@@ -88,6 +89,8 @@ class GatewayManager:
         self._command_router = CommandRouter(
             self._sessions,
             self._cron_manager,
+            gateway_manager=self,
+            workspace_dir=config.agents.workspace_dir,
         )
         if extra_commands:
             for cmd_name, handler, description in extra_commands:
@@ -166,6 +169,14 @@ class GatewayManager:
             self._agent_locks[agent_name] = lock
         return lock
 
+    def get_agents_md_path(self, agent_name: str) -> Path:
+        """Public wrapper used by debug commands."""
+        return self._get_agents_md_path_for_agent(agent_name)
+
+    def invalidate_agent_hash(self, agent_name: str) -> None:
+        """Clear the stored AGENTS.md hash so the next message triggers a rebuild."""
+        self._agents_md_hashes.pop(agent_name, None)
+
     def _build_named_agent(self, spec: dict[str, Any], agent_name: str) -> CompiledStateGraph:
         """Build a compiled agent from a named-agent spec.
 
@@ -210,6 +221,13 @@ class GatewayManager:
         path = self._get_agents_md_path_for_agent(agent_name)
         new_hash = self._compute_agents_md_hash(path)
         old_hash = self._agents_md_hashes.get(agent_name)
+        if self._config.debug:
+            logger.info(
+                "[debug] AGENTS.md watch — agent='{}' path='{}' hash={}",
+                agent_name,
+                path,
+                new_hash[:12],
+            )
         if old_hash is None:
             self._agents_md_hashes[agent_name] = new_hash
             return current
@@ -218,6 +236,9 @@ class GatewayManager:
 
         # Slow path: AGENTS.md changed — rebuild under a per-agent lock so only
         # one task performs the work.
+        logger.info(
+            "AGENTS.md changed for agent '{}' ({}), rebuilding…", agent_name, path
+        )
         lock = self._get_agent_lock(agent_name)
         async with lock:
             # Double-check inside the lock in case another task already rebuilt.
@@ -698,16 +719,27 @@ class GatewayManager:
             logger.exception(
                 f"Error handling message from {msg.channel}/{msg.user_id}",
             )
+            if self._config.debug:
+                _MAX_TRACE_LEN = 500
+                trace = traceback.format_exc()
+                if len(trace) > _MAX_TRACE_LEN:
+                    trace = "..." + trace[-_MAX_TRACE_LEN:]
+                error_content = f"Sorry, something went wrong.\n\n```\n{trace}\n```"
+            else:
+                error_content = "Sorry, something went wrong. Please try again."
             try:
-                await channel.send(
-                    OutboundMessage(
-                        channel=msg.channel,
-                        user_id=msg.user_id,
-                        context_id=msg.context_id,
-                        chat_id=msg.chat_id,
-                        content=("Sorry, something went wrong. Please try again."),
-                        type="ai",
-                    )
+                await asyncio.wait_for(
+                    channel.send(
+                        OutboundMessage(
+                            channel=msg.channel,
+                            user_id=msg.user_id,
+                            context_id=msg.context_id,
+                            chat_id=msg.chat_id,
+                            content=error_content,
+                            type="ai",
+                        )
+                    ),
+                    timeout=15.0,
                 )
             except Exception:
                 logger.exception(

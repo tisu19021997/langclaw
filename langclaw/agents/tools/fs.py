@@ -24,7 +24,7 @@ def _safe_resolve(path_str: str, workspace_dir: Path) -> Path | None:
         path_str:      Caller-supplied path, may be relative or absolute.
         workspace_dir: Absolute root that all operations must stay within.
     """
-    resolved = (workspace_dir / path_str).resolve()
+    resolved = (workspace_dir / path_str.lstrip("/")).resolve()
     if resolved.is_relative_to(workspace_dir.resolve()):
         return resolved
     return None
