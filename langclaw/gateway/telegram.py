@@ -25,6 +25,7 @@ from telegram.ext import Application
 from tenacity import (
     retry,
     retry_if_exception_type,
+    retry_if_not_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
@@ -43,6 +44,13 @@ from langclaw.gateway.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Lazily resolved at import time so the retry decorator can reference it at
+# class-definition time without requiring telegram to be installed.
+try:
+    from telegram.error import TimedOut as _TelegramTimedOut
+except ImportError:  # telegram not installed in this environment
+    _TelegramTimedOut = Exception  # type: ignore[misc,assignment]
 
 # Minimum characters changed before sending a streaming edit to avoid Telegram
 # rate-limiting on rapid small updates.
@@ -170,7 +178,7 @@ class TelegramChannel(BaseChannel):
             connection_pool_size=16,
             pool_timeout=5.0,
             connect_timeout=30.0,
-            read_timeout=30.0,
+            read_timeout=60.0,
             write_timeout=30.0,
         )
         app = (
@@ -296,7 +304,7 @@ class TelegramChannel(BaseChannel):
             await self._send_chunk(msg.chat_id, chunk, reply_to_id=reply_to_id)
 
     @retry(
-        retry=retry_if_exception_type(Exception),
+        retry=retry_if_exception_type(Exception) & retry_if_not_exception_type(_TelegramTimedOut),
         wait=wait_exponential(multiplier=1, min=2, max=10),
         stop=stop_after_attempt(3),
         reraise=True,
@@ -464,7 +472,8 @@ class TelegramChannel(BaseChannel):
             display_name=user.first_name or "",
         )
         response = await self._command_router.dispatch(cmd, ctx)
-        await update.message.reply_text(response)
+        for chunk in split_message(response, max_len=_MAX_MESSAGE_LEN):
+            await update.message.reply_text(chunk)
 
     async def _handle_attachment(self, update: object, context: object) -> None:
         """Forward an incoming Telegram media message to the bus."""

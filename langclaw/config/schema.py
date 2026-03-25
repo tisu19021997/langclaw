@@ -404,6 +404,15 @@ class LangclawConfig(BaseSettings):
     Override via env var: ``LANGCLAW__LOG_LEVEL=INFO``.
     """
 
+    debug: bool = False
+    """
+    When ``True``, error responses sent back to the channel include a truncated
+    traceback (up to 500 characters) to aid debugging.  Never enable in
+    production — tracebacks may expose internal paths and library details.
+
+    Override via env var: ``LANGCLAW__DEBUG=true``.
+    """
+
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     agents: AgentConfig = Field(default_factory=AgentConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)

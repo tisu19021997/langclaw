@@ -631,8 +631,11 @@ class Langclaw:
 
                     cron_manager = make_cron_manager(bus=bus, config=cfg.cron)
 
+                # Build the main agent and capture the spec used so that the
+                # gateway can rebuild it when AGENTS.md changes.
+                checkpointer = checkpointer_backend.get()
                 agent = self.create_agent(
-                    checkpointer=checkpointer_backend.get(),
+                    checkpointer=checkpointer,
                     cron_manager=cron_manager,
                     bus=bus,
                     context_schema=self._context_schema,
@@ -650,6 +653,14 @@ class Langclaw:
                     context_defaults=self._context_defaults,
                     context_factory=self._context_factory,
                     named_agent_specs=self._named_agents or None,
+                    default_agent_spec={
+                        "extra_tools": self._extra_tools or None,
+                        "extra_middleware": self._extra_middleware or None,
+                        "subagents": self._subagents or None,
+                        "system_prompt": self._system_prompt,
+                        "bus": bus,
+                        "model": None,
+                    },
                 )
 
                 cron_status = "enabled" if cron_manager else "disabled"
