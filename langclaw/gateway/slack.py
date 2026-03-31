@@ -25,6 +25,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from tenacity import retry, stop_after_attempt, wait_exponential
+
 from langclaw.bus.base import BaseMessageBus, InboundMessage, OutboundMessage
 from langclaw.config.schema import SlackChannelConfig
 from langclaw.cron.utils import is_cron_context_id
@@ -221,6 +223,10 @@ class SlackChannel(BaseChannel):
     # Sending helpers
     # ------------------------------------------------------------------
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+    )
     async def _send_text(
         self,
         channel_id: str,
@@ -243,6 +249,10 @@ class SlackChannel(BaseChannel):
         except Exception as exc:
             logger.error(f"Failed to send Slack message: {exc}")
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+    )
     async def _add_reaction(self, channel: str, timestamp: str, emoji: str) -> None:
         """Add a reaction emoji to a message."""
         if not self._app:
@@ -270,6 +280,10 @@ class SlackChannel(BaseChannel):
             else:
                 logger.debug(f"Failed to add reaction '{emoji}': {slack_error or exc}")
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+    )
     async def _remove_reaction(self, channel: str, timestamp: str, emoji: str) -> None:
         """Remove a reaction emoji from a message."""
         if not self._app:
