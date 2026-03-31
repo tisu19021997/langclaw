@@ -348,11 +348,6 @@ class SlackChannel(BaseChannel):
         is_dm = event.get("channel_type") == "im"
         thread_ts = None if is_dm else (event.get("thread_ts") or event.get("ts"))
 
-        # In non-DM channels, ignore messages that don't mention the bot
-        if not is_dm:
-            if self._bot_user_id and f"<@{self._bot_user_id}>" not in (event.get("text") or ""):
-                return
-
         # Strip bot mention markup from app_mention events
         if self._bot_user_id:
             text = re.sub(rf"<@{re.escape(self._bot_user_id)}>\s*", "", text).strip()
