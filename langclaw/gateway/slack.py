@@ -69,6 +69,8 @@ class SlackChannel(BaseChannel):
         self._tool_call_buffer: dict[str, dict] = {}
         # Track (channel_id, message_ts) pairs for reaction management
         self._reaction_tracking: dict[str, tuple[str, str]] = {}  # context_id -> (channel, ts)
+        # In-memory cache for user_id -> username to avoid rate-limiting users_info
+        self._user_cache: dict[str, str] = {}
 
     def is_enabled(self) -> bool:
         return (
@@ -318,14 +320,17 @@ class SlackChannel(BaseChannel):
             self._reaction_tracking[channel_id] = (channel_id, message_ts)
             await self._add_reaction(channel_id, message_ts, self._config.reaction_processing)
 
-        # Get user info for username
-        username = ""
-        try:
-            if self._app:
-                user_info = await self._app.client.users_info(user=user_id)
-                username = user_info.get("user", {}).get("name", "")
-        except Exception as exc:
-            logger.debug(f"Failed to fetch Slack user info: {exc}")
+        # Get user info for username (with in-memory cache to avoid rate limits)
+        username = self._user_cache.get(user_id, "")
+        if not username:
+            try:
+                if self._app:
+                    user_info = await self._app.client.users_info(user=user_id)
+                    username = user_info.get("user", {}).get("name", "")
+                    if username:
+                        self._user_cache[user_id] = username
+            except Exception as exc:
+                logger.debug(f"Failed to fetch Slack user info: {exc}")
 
         # Check allow_from whitelist
         if not self._is_allowed(user_id, username):
