@@ -114,10 +114,14 @@ class SlackChannel(BaseChannel):
         # Register event handlers
         @app.event("message")
         async def handle_message(event: dict, say: Any) -> None:
-            # Only handle direct messages (channel_type == "im"); public/private channel
-            # messages require an explicit @mention (handled by app_mention below).
-            if event.get("channel_type") != "im":
+            # Handle DMs or messages that mention the bot
+            # (app_mention is preferred, but this provides fallback if not subscribed)
+            is_dm = event.get("channel_type") == "im"
+            has_mention = self._bot_user_id and f"<@{self._bot_user_id}>" in (event.get("text") or "")
+
+            if not is_dm and not has_mention:
                 return
+
             # Ignore message subtypes except file_share
             subtype = event.get("subtype")
             if subtype and subtype not in ["file_share"]:
