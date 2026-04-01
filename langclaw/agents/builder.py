@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models import BaseChatModel
 from langgraph.graph.state import CompiledStateGraph
+from loguru import logger
 
 from langclaw.agents.tools import (
     build_cron_tools,
@@ -274,6 +275,15 @@ def create_claw_agent(
         system_prompt = f"{base_prompt}\n\n{system_prompt}"
     else:
         system_prompt = base_prompt
+
+    if config.debug:
+        _label = agent_name or "default"
+        logger.info(
+            "[debug] system_prompt for agent '{}' (AGENTS.md: {}):\n{}",
+            _label,
+            agents_md if agents_md.exists() else "(none)",
+            system_prompt,
+        )
 
     # Built-in middleware stack (order matters):
     #   1. ChannelContextMiddleware  — inject channel metadata first

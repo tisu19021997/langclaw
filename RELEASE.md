@@ -18,9 +18,19 @@ The project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PAT
 
 The **single source of truth** for the version is `pyproject.toml` → `[project].version`.
 
+When releasing, also keep the runtime/exported version in sync:
+
+- `langclaw/__init__.py` → `__version__` should match `[project].version`
+
 ## Important Constraint
 
 The `no-commit-to-branch` pre-commit hook **blocks all direct commits to `main`**. Every change — including version bumps — must go through a feature branch and PR.
+
+## Release Trigger (Mandatory)
+
+Merging a PR to `main` triggers `.github/workflows/auto-tag-release.yml`.
+That workflow reads `pyproject.toml` version and automatically creates/pushes a matching `v*` tag (for example `v0.2.0`) if it does not already exist.
+Publishing starts from that tag via `.github/workflows/publish.yml`.
 
 ## Step-by-Step
 
@@ -70,34 +80,37 @@ CI runs automatically on every PR:
 ### 4. Merge to `main`
 
 Once CI is green and the PR is approved, merge to `main` via GitHub.
+After merge, GitHub Actions automatically creates and pushes `vX.Y.Z` from the version in `pyproject.toml`.
 
-### 5. Tag the release
-
-After the merge, pull `main` and tag:
-
-```bash
-git checkout main
-git pull origin main
-git tag -a v0.2.0 -m "Release v0.2.0 - short description"
-```
-
-### 6. Push the tag
+### 5. Optional verification
 
 ```bash
-git push origin v0.2.0
+git tag -l "v*"
+git ls-remote --tags origin
 ```
 
-### 7. Automated publish (GitHub Actions)
+### 6. Automated publish (GitHub Actions)
 
-Pushing a `v*` tag triggers `.github/workflows/publish.yml`:
+When the auto-tag workflow pushes a `v*` tag, it triggers `.github/workflows/publish.yml`:
 
 1. **Build** — `python -m build` produces wheel + sdist
 2. **Publish** — uploads to PyPI via trusted publisher (OIDC, no API token needed)
 3. **GitHub Release** — `gh release create` with auto-generated release notes
 
-No manual intervention needed after the tag push.
+No manual intervention needed after merge to `main` (assuming workflows are healthy).
 
-### 8. Verify
+### 7.1. Deployment / Consuming the new version
+
+This repository is a framework/library, so “deployment” typically lives in the consuming app.
+After the tag push publishes `langclaw==X.Y.Z` to PyPI, your deployment should:
+
+- bump the dependency in your app (for example `langclaw==X.Y.Z`)
+- update any Docker/Helm/K8s build steps in your app to install the same pinned version
+
+If your deployment is container-based, make sure your Docker build uses the pinned version, e.g.:
+`pip install "langclaw==X.Y.Z"`
+
+### 7. Verify
 
 - Check the [GitHub Actions](https://github.com/tisu19021997/langclaw/actions) run
 - Confirm the package is live: `pip install langclaw==0.2.0`
@@ -116,10 +129,20 @@ git push -u origin feat/my-feature
 # Open PR, wait for CI, merge via GitHub
 
 # After merge:
-git checkout main && git pull origin main
+# auto-tag creates and pushes vX.Y.Z from pyproject.toml version
+# publish workflow runs from that tag
+# Done — CI handles build, publish, and GitHub Release
+```
+
+## Manual Fallback (if auto-tag fails)
+
+If the auto-tag workflow fails, create and push the tag manually:
+
+```bash
+git checkout main
+git pull origin main
 git tag -a vX.Y.Z -m "Release vX.Y.Z - description"
 git push origin vX.Y.Z
-# Done — CI handles build, publish, and GitHub Release
 ```
 
 ## Conventions

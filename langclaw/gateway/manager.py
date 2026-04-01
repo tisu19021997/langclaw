@@ -11,8 +11,11 @@ Architecture:
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import traceback
 from collections.abc import Awaitable, Callable
-from typing import Any
+from pathlib import Path
+from typing import Any, Final
 
 from langchain_core.messages import HumanMessage
 from langgraph.graph.state import CompiledStateGraph
@@ -71,6 +74,7 @@ class GatewayManager:
             Callable[[InboundMessage, dict[str, Any]], Awaitable[LangclawContext]] | None
         ) = None,
         named_agent_specs: dict[str, dict[str, Any]] | None = None,
+        default_agent_spec: dict[str, Any] | None = None,
     ) -> None:
         self._config = config
         self._bus = bus
@@ -85,6 +89,8 @@ class GatewayManager:
         self._command_router = CommandRouter(
             self._sessions,
             self._cron_manager,
+            gateway_manager=self,
+            workspace_dir=config.agents.workspace_dir,
         )
         if extra_commands:
             for cmd_name, handler, description in extra_commands:
@@ -94,17 +100,82 @@ class GatewayManager:
         # Named agent registry — "default" always points to the main agent.
         self._agent_map: dict[str, CompiledStateGraph] = {"default": agent}
         self._agent_descriptions: dict[str, str] = {"default": "main agent"}
-        if named_agent_specs:
-            for spec_name, spec in named_agent_specs.items():
+
+        # Spec used to rebuild the default agent when AGENTS.md changes.
+        # Mirrors the arguments used by Langclaw.create_agent().
+        self._default_agent_spec: dict[str, Any] = default_agent_spec or {}
+
+        # Track last-seen AGENTS.md content hashes per agent so we can hot-reload
+        # prompts when the underlying file changes.
+        self._agents_md_hashes: dict[str, str] = {}
+
+        # Simple per-agent locks to avoid concurrent rebuilds.
+        self._agent_locks: dict[str, asyncio.Lock] = {}
+        # Keep a reference to the raw named-agent specs so we can rebuild them
+        # when their AGENTS.md changes.
+        self._named_agent_specs: dict[str, dict[str, Any]] | None = named_agent_specs
+
+        if self._named_agent_specs:
+            for spec_name, spec in self._named_agent_specs.items():
                 self._agent_descriptions[spec_name] = spec.get("description", "")
                 self._agent_map[spec_name] = self._build_named_agent(spec, spec_name)
 
         # Register /agent only when named agents exist (no-op otherwise).
-        if named_agent_specs:
+        if self._named_agent_specs:
             self._setup_agent_command()
 
         # Phase 2 hook point — auto-routing resolver (not yet wired):
         # self._agent_resolver: Callable[[InboundMessage], Awaitable[str | None]] | None = None
+
+    # ------------------------------------------------------------------
+    # AGENTS.md hot-reload helpers
+    # ------------------------------------------------------------------
+
+    def _get_workspace_dir_for_agent(self, agent_name: str) -> Path:
+        """Return the workspace directory for a given agent name.
+
+        The default agent uses ``config.agents.workspace_dir``.
+        Named agents use ``config.agents.workspace_dir / agent_name``.
+        """
+        base: Final[Path] = self._config.agents.workspace_dir
+        return base if agent_name == "default" else base / agent_name
+
+    def _get_agents_md_path_for_agent(self, agent_name: str) -> Path:
+        """Return the AGENTS.md path for a given agent workspace.
+
+        Mirrors the logic in ``create_claw_agent``: each agent first looks for
+        ``workspace_dir / "AGENTS.md"`` and falls back to the global
+        ``config.agents.agents_md_file`` when missing.
+        """
+        workspace_dir = self._get_workspace_dir_for_agent(agent_name)
+        candidate = workspace_dir / "AGENTS.md"
+        return candidate if candidate.exists() else self._config.agents.agents_md_file
+
+    def _compute_agents_md_hash(self, path: Path) -> str:
+        """Return a stable hash of the AGENTS.md contents.
+
+        Missing files are treated as empty strings.
+        """
+        try:
+            text = path.read_text("utf-8")
+        except OSError:
+            text = ""
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def _get_agent_lock(self, agent_name: str) -> asyncio.Lock:
+        lock = self._agent_locks.get(agent_name)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._agent_locks[agent_name] = lock
+        return lock
+
+    def get_agents_md_path(self, agent_name: str) -> Path:
+        """Public wrapper used by debug commands."""
+        return self._get_agents_md_path_for_agent(agent_name)
+
+    def invalidate_agent_hash(self, agent_name: str) -> None:
+        """Clear the stored AGENTS.md hash so the next message triggers a rebuild."""
+        self._agents_md_hashes.pop(agent_name, None)
 
     def _build_named_agent(self, spec: dict[str, Any], agent_name: str) -> CompiledStateGraph:
         """Build a compiled agent from a named-agent spec.
@@ -135,6 +206,91 @@ class GatewayManager:
             context_schema=self._context_schema,
             agent_name=agent_name,
         )
+
+    async def _ensure_agent_fresh(self, agent_name: str) -> CompiledStateGraph:
+        """Return a compiled agent, rebuilding if AGENTS.md has changed.
+
+        This method performs a cheap content-hash check of the agent's
+        ``AGENTS.md`` before each use. When the hash differs from the
+        last-seen value, the agent is rebuilt with the same configuration
+        (tools, model, system_prompt) and the internal registry is updated.
+        """
+        # Fast path: if we have never computed a hash for this agent, compute it
+        # and store it but do not rebuild — the current instance was just built.
+        current = self._agent_map.get(agent_name, self._agent_map["default"])
+        path = self._get_agents_md_path_for_agent(agent_name)
+        new_hash = self._compute_agents_md_hash(path)
+        old_hash = self._agents_md_hashes.get(agent_name)
+        if self._config.debug:
+            logger.info(
+                "[debug] AGENTS.md watch — agent='{}' path='{}' hash={}",
+                agent_name,
+                path,
+                new_hash[:12],
+            )
+        if old_hash is None:
+            self._agents_md_hashes[agent_name] = new_hash
+            return current
+        if new_hash == old_hash:
+            return current
+
+        # Slow path: AGENTS.md changed — rebuild under a per-agent lock so only
+        # one task performs the work.
+        logger.info("AGENTS.md changed for agent '{}' ({}), rebuilding…", agent_name, path)
+        lock = self._get_agent_lock(agent_name)
+        async with lock:
+            # Double-check inside the lock in case another task already rebuilt.
+            latest_hash = self._agents_md_hashes.get(agent_name)
+            if latest_hash == new_hash:
+                return self._agent_map.get(agent_name, current)
+
+            try:
+                from langclaw.agents.builder import create_claw_agent
+            except ImportError:
+                # If deepagents or builder cannot be imported, keep using the
+                # existing agent and log the error.
+                logger.error(
+                    "Failed to import create_claw_agent while reloading AGENTS.md; "
+                    "continuing with existing agent for '{}'.",
+                    agent_name,
+                )
+                self._agents_md_hashes[agent_name] = new_hash
+                return current
+
+            try:
+                if agent_name == "default":
+                    # Rebuild the main agent using the same knobs as Langclaw.create_agent().
+                    rebuilt = create_claw_agent(
+                        self._config,
+                        checkpointer=self._checkpointer_backend.get(),
+                        cron_manager=self._cron_manager,
+                        extra_tools=self._default_agent_spec.get("extra_tools"),
+                        extra_middleware=self._default_agent_spec.get("extra_middleware"),
+                        subagents=self._default_agent_spec.get("subagents"),
+                        system_prompt=self._default_agent_spec.get("system_prompt"),
+                        bus=self._default_agent_spec.get("bus"),
+                        model=self._default_agent_spec.get("model"),
+                        context_schema=self._context_schema,
+                    )
+                else:
+                    # Named agents reuse their original spec.
+                    spec = (getattr(self, "_named_agent_specs", None) or {}).get(agent_name, {})
+                    rebuilt = self._build_named_agent(spec, agent_name)
+
+                self._agent_map[agent_name] = rebuilt
+                self._agents_md_hashes[agent_name] = new_hash
+                logger.info("Reloaded AGENTS.md and rebuilt agent '{}'.", agent_name)
+                return rebuilt
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "Error rebuilding agent '{}' after AGENTS.md change: {}. "
+                    "Continuing with existing compiled agent.",
+                    agent_name,
+                    exc,
+                )
+                # Even if rebuild fails, update the hash so we don't thrash.
+                self._agents_md_hashes[agent_name] = new_hash
+                return current
 
     def _setup_agent_command(self) -> None:
         """Register the built-in ``/agent`` command as a closure.
@@ -538,7 +694,9 @@ class GatewayManager:
             "messages": [HumanMessage(content=content)],
         }
 
-        active_agent = self._agent_map.get(agent_name, self._agent_map["default"])
+        # Ensure the compiled agent is up to date with the latest AGENTS.md
+        # contents for this agent's workspace before streaming.
+        active_agent = await self._ensure_agent_fresh(agent_name)
 
         try:
             stream_kwargs: dict[str, Any] = {
@@ -560,16 +718,27 @@ class GatewayManager:
             logger.exception(
                 f"Error handling message from {msg.channel}/{msg.user_id}",
             )
+            if self._config.debug:
+                _MAX_TRACE_LEN = 500
+                trace = traceback.format_exc()
+                if len(trace) > _MAX_TRACE_LEN:
+                    trace = "..." + trace[-_MAX_TRACE_LEN:]
+                error_content = f"Sorry, something went wrong.\n\n```\n{trace}\n```"
+            else:
+                error_content = "Sorry, something went wrong. Please try again."
             try:
-                await channel.send(
-                    OutboundMessage(
-                        channel=msg.channel,
-                        user_id=msg.user_id,
-                        context_id=msg.context_id,
-                        chat_id=msg.chat_id,
-                        content=("Sorry, something went wrong. Please try again."),
-                        type="ai",
-                    )
+                await asyncio.wait_for(
+                    channel.send(
+                        OutboundMessage(
+                            channel=msg.channel,
+                            user_id=msg.user_id,
+                            context_id=msg.context_id,
+                            chat_id=msg.chat_id,
+                            content=error_content,
+                            type="ai",
+                        )
+                    ),
+                    timeout=15.0,
                 )
             except Exception:
                 logger.exception(
