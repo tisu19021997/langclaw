@@ -55,9 +55,10 @@ CRON_TOOL_DOC = """Schedule, list, or remove recurring jobs.
                        Type ``'task'`` includes only the scheduled message.
         message:       Prompt injected into the agent at fire time.
                        Required for ``add``.
-                       Write task instructions only.
+                       Write message as clear, complete, and self-contained instructions.
                        Do NOT include schedule/timezone or recipient/user info;
                        scheduling + routing are already handled by cron context.
+                       Do NOT rely on prior conversation context - agents may not have access to it.
         every_seconds: Repeat interval in seconds (e.g. 3600 = every hour).
                        Mutually exclusive with ``cron_expr``.
         cron_expr:     Standard 5-field cron expression in {timezone}.
