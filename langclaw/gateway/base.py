@@ -10,6 +10,7 @@ Message delivery uses the Template Method pattern:
   - ``send_tool_progress`` — default: no-op (opt-in)
   - ``send_tool_result``   — default: no-op (opt-in)
   - ``send_ai_message``    — abstract (required)
+  - ``send_ai_chunk``      — default: buffer + flush on final (opt-in for live streaming)
 
 A minimal channel only needs ``send_ai_message``.
 Both ``tool_progress`` and ``tool_result`` carry a ``"tool_call_id"`` key in
@@ -19,6 +20,7 @@ Both ``tool_progress`` and ``tool_result`` carry a ``"tool_call_id"`` key in
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -38,6 +40,7 @@ class BaseChannel(ABC):
     """Unique channel identifier (e.g. ``"telegram"``, ``"discord"``)."""
 
     _command_router: CommandRouter | None = None
+    _chunk_buffer: dict[tuple[str, str], list[str]]
 
     def set_command_router(self, router: CommandRouter) -> None:
         """Inject the shared command router (called by GatewayManager)."""
@@ -70,6 +73,8 @@ class BaseChannel(ABC):
             await self.send_tool_progress(msg)
         elif msg.type == "tool_result":
             await self.send_tool_result(msg)
+        elif msg.streaming:
+            await self.send_ai_chunk(msg)
         else:
             await self.send_ai_message(msg)
 
@@ -97,6 +102,29 @@ class BaseChannel(ABC):
           - ``"tool_call_id"`` (str) — correlates with the matching call
         ``msg.content`` holds the raw tool output text.
         """
+
+    async def send_ai_chunk(self, msg: OutboundMessage) -> None:
+        """
+        Deliver one streaming chunk of an AI response.
+
+        Default: accumulate all chunks and call ``send_ai_message`` on the final
+        one.  Override this method to stream content live (e.g. WebSocket push,
+        Telegram message edit).
+
+        ``msg.streaming`` is always ``True`` here.
+        ``msg.is_final`` is ``True`` on the last chunk — flush and deliver.
+        """
+        if not hasattr(self, "_chunk_buffer"):
+            self._chunk_buffer = {}
+        key = (msg.chat_id or msg.user_id, msg.context_id)
+        if msg.content:
+            self._chunk_buffer.setdefault(key, []).append(msg.content)
+        if msg.is_final:
+            full = "".join(self._chunk_buffer.pop(key, []))
+            if full:
+                await self.send_ai_message(
+                    replace(msg, content=full, streaming=False, is_final=False)
+                )
 
     @abstractmethod
     async def send_ai_message(self, msg: OutboundMessage) -> None:

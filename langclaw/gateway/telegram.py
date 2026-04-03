@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 
 from telegram import Bot
 from telegram.ext import Application
@@ -151,6 +152,9 @@ class TelegramChannel(BaseChannel):
         self._typing_tasks: dict[str, asyncio.Task] = {}
         # Keyed by tool_call_id; stashed on tool_progress, consumed on tool_result.
         self._tool_call_buffer: dict[str, dict] = {}
+        # Keyed by (chat_id, context_id); tracks live streaming edit state.
+        # Each entry: {"msg_id": int, "buffer": str, "last_edit": float}
+        self._stream_state: dict[tuple[str, str], dict] = {}
 
     def is_enabled(self) -> bool:
         return self._config.enabled and bool(self._config.token)
@@ -292,6 +296,56 @@ class TelegramChannel(BaseChannel):
         html = f"{header}\n<blockquote expandable>{escaped}</blockquote>"
         await self._send_progress(msg.chat_id, html)
 
+    async def send_ai_chunk(self, msg: OutboundMessage) -> None:
+        """Stream AI response via send-then-edit pattern with 300 ms throttle.
+
+        Only active when ``streaming_enabled = true`` in config.  When disabled
+        (default), chunks are buffered and delivered as a single message —
+        identical to non-streaming behaviour with no extra API calls.
+        """
+        if (
+            self._app is None
+            or is_cron_context_id(msg.context_id)
+            or not self._config.streaming_enabled
+        ):
+            await super().send_ai_chunk(msg)
+            return
+
+        key = (msg.chat_id, msg.context_id)
+        state = self._stream_state.get(key)
+
+        if msg.is_final:
+            # Flush whatever is buffered — unconditional final edit.
+            self._stop_typing(msg.chat_id)
+            if state:
+                full = state["buffer"]
+                if full:
+                    for i, part in enumerate(split_message(full, max_len=_MAX_MESSAGE_LEN)):
+                        if i == 0:
+                            await self._edit_stream_message(msg.chat_id, state["msg_id"], part)
+                        else:
+                            await self._send_chunk(msg.chat_id, part)
+                del self._stream_state[key]
+            return
+
+        if state is None:
+            # First chunk — send a placeholder and store the message id.
+            sent_id = await self._send_stream_start(msg.chat_id, msg.content)
+            if sent_id is not None:
+                self._stream_state[key] = {
+                    "msg_id": sent_id,
+                    "buffer": msg.content,
+                    "last_edit": time.monotonic(),
+                }
+        else:
+            state["buffer"] += msg.content
+            now = time.monotonic()
+            if now - state["last_edit"] >= 0.3:
+                await self._edit_stream_message(
+                    msg.chat_id, state["msg_id"], state["buffer"][:_MAX_MESSAGE_LEN]
+                )
+                state["last_edit"] = now
+
     async def send_ai_message(self, msg: OutboundMessage) -> None:
         """Stop the typing indicator and deliver the final AI response."""
         if self._app is None:
@@ -346,6 +400,31 @@ class TelegramChannel(BaseChannel):
                 f"{exc.__class__.__name__}: {exc}"
             )
             raise
+
+    async def _send_stream_start(self, chat_id: str, text: str) -> int | None:
+        """Send the initial streaming message and return its message_id."""
+        if not self._app:
+            return None
+        try:
+            bot: Bot = self._app.bot  # type: ignore[attr-defined]
+            sent = await bot.send_message(chat_id=chat_id, text=text or "…")
+            return sent.message_id
+        except Exception as exc:
+            logger.debug(f"Stream start failed for {chat_id}: {exc}")
+            return None
+
+    async def _edit_stream_message(self, chat_id: str, message_id: int, text: str) -> None:
+        """Edit an existing streaming message in-place (best-effort)."""
+        if not self._app or not text:
+            return
+        try:
+            bot: Bot = self._app.bot  # type: ignore[attr-defined]
+            html = _markdown_to_telegram_html(text)
+            await bot.edit_message_text(
+                chat_id=chat_id, message_id=message_id, text=html, parse_mode="HTML"
+            )
+        except Exception as exc:
+            logger.debug(f"Stream edit failed for {chat_id}/{message_id}: {exc}")
 
     async def _send_progress(self, chat_id: str, html: str) -> None:
         """Send a small tool-progress status line (best-effort, no retry)."""

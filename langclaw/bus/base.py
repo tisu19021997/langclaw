@@ -150,6 +150,9 @@ class OutboundMessage:
     type: str = "ai"
     """Message type: ``"ai"`` | ``"tool_progress"`` | ``"tool_result"``."""
     streaming: bool = False
+    """True when this message is a streaming chunk rather than a complete response."""
+    is_final: bool = False
+    """True on the last streaming chunk — signals channels to flush buffered content."""
     metadata: dict = field(default_factory=dict)
 
 

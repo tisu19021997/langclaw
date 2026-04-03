@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +65,9 @@ class DiscordChannel(BaseChannel):
         self._running = False
         self._typing_tasks: dict[str, asyncio.Task] = {}
         self._tool_call_buffer: dict[str, dict] = {}
+        # Keyed by (chat_id, context_id); tracks live streaming send+edit state.
+        # Each entry: {"message": Any, "buffer": str, "last_edit": float}
+        self._stream_state: dict[tuple[str, str], dict] = {}
 
     def is_enabled(self) -> bool:
         return self._config.enabled and bool(self._config.token)
@@ -197,6 +201,51 @@ class DiscordChannel(BaseChannel):
         text = f"{header}\n```\n{result_text}\n```"
         await self._send_text(msg.chat_id, text)
 
+    async def send_ai_chunk(self, msg: OutboundMessage) -> None:
+        """Stream AI response via send-then-edit pattern with 300 ms throttle.
+
+        Only active when ``streaming_enabled = true`` in config.  When disabled
+        (default), chunks are buffered and delivered as a single message —
+        identical to non-streaming behaviour with no extra API calls.
+        """
+        if (
+            self._client is None
+            or is_cron_context_id(msg.context_id)
+            or not self._config.streaming_enabled
+        ):
+            await super().send_ai_chunk(msg)
+            return
+
+        key = (msg.chat_id, msg.context_id)
+        state = self._stream_state.get(key)
+
+        if msg.is_final:
+            self._stop_typing(msg.chat_id)
+            if state:
+                full = state["buffer"]
+                if full:
+                    parts = split_message(full, max_len=MAX_MESSAGE_LEN)
+                    await self._edit_stream_message(state["message"], parts[0])
+                    for part in parts[1:]:
+                        await self._send_text(msg.chat_id, part)
+                del self._stream_state[key]
+            return
+
+        if state is None:
+            message = await self._send_stream_start(msg.chat_id, msg.content)
+            if message is not None:
+                self._stream_state[key] = {
+                    "message": message,
+                    "buffer": msg.content,
+                    "last_edit": time.monotonic(),
+                }
+        else:
+            state["buffer"] += msg.content
+            now = time.monotonic()
+            if now - state["last_edit"] >= 0.3:
+                await self._edit_stream_message(state["message"], state["buffer"][:MAX_MESSAGE_LEN])
+                state["last_edit"] = now
+
     async def send_ai_message(self, msg: OutboundMessage) -> None:
         """Stop the typing indicator and deliver the final AI response."""
         if self._client is None:
@@ -211,6 +260,29 @@ class DiscordChannel(BaseChannel):
     # ------------------------------------------------------------------
     # Sending helpers
     # ------------------------------------------------------------------
+
+    async def _send_stream_start(self, chat_id: str, text: str) -> Any | None:
+        """Send the initial streaming message and return the message object."""
+
+        if not self._client:
+            return None
+        try:
+            channel = self._client.get_channel(int(chat_id))
+            if channel is None:
+                channel = await self._client.fetch_channel(int(chat_id))
+            return await channel.send(text or "…")
+        except Exception as exc:
+            logger.debug("Discord stream start failed for %s: %s", chat_id, exc)
+            return None
+
+    async def _edit_stream_message(self, message: Any, text: str) -> None:
+        """Edit an existing streaming message in-place (best-effort)."""
+        if message is None or not text:
+            return
+        try:
+            await message.edit(content=text)
+        except Exception as exc:
+            logger.debug("Discord stream edit failed: %s", exc)
 
     async def _send_text(
         self,

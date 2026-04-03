@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +72,9 @@ class SlackChannel(BaseChannel):
         self._tool_call_buffer: dict[str, dict] = {}
         # Track (channel_id, message_ts) pairs for reaction management
         self._reaction_tracking: dict[str, tuple[str, str]] = {}  # context_id -> (channel, ts)
+        # Keyed by (channel_id, context_id); tracks live streaming post+update state.
+        # Each entry: {"ts": str, "buffer": str, "last_update": float, "thread_ts": str | None}
+        self._stream_state: dict[tuple[str, str], dict] = {}
         # In-memory cache for user_id -> username to avoid rate-limiting users_info
         self._user_cache: dict[str, str] = {}
         # Bot user ID for stripping mentions from app_mention events
@@ -198,6 +202,59 @@ class SlackChannel(BaseChannel):
         thread_ts = msg.metadata.get("thread_ts")
         await self._send_text(msg.chat_id, text, thread_ts=thread_ts)
 
+    async def send_ai_chunk(self, msg: OutboundMessage) -> None:
+        """Stream AI response via post-then-update pattern with 300 ms throttle.
+
+        Only active when ``streaming_enabled = true`` in config.  When disabled
+        (default), chunks are buffered and delivered as a single message —
+        identical to non-streaming behaviour with no extra API calls.
+        """
+        if (
+            self._app is None
+            or is_cron_context_id(msg.context_id)
+            or not self._config.streaming_enabled
+        ):
+            await super().send_ai_chunk(msg)
+            return
+
+        key = (msg.chat_id, msg.context_id)
+        state = self._stream_state.get(key)
+        thread_ts = (msg.metadata or {}).get("thread_ts")
+
+        if msg.is_final:
+            if state:
+                full = state["buffer"]
+                if full:
+                    for i, part in enumerate(split_message(full, max_len=MAX_MESSAGE_LEN)):
+                        if i == 0:
+                            await self._update_stream_message(
+                                msg.chat_id, state["ts"], part, state["thread_ts"]
+                            )
+                        else:
+                            await self._send_text(msg.chat_id, part, thread_ts=state["thread_ts"])
+                del self._stream_state[key]
+            if self._config.reaction_feedback_enabled:
+                await self._swap_reaction(msg.context_id)
+            return
+
+        if state is None:
+            ts = await self._post_stream_start(msg.chat_id, msg.content, thread_ts=thread_ts)
+            if ts is not None:
+                self._stream_state[key] = {
+                    "ts": ts,
+                    "buffer": msg.content,
+                    "last_update": time.monotonic(),
+                    "thread_ts": thread_ts,
+                }
+        else:
+            state["buffer"] += msg.content
+            now = time.monotonic()
+            if now - state["last_update"] >= 0.3:
+                await self._update_stream_message(
+                    msg.chat_id, state["ts"], state["buffer"][:MAX_MESSAGE_LEN], state["thread_ts"]
+                )
+                state["last_update"] = now
+
     async def send_ai_message(self, msg: OutboundMessage) -> None:
         """Deliver the final AI response."""
         if self._app is None:
@@ -249,6 +306,36 @@ class SlackChannel(BaseChannel):
             await self._app.client.chat_postMessage(**kwargs)
         except Exception as exc:
             logger.error(f"Failed to send Slack message: {exc}")
+
+    async def _post_stream_start(
+        self, channel_id: str, text: str, thread_ts: str | None = None
+    ) -> str | None:
+        """Post the initial streaming message and return its timestamp."""
+        if not self._app:
+            return None
+        try:
+            kwargs: dict[str, Any] = {"channel": channel_id, "text": text or "…"}
+            if thread_ts:
+                kwargs["thread_ts"] = thread_ts
+            resp = await self._app.client.chat_postMessage(**kwargs)
+            return resp.get("ts")
+        except Exception as exc:
+            logger.debug(f"Stream start failed for {channel_id}: {exc}")
+            return None
+
+    async def _update_stream_message(
+        self, channel_id: str, ts: str, text: str, thread_ts: str | None = None
+    ) -> None:
+        """Update an existing streaming message in-place (best-effort)."""
+        if not self._app or not text:
+            return
+        try:
+            kwargs: dict[str, Any] = {"channel": channel_id, "ts": ts, "text": text}
+            if thread_ts:
+                kwargs["thread_ts"] = thread_ts
+            await self._app.client.chat_update(**kwargs)
+        except Exception as exc:
+            logger.debug(f"Stream update failed for {channel_id}/{ts}: {exc}")
 
     @retry(
         stop=stop_after_attempt(3),

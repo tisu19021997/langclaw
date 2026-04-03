@@ -444,11 +444,58 @@ class GatewayManager:
                 name=f"handle:{msg.channel}:{msg.user_id}",
             )
 
+    async def _handle_message_chunk(
+        self,
+        chunk: tuple[Any, Any],
+        msg: InboundMessage,
+        channel: BaseChannel,
+        streaming_contexts: set[str],
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Translate one ``stream_mode="messages"`` chunk into a streaming
+        ``OutboundMessage`` on *channel*.
+
+        LangGraph yields ``(message_chunk, metadata_dict)`` tuples.
+        Only ``AIMessageChunk`` objects with text content are forwarded;
+        tool-call-only chunks are skipped (handled by ``stream_mode="updates"``).
+        """
+        from langchain_core.messages import AIMessageChunk
+
+        message_chunk, _ = chunk
+        if not isinstance(message_chunk, AIMessageChunk):
+            return
+        content = message_chunk.content
+        if not content:
+            return
+        if not isinstance(content, str):
+            content = " ".join(
+                b.get("text", "") if isinstance(b, dict) else str(b) for b in content
+            )
+        if not content:
+            return
+
+        streaming_contexts.add(msg.context_id)
+        await channel.send(
+            OutboundMessage(
+                channel=msg.channel,
+                user_id=msg.user_id,
+                context_id=msg.context_id,
+                chat_id=msg.chat_id,
+                content=content,
+                type="ai",
+                streaming=True,
+                is_final=False,
+                metadata=metadata,
+            )
+        )
+
     async def _stream_updates_to_outbound_message(
         self,
         chunk: dict[str, Any],
         msg: InboundMessage,
         channel: BaseChannel,
+        streaming_contexts: set[str],
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """
@@ -466,7 +513,7 @@ class GatewayManager:
 
         - ``AIMessage`` with ``tool_calls`` → ``type="tool_progress"`` per call
         - ``ToolMessage``                   → ``type="tool_result"``
-        - ``AIMessage`` with text content   → ``type="ai"``
+        - ``AIMessage`` with text content   → ``type="ai"`` (skipped if already streamed)
         """
         from langchain_core.messages import AIMessage, ToolMessage
 
@@ -535,6 +582,10 @@ class GatewayManager:
 
                 # ── AI text response ───────────────────────────────────────
                 elif isinstance(m, AIMessage) and m.content:
+                    # Skip: already delivered token-by-token via stream_mode="messages"
+                    if msg.context_id in streaming_contexts:
+                        logger.info(f"AI response (streamed) | {preview_message(m)}")
+                        continue
                     logger.info(f"AI response | {preview_message(m)}")
                     raw = m.content
                     if not isinstance(raw, str):
@@ -701,18 +752,45 @@ class GatewayManager:
         try:
             stream_kwargs: dict[str, Any] = {
                 "config": runnable_config,
-                "stream_mode": "updates",
+                "stream_mode": ["updates", "messages"],
                 "context": context,
             }
             if self._config.log_level.upper() == "DEBUG":
                 stream_kwargs["print_mode"] = "updates"
 
-            async for chunk in active_agent.astream(
+            # Track which context_ids have received streaming chunks this turn
+            # so the "updates" handler can skip the duplicate full AIMessage.
+            streaming_contexts: set[str] = set()
+
+            async for mode, chunk in active_agent.astream(
                 input_state,
                 **stream_kwargs,
             ):
-                logger.info(f"Chunk: {chunk}")
-                await self._stream_updates_to_outbound_message(chunk, msg, channel, metadata=meta)
+                if mode == "messages":
+                    await self._handle_message_chunk(
+                        chunk, msg, channel, streaming_contexts, metadata=meta
+                    )
+                elif mode == "updates":
+                    logger.info(f"Chunk: {chunk}")
+                    await self._stream_updates_to_outbound_message(
+                        chunk, msg, channel, streaming_contexts, metadata=meta
+                    )
+
+            # Signal stream end so channels can flush their buffers.
+            if msg.context_id in streaming_contexts:
+                await channel.send(
+                    OutboundMessage(
+                        channel=msg.channel,
+                        user_id=msg.user_id,
+                        context_id=msg.context_id,
+                        chat_id=msg.chat_id,
+                        content="",
+                        type="ai",
+                        streaming=True,
+                        is_final=True,
+                        metadata=meta,
+                    )
+                )
 
         except Exception:
             logger.exception(

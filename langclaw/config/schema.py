@@ -125,6 +125,24 @@ class TelegramChannelConfig(BaseModel):
     user_roles: StringDict = Field(default_factory=dict)
     """Maps Telegram user IDs / @usernames to permission roles.
     Env format: ``123456:admin,@alice:editor``"""
+    streaming_enabled: bool = False
+    """
+    Stream AI responses token-by-token by sending one message then editing
+    it in place as new content arrives.
+
+    .. warning::
+        **Enabling this may degrade reliability.**
+        Telegram enforces a global rate limit of ~20 message edits per minute
+        per bot.  Under moderate load (multiple concurrent users) this limit is
+        easily exceeded, causing ``RetryAfter`` errors and delayed delivery.
+        The 300 ms edit throttle reduces — but does not eliminate — the risk.
+
+        Enable only when the live-typing UX is more important than reliability,
+        and only in low-traffic environments.  Leave disabled (default) to
+        receive the full response as a single message after generation completes.
+
+    Env: ``LANGCLAW__CHANNELS__TELEGRAM__STREAMING_ENABLED=true``
+    """
 
 
 class DiscordChannelConfig(BaseModel):
@@ -134,6 +152,25 @@ class DiscordChannelConfig(BaseModel):
     user_roles: StringDict = Field(default_factory=dict)
     """Maps Discord user IDs to permission roles.
     Env format: ``123456:admin,789012:viewer``"""
+    streaming_enabled: bool = False
+    """
+    Stream AI responses token-by-token by sending one message then editing
+    it in place as new content arrives.
+
+    .. warning::
+        **Enabling this may degrade reliability.**
+        Discord allows at most 5 edits per second per message and enforces a
+        global 50 req/s REST limit per bot.  High-frequency edits during
+        generation can trigger ``429 Too Many Requests`` errors, cause visible
+        lag, or result in dropped updates.  The 300 ms throttle mitigates but
+        does not prevent this under concurrent load.
+
+        Enable only when the live-typing UX is more important than reliability,
+        and only in low-traffic environments.  Leave disabled (default) to
+        receive the full response as a single message after generation completes.
+
+    Env: ``LANGCLAW__CHANNELS__DISCORD__STREAMING_ENABLED=true``
+    """
 
 
 class WebSocketChannelConfig(BaseModel):
@@ -144,6 +181,21 @@ class WebSocketChannelConfig(BaseModel):
     user_roles: StringDict = Field(default_factory=dict)
     """Maps WebSocket user IDs to permission roles.
     Env format: ``user1:admin,user2:viewer``"""
+    streaming_enabled: bool = True
+    """
+    Stream AI responses token-by-token, emitting ``{"type": "ai_chunk"}``
+    events as content is generated, followed by ``{"type": "ai_stream_end"}``.
+
+    Unlike Telegram, Slack, and Discord, WebSocket streaming carries no
+    rate-limit risk — chunks are pushed directly over the open socket without
+    any platform API calls.  Clients should accumulate ``ai_chunk`` payloads
+    and render them incrementally.
+
+    Defaults to ``True``.  Set to ``False`` to receive a single
+    ``{"type": "ai"}`` event with the complete response instead.
+
+    Env: ``LANGCLAW__CHANNELS__WEBSOCKET__STREAMING_ENABLED=false``
+    """
 
 
 class SlackChannelConfig(BaseModel):
@@ -164,6 +216,25 @@ class SlackChannelConfig(BaseModel):
     """Emoji name for 'processing' reaction. Default: 'eyes' (👀)."""
     reaction_complete: str = "white_check_mark"
     """Emoji name for 'complete' reaction. Default: 'white_check_mark' (✅)."""
+    streaming_enabled: bool = False
+    """
+    Stream AI responses token-by-token by posting one message then updating
+    it in place via ``chat_update`` as new content arrives.
+
+    .. warning::
+        **Enabling this may degrade reliability.**
+        Slack's ``chat_update`` API is Tier 3 (~50 req/min per app).  Rapid
+        edits during generation can exhaust this quota, causing ``ratelimited``
+        errors and stalled responses.  The 300 ms update throttle reduces —
+        but does not eliminate — the risk, especially with multiple concurrent
+        users sharing the same bot quota.
+
+        Enable only when the live-typing UX is more important than reliability,
+        and only in low-traffic environments.  Leave disabled (default) to
+        receive the full response as a single message after generation completes.
+
+    Env: ``LANGCLAW__CHANNELS__SLACK__STREAMING_ENABLED=true``
+    """
 
 
 class ChannelsConfig(BaseModel):

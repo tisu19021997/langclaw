@@ -251,6 +251,33 @@ class WebSocketChannel(BaseChannel):
             },
         )
 
+    async def send_ai_chunk(self, msg: OutboundMessage) -> None:
+        """Push each token chunk directly over the open socket.
+
+        Controlled by ``streaming_enabled`` (default: ``True``).  When disabled,
+        chunks are buffered and delivered as a single ``{"type": "ai"}`` event
+        after generation completes.
+
+        Clients should handle two event types when streaming is enabled:
+          - ``{"type": "ai_chunk", "content": "<delta>"}`` — incremental text
+          - ``{"type": "ai_stream_end"}`` — generation complete, no more chunks
+        """
+        if not self._config.streaming_enabled:
+            await super().send_ai_chunk(msg)
+            return
+        if msg.is_final:
+            await self._broadcast(
+                msg.user_id,
+                msg.context_id,
+                {"type": "ai_stream_end"},
+            )
+        elif msg.content:
+            await self._broadcast(
+                msg.user_id,
+                msg.context_id,
+                {"type": "ai_chunk", "content": msg.content},
+            )
+
     async def send_ai_message(self, msg: OutboundMessage) -> None:
         if not msg.content:
             return
