@@ -326,6 +326,41 @@ async def _cron_list_async() -> None:
         )
 
 
+@cron_app.command("view")
+def cron_view(
+    job_id: Annotated[str, typer.Argument(help="Job ID to show.")],
+) -> None:
+    """Show full details for a job (message, schedule, agent, context)."""
+    asyncio.run(_cron_view_async(job_id))
+
+
+async def _cron_view_async(job_id: str) -> None:
+    from langclaw.cron import list_jobs_from_store
+    from langclaw.cron.utils import format_cron_job_detail
+
+    cfg = load_config()
+    if cfg.cron.data_store.backend == "memory":
+        typer.echo(
+            "Cannot view jobs: the 'memory' data store does not persist jobs. "
+            "Set cron.data_store.backend to 'sqlite' (default) or 'postgres'.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    try:
+        jobs = await list_jobs_from_store(cfg.cron)
+    except Exception as exc:
+        typer.echo(f"Error reading data store: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    job = next((j for j in jobs if j.id == job_id), None)
+    if job is None:
+        typer.echo(f"Job {job_id} not found.", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(format_cron_job_detail(job))
+
+
 @cron_app.command("remove")
 def cron_remove(
     job_id: Annotated[str, typer.Argument(help="Job ID to remove.")],

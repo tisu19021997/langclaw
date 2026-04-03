@@ -19,10 +19,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from langclaw.cron.utils import format_cron_job_detail
+
 if TYPE_CHECKING:
     from langclaw.cron.scheduler import CronManager
     from langclaw.gateway.manager import GatewayManager
-    from langclaw.session.manager import SessionManager
+from langclaw.session.manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +111,19 @@ async def _cmd_cron(ctx: CommandContext) -> str:
             lines.append(f"  [{j.id}] {j.name!r} — {j.schedule}")
         return "\n".join(lines)
 
+    if sub == "view":
+        if len(ctx.args) < 2:
+            return "Usage: /cron view <job_id>"
+        job_id = ctx.args[1]
+        jobs = await cron_mgr.list_jobs(
+            channel=ctx.channel or None,
+            user_id=ctx.user_id or None,
+        )
+        job = next((j for j in jobs if j.id == job_id), None)
+        if job is None:
+            return f"Job {job_id} not found."
+        return format_cron_job_detail(job)
+
     if sub == "remove":
         if len(ctx.args) < 2:
             return "Usage: /cron remove <job_id>"
@@ -122,7 +137,7 @@ async def _cmd_cron(ctx: CommandContext) -> str:
             return f"Job {job_id} removed."
         return f"Job {job_id} not found."
 
-    return "Usage: /cron [list | remove <job_id>]"
+    return "Usage: /cron [list | view <job_id> | remove <job_id>]"
 
 
 def _tail_log_file(path: Path, n: int = 50, level_filter: str | None = None) -> str:
@@ -305,7 +320,7 @@ class CommandRouter:
         self.register("reset", _cmd_reset, "clear conversation history")
         self.register("help", _cmd_help, "show this message")
         if self._cron_manager is not None:
-            self.register("cron", _cmd_cron, "list or remove cron jobs")
+            self.register("cron", _cmd_cron, "list, view, or remove cron jobs")
         if self._gateway_manager is not None:
             self.register("agentsmd", _cmd_agentsmd, "view or reload AGENTS.md [reload] [agent]")
             self.register("logs", _cmd_logs, "tail log file [n|error|YYYY-MM-DD]")
