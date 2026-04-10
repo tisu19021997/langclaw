@@ -518,3 +518,134 @@ class TestAgentCommand:
 
         # Session should still be coder
         assert await mgr._sessions.get_active_agent("test", "user1") == "coder"
+
+
+# ---------------------------------------------------------------------------
+# gateway.manager — _handle_message_chunk (regression for issue #26)
+# ---------------------------------------------------------------------------
+
+
+class TestHandleMessageChunk:
+    """Regression coverage for issue #26 — middleware-generated chunks
+    must not leak into ``stream_mode="messages"`` output.
+
+    LangGraph emits message chunks for *every* LLM call in the compiled
+    graph, including nested calls from middleware nodes (e.g.
+    ``SummarizationMiddleware`` invoking its summary model). The handler
+    must filter on the ``langgraph_node`` carried in the chunk metadata
+    and only forward chunks from the user-facing ``"model"`` node.
+    """
+
+    def _make_manager(self):
+        from unittest.mock import MagicMock
+
+        from langclaw.gateway.manager import GatewayManager
+
+        config = MagicMock()
+        checkpointer = MagicMock()
+        checkpointer.get.return_value = MagicMock()
+        agent = MagicMock()
+
+        return GatewayManager(
+            config=config,
+            bus=MagicMock(),
+            checkpointer_backend=checkpointer,
+            agent=agent,
+            channels=[],
+        )
+
+    def _make_msg(self):
+        from langclaw.bus.base import InboundMessage
+
+        return InboundMessage(
+            channel="websocket",
+            user_id="u1",
+            context_id="c1",
+            chat_id="c1",
+            content="hi",
+        )
+
+    class _FakeChannel:
+        def __init__(self):
+            self.sent: list = []
+
+        async def send(self, m):
+            self.sent.append(m)
+
+    async def test_drops_chunk_from_summarization_middleware_node(self):
+        """The exact failure mode from issue #26: a HumanMessage-shaped
+        summary leaking through is one symptom, but the underlying cause
+        is the summarization model's *AIMessageChunk* tokens streaming
+        out of ``SummarizationMiddleware.before_model``."""
+        from langchain_core.messages import AIMessageChunk
+
+        mgr = self._make_manager()
+        msg = self._make_msg()
+        channel = self._FakeChannel()
+
+        chunk = (
+            AIMessageChunk(content="Here is a summary of the conversation"),
+            {"langgraph_node": "SummarizationMiddleware.before_model"},
+        )
+        await mgr._handle_message_chunk(chunk, msg, channel, set())
+
+        assert channel.sent == []
+
+    async def test_forwards_chunk_from_model_node(self):
+        """Real model output must still stream end-to-end."""
+        from langchain_core.messages import AIMessageChunk
+
+        mgr = self._make_manager()
+        msg = self._make_msg()
+        channel = self._FakeChannel()
+        streaming_contexts: set[str] = set()
+
+        chunk = (
+            AIMessageChunk(content="Hello, "),
+            {"langgraph_node": "model"},
+        )
+        await mgr._handle_message_chunk(chunk, msg, channel, streaming_contexts)
+
+        assert len(channel.sent) == 1
+        out = channel.sent[0]
+        assert out.content == "Hello, "
+        assert out.streaming is True
+        assert out.is_final is False
+        assert out.type == "ai"
+        # Marks the context as actively streaming so the updates path
+        # knows to skip the duplicate full AIMessage.
+        assert "c1" in streaming_contexts
+
+    async def test_drops_chunk_with_missing_metadata(self):
+        """Defensive: if LangGraph ever yields a tuple without
+        ``langgraph_node``, fail closed (drop) rather than leak."""
+        from langchain_core.messages import AIMessageChunk
+
+        mgr = self._make_manager()
+        msg = self._make_msg()
+        channel = self._FakeChannel()
+
+        chunk = (AIMessageChunk(content="orphan chunk"), {})
+        await mgr._handle_message_chunk(chunk, msg, channel, set())
+        assert channel.sent == []
+
+        chunk = (AIMessageChunk(content="orphan chunk"), None)
+        await mgr._handle_message_chunk(chunk, msg, channel, set())
+        assert channel.sent == []
+
+    async def test_drops_non_aimessagechunk_from_model_node(self):
+        """Existing behavior preserved: non-AIMessageChunk objects (e.g.
+        tool messages routed via the messages stream) are dropped even
+        when they originate from the ``"model"`` node."""
+        from langchain_core.messages import HumanMessage
+
+        mgr = self._make_manager()
+        msg = self._make_msg()
+        channel = self._FakeChannel()
+
+        chunk = (
+            HumanMessage(content="not an AI chunk"),
+            {"langgraph_node": "model"},
+        )
+        await mgr._handle_message_chunk(chunk, msg, channel, set())
+        assert channel.sent == []

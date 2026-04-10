@@ -456,13 +456,35 @@ class GatewayManager:
         Translate one ``stream_mode="messages"`` chunk into a streaming
         ``OutboundMessage`` on *channel*.
 
-        LangGraph yields ``(message_chunk, metadata_dict)`` tuples.
+        LangGraph yields ``(message_chunk, chunk_metadata)`` tuples and
+        emits chunks for *every* LLM call in the compiled graph, including
+        nested calls from middleware nodes (e.g. ``SummarizationMiddleware``
+        invoking its summary model). Only chunks produced by the main
+        ``"model"`` node are real agent output; everything else (summary
+        generation, planner sub-calls, etc.) must be dropped — symmetric
+        with ``_stream_updates_to_outbound_message`` which filters the
+        updates path by the same node allowlist.
+
         Only ``AIMessageChunk`` objects with text content are forwarded;
         tool-call-only chunks are skipped (handled by ``stream_mode="updates"``).
         """
         from langchain_core.messages import AIMessageChunk
 
-        message_chunk, _ = chunk
+        message_chunk, chunk_metadata = chunk
+
+        # Drop chunks from middleware nodes (summarization, planning, etc.).
+        # The agent factory registers the user-facing model node as "model";
+        # every middleware before_/after_ node is suffixed with
+        # ".before_model" / ".after_model" and invokes its own LLM, which
+        # would otherwise leak token-by-token into the user stream.
+        node_name = (chunk_metadata or {}).get("langgraph_node")
+        if node_name != "model":
+            # Seam: a future "expose middleware activity" feature would
+            # replace this early return with a dispatch to an internal
+            # handler. Debug-level so prod logs stay quiet.
+            logger.debug(f"Skipping non-model stream chunk from node={node_name!r}")
+            return
+
         if not isinstance(message_chunk, AIMessageChunk):
             return
         content = message_chunk.content
