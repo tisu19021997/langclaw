@@ -725,22 +725,30 @@ class Langclaw:
                         "Telegram enabled but no token configured "
                         "(set channels.telegram.token or channels.telegram.tokens)."
                     )
-                elif len(resolved) == 1:
-                    # Single-bot path: preserve the classic name="telegram"
-                    # routing key for backwards compatibility with existing
-                    # cron jobs and tests.
+                elif list(resolved.keys()) == [""]:
+                    # Legacy single-bot path (empty label from ``token`` field):
+                    # preserve the classic name="telegram" routing key for
+                    # backwards compatibility with existing cron jobs and tests.
                     single_cfg = ch_cfg.telegram.model_copy(
-                        update={"token": resolved[0], "tokens": []}
+                        update={"token": resolved[""], "tokens": {}}
                     )
                     channels.append(TelegramChannel(single_cfg))
                 else:
-                    # Multi-bot path: one TelegramChannel per token, each with
-                    # a unique instance_id that shadows ``name`` so
-                    # GatewayManager._channel_map can route replies back to
-                    # the originating bot.
-                    for i, tok in enumerate(resolved):
-                        bot_cfg = ch_cfg.telegram.model_copy(update={"token": tok, "tokens": []})
-                        channels.append(TelegramChannel(bot_cfg, instance_id=str(i)))
+                    # Multi-bot path: one TelegramChannel per labeled token.
+                    # Each instance shadows ``name`` as ``telegram:<label>`` so
+                    # GatewayManager._channel_map can route replies back to the
+                    # originating bot, and so that _resolve_agent_name can
+                    # auto-route to a same-named named agent for full isolation
+                    # (prompt, tools, workspace) if one is registered.
+                    for label, tok in resolved.items():
+                        if not label:
+                            logger.warning(
+                                "Skipping Telegram bot with empty label; "
+                                "multi-bot mode requires non-empty labels."
+                            )
+                            continue
+                        bot_cfg = ch_cfg.telegram.model_copy(update={"token": tok, "tokens": {}})
+                        channels.append(TelegramChannel(bot_cfg, instance_id=label))
             except ImportError:
                 logger.warning(
                     "Telegram enabled but python-telegram-bot not installed. "
