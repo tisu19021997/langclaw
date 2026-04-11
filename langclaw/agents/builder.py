@@ -171,6 +171,7 @@ def create_claw_agent(
     model: BaseChatModel | None = None,
     context_schema: type[LangclawContext] | None = None,
     agent_name: str | None = None,
+    display_name: str | None = None,
 ) -> CompiledStateGraph:
     """
     Create a langclaw deep agent backed by ``deepagents.create_deep_agent``.
@@ -217,6 +218,9 @@ def create_claw_agent(
                          agent has isolated skills, AGENTS.md, and memories.
                          ``None`` (default) keeps the global workspace used by
                          the default agent.
+        display_name:    Optional human-facing name for the agent. When set,
+                         a ``Your name is <display_name>.`` line is prepended
+                         to the system prompt so the model knows its own name.
     Returns:
         A compiled LangGraph runnable (CompiledGraph) ready for ``.invoke``
         / ``.astream``.
@@ -275,6 +279,9 @@ def create_claw_agent(
         system_prompt = f"{base_prompt}\n\n{system_prompt}"
     else:
         system_prompt = base_prompt
+
+    if display_name:
+        system_prompt = f"Your name is {display_name}.\n\n{system_prompt}"
 
     if config.debug:
         _label = agent_name or "default"

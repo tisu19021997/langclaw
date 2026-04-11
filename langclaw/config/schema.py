@@ -250,6 +250,10 @@ class AgentConfig(BaseModel):
     rate_limit_rpm: int = 60
     banned_keywords: StringList = Field(default_factory=list)
     extra_skills: StringList = Field(default_factory=list)
+    display_name: str = ""
+    """Human-facing name for the default agent. Injected into the system prompt
+    so the model knows its own name and shown in ``/agent`` listings. Empty
+    string means no display name configured."""
 
     root_dir: str = Field(default_factory=lambda: str(_LANGCLAW_HOME))
 

@@ -314,16 +314,27 @@ class TestAgentCommand:
     LLM config). This isolates the command routing logic.
     """
 
-    def _setup_manager_with_agents(self, bus, agent_names):
+    def _setup_manager_with_agents(self, bus, agent_names, display_names=None):
         """Helper to create a GatewayManager with mocked named agents.
 
         Creates the manager without named_agent_specs to avoid agent
         construction, then manually populates the agent map and
         registers the /agent command.
+
+        Args:
+            bus:           Mocked message bus.
+            agent_names:   List of agent names to register.
+            display_names: Optional mapping ``{name: display_name}`` for any
+                           agents that should expose a human-facing name in
+                           ``/agent`` output. Missing entries fall back to
+                           empty string (no display name).
         """
         from unittest.mock import MagicMock
 
         config = MagicMock()
+        # GatewayManager reads config.agents.display_name at init — force a
+        # real empty string so the mock auto-attr doesn't leak a MagicMock.
+        config.agents.display_name = ""
         checkpointer = MagicMock()
         checkpointer.get.return_value = MagicMock()
         agent = MagicMock()
@@ -338,10 +349,13 @@ class TestAgentCommand:
             channels=[],
         )
 
+        display_names = display_names or {}
+
         # Manually populate agent registry (bypassing _build_named_agent)
         for name in agent_names:
             mgr._agent_map[name] = MagicMock()
             mgr._agent_descriptions[name] = f"{name} agent"
+            mgr._agent_display_names[name] = display_names.get(name, "")
 
         # Register the /agent command
         mgr._setup_agent_command()
@@ -374,6 +388,37 @@ class TestAgentCommand:
         assert "default" in result
         assert "researcher" in result
         assert "coder" in result
+        # No display names set — rows should not contain trailing "()" artifacts.
+        assert "()" not in result
+
+    async def test_agent_list_shows_display_name(self):
+        """``/agent`` listing shows the human-facing display name when set."""
+        from unittest.mock import MagicMock
+
+        from langclaw.gateway.commands import CommandContext
+
+        bus = MagicMock()
+        mgr = self._setup_manager_with_agents(
+            bus,
+            ["researcher", "coder"],
+            display_names={"researcher": "Ada"},
+        )
+
+        cmd_handler = mgr._command_router._commands.get("agent").handler
+        ctx = CommandContext(
+            channel="test",
+            user_id="user1",
+            context_id="ctx1",
+            chat_id="chat1",
+            args=[],
+        )
+        result = await cmd_handler(ctx)
+
+        # Agent with display_name gets "(Ada)" appended after the routing key.
+        assert "researcher (Ada)" in result
+        # Agent without a display_name stays as bare "coder", not "coder ()".
+        assert "coder" in result
+        assert "coder ()" not in result
 
     async def test_agent_switch_persistent(self):
         """``/agent <name>`` switches session persistently."""
