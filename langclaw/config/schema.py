@@ -121,6 +121,29 @@ _CONFIG_PATH = _LANGCLAW_HOME / "config.json"
 class TelegramChannelConfig(BaseModel):
     enabled: bool = False
     token: str = ""
+    """Single bot token. Kept for backwards compatibility; prefer ``tokens``
+    when running more than one bot in the same process."""
+    tokens: StringList = Field(default_factory=list)
+    """
+    Multiple Telegram bot tokens to host side by side in the same process.
+
+    When set (non-empty), ``_build_all_channels`` spawns one independent
+    ``TelegramChannel`` per token, each registered under a distinct routing
+    key: ``telegram:0``, ``telegram:1``, ... (positional list index).
+
+    Env format (comma-separated)::
+
+        LANGCLAW__CHANNELS__TELEGRAM__TOKENS=123:abc,456:def
+
+    .. note::
+        Instance IDs are **positional list indices**. Reordering ``tokens``
+        reorders the ``telegram:N`` routing keys, which will silently
+        re-target any persisted cron jobs scheduled against an older index.
+        Keep the list order stable once bots are in use.
+
+    When ``tokens`` is empty, the legacy single-token ``token`` field is
+    used and the channel is registered under the classic ``telegram`` key.
+    """
     allow_from: StringList = Field(default_factory=list)
     user_roles: StringDict = Field(default_factory=dict)
     """Maps Telegram user IDs / @usernames to permission roles.
@@ -143,6 +166,17 @@ class TelegramChannelConfig(BaseModel):
 
     Env: ``LANGCLAW__CHANNELS__TELEGRAM__STREAMING_ENABLED=true``
     """
+
+    def resolved_tokens(self) -> list[str]:
+        """Return the effective list of bot tokens to start.
+
+        Prefers the multi-bot ``tokens`` list; falls back to the single
+        ``token`` field for backwards compatibility. Returns an empty list
+        if neither is set.
+        """
+        if self.tokens:
+            return list(self.tokens)
+        return [self.token] if self.token else []
 
 
 class DiscordChannelConfig(BaseModel):

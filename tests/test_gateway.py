@@ -302,6 +302,116 @@ def test_telegram_channel_allow_from():
 
 
 # ---------------------------------------------------------------------------
+# Telegram channel — multi-token (one process, multiple bots)
+# ---------------------------------------------------------------------------
+
+
+def test_telegram_config_resolved_tokens_prefers_tokens_list():
+    from langclaw.config.schema import TelegramChannelConfig
+
+    cfg = TelegramChannelConfig(enabled=True, tokens=["a", "b", "c"])
+    assert cfg.resolved_tokens() == ["a", "b", "c"]
+
+
+def test_telegram_config_resolved_tokens_falls_back_to_token():
+    from langclaw.config.schema import TelegramChannelConfig
+
+    cfg = TelegramChannelConfig(enabled=True, token="legacy")
+    assert cfg.resolved_tokens() == ["legacy"]
+
+
+def test_telegram_config_resolved_tokens_empty():
+    from langclaw.config.schema import TelegramChannelConfig
+
+    cfg = TelegramChannelConfig(enabled=True)
+    assert cfg.resolved_tokens() == []
+
+
+def test_telegram_instance_id_shadows_name():
+    """Passing instance_id must shadow the class-level ``name`` per instance."""
+    from langclaw.config.schema import TelegramChannelConfig
+    from langclaw.gateway.telegram import TelegramChannel
+
+    ch0 = TelegramChannel(TelegramChannelConfig(enabled=True, token="t1"), instance_id="0")
+    ch1 = TelegramChannel(TelegramChannelConfig(enabled=True, token="t2"), instance_id="1")
+
+    assert ch0.name == "telegram:0"
+    assert ch1.name == "telegram:1"
+    # Class attribute is untouched
+    assert TelegramChannel.name == "telegram"
+    # And the two instances must collide-free in a name-keyed dict
+    mp = {ch.name: ch for ch in (ch0, ch1)}
+    assert len(mp) == 2
+
+
+def test_telegram_single_bot_in_build_channels(monkeypatch):
+    """Single-token configs must still register under the classic ``telegram`` key."""
+    from langclaw.app import Langclaw
+    from langclaw.config.schema import LangclawConfig
+
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__ENABLED", "true")
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__TOKEN", "legacy-token")
+
+    cfg = LangclawConfig()
+    lc = Langclaw(config=cfg)
+    channels = lc._build_all_channels()
+
+    telegram_channels = [ch for ch in channels if ch.name.startswith("telegram")]
+    assert len(telegram_channels) == 1
+    assert telegram_channels[0].name == "telegram"
+
+
+def test_telegram_multi_token_in_build_channels(monkeypatch):
+    """``tokens`` list must spawn one channel per token with unique routing keys."""
+    from langclaw.app import Langclaw
+    from langclaw.config.schema import LangclawConfig
+
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__ENABLED", "true")
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__TOKENS", "token-a,token-b")
+
+    cfg = LangclawConfig()
+    assert cfg.channels.telegram.tokens == ["token-a", "token-b"]
+
+    lc = Langclaw(config=cfg)
+    channels = lc._build_all_channels()
+
+    telegram_channels = [ch for ch in channels if ch.name.startswith("telegram")]
+    assert len(telegram_channels) == 2
+
+    names = sorted(ch.name for ch in telegram_channels)
+    assert names == ["telegram:0", "telegram:1"]
+
+    # Each channel must see its own isolated token (not the full list).
+    tokens = sorted(ch._config.token for ch in telegram_channels)
+    assert tokens == ["token-a", "token-b"]
+    for ch in telegram_channels:
+        assert ch._config.tokens == []
+
+    # And they must not collide in a name-keyed routing map.
+    channel_map = {ch.name: ch for ch in telegram_channels}
+    assert len(channel_map) == 2
+
+
+def test_telegram_tokens_takes_precedence_over_token(monkeypatch):
+    """When both ``token`` and ``tokens`` are set, ``tokens`` wins."""
+    from langclaw.app import Langclaw
+    from langclaw.config.schema import LangclawConfig
+
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__ENABLED", "true")
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__TOKEN", "legacy")
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__TOKENS", "new-a,new-b")
+
+    cfg = LangclawConfig()
+    lc = Langclaw(config=cfg)
+    channels = lc._build_all_channels()
+
+    telegram_channels = [ch for ch in channels if ch.name.startswith("telegram")]
+    assert len(telegram_channels) == 2
+    tokens = sorted(ch._config.token for ch in telegram_channels)
+    assert tokens == ["new-a", "new-b"]
+
+
+# ---------------------------------------------------------------------------
 # GatewayManager — /agent command tests
 # ---------------------------------------------------------------------------
 

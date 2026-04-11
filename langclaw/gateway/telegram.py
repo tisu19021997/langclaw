@@ -140,12 +140,28 @@ class TelegramChannel(BaseChannel):
 
     Args:
         config: Telegram-specific section of LangclawConfig.channels.telegram.
+        instance_id: Optional suffix that disambiguates this bot from other
+            Telegram bots in the same process. When non-empty, the instance's
+            routing key becomes ``telegram:<instance_id>`` (shadowing the
+            class-level ``name = "telegram"``), allowing the gateway's
+            ``_channel_map`` to distinguish between sibling bots.
     """
 
     name = "telegram"
 
-    def __init__(self, config: TelegramChannelConfig) -> None:
+    def __init__(
+        self,
+        config: TelegramChannelConfig,
+        instance_id: str = "",
+    ) -> None:
         self._config = config
+        self._instance_id = instance_id
+        if instance_id:
+            # Instance-level attribute shadows the class-level ``name``.
+            # Python attribute lookup prefers instance attributes, so
+            # ``GatewayManager._channel_map`` (keyed on ``ch.name``) gets a
+            # unique key per bot without any changes to BaseChannel.
+            self.name = f"telegram:{instance_id}"
         self._app: Application | None = None
         self._bus: BaseMessageBus | None = None
         self._running = False
