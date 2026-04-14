@@ -433,7 +433,7 @@ class MatrixChannel(BaseChannel):
             # nio's download() parses the mxc URI internally.
             resp = await self._client.download(mxc=url)
             raw = getattr(resp, "body", None)
-            if isinstance(raw, (bytes, bytearray)) and raw:
+            if isinstance(raw, bytes | bytearray) and raw:
                 data_b64 = base64.b64encode(bytes(raw)).decode("ascii")
                 if not mime_type:
                     mime_type = getattr(resp, "content_type", "") or "application/octet-stream"
