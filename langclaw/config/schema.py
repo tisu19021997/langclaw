@@ -237,11 +237,49 @@ class SlackChannelConfig(BaseModel):
     """
 
 
+class MatrixChannelConfig(BaseModel):
+    enabled: bool = False
+    homeserver_url: str = ""
+    """Full homeserver URL, e.g. ``"https://matrix.org"``."""
+    user_id: str = ""
+    """Bot user ID in fully-qualified form, e.g. ``"@mybot:matrix.org"``."""
+    access_token: str = ""
+    """Long-lived access token obtained via ``/login`` or
+    ``matrix-commander --login``. Starts with ``syt_`` on Synapse."""
+    device_id: str = ""
+    """Device ID associated with ``access_token``. Required by matrix-nio
+    for token-only authentication."""
+    store_path: str = ""
+    """Optional directory for nio's state store. Defaults to
+    ``~/.langclaw/matrix_store`` when left empty."""
+    auto_join_invites: bool = True
+    """Automatically join rooms the bot is invited to. When ``allow_from``
+    is non-empty the inviter must be on the allow-list."""
+    allow_from: StringList = Field(default_factory=list)
+    """Whitelist of Matrix user IDs, e.g. ``@alice:matrix.org,@bob:matrix.org``.
+    Empty list means 'allow everyone'."""
+    user_roles: StringDict = Field(default_factory=dict)
+    """Maps Matrix user IDs to permission roles.
+    Env format: ``@alice:matrix.org:admin,@bob:matrix.org:viewer``"""
+    e2ee_enabled: bool = False
+    """
+    Reserved for future support of end-to-end-encrypted rooms.
+
+    .. warning::
+        Not implemented in this release. Starting the channel with
+        ``e2ee_enabled=True`` raises an error at startup — the bot will
+        not silently fall back to unencrypted mode, which would leak
+        otherwise-encrypted messages on sync. Leave ``False`` for now;
+        set it to opt in once E2EE support ships.
+    """
+
+
 class ChannelsConfig(BaseModel):
     telegram: TelegramChannelConfig = Field(default_factory=TelegramChannelConfig)
     discord: DiscordChannelConfig = Field(default_factory=DiscordChannelConfig)
     websocket: WebSocketChannelConfig = Field(default_factory=WebSocketChannelConfig)
     slack: SlackChannelConfig = Field(default_factory=SlackChannelConfig)
+    matrix: MatrixChannelConfig = Field(default_factory=MatrixChannelConfig)
 
 
 class AgentConfig(BaseModel):
