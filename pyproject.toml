@@ -55,6 +55,7 @@ websocket = [
     "websockets>=14",
 ]
 slack = ["slack-bolt>=1.18", "aiohttp>=3.8", "slackify-markdown>=0.2.0"]
+matrix = ["matrix-nio>=0.25"]
 postgres = ["langgraph-checkpoint-postgres", "psycopg[binary,pool]"]
 rabbitmq = ["aio-pika>=9"]
 kafka    = ["aiokafka>=0.10"]
@@ -62,7 +63,7 @@ mcp      = ["langchain-mcp-adapters>=0.1"]
 gmail    = ["google-api-python-client>=2.100", "google-auth>=2.20", "google-auth-oauthlib>=1.1"]
 search   = ["crawl4ai>=0.4", "langchain-community>=0.3", "tavily-python>=0.3", "duckduckgo-search>=6"]
 dev      = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.4"]
-all      = ["langclaw[telegram,discord,websocket,slack,postgres,rabbitmq,kafka,mcp,search,gmail]"]
+all      = ["langclaw[telegram,discord,websocket,slack,matrix,postgres,rabbitmq,kafka,mcp,search,gmail]"]
 
 [project.scripts]
 langclaw = "langclaw.cli.app:app"

@@ -757,6 +757,16 @@ class Langclaw:
                     "Slack enabled but slack-bolt not installed. Run: uv add 'langclaw[slack]'"
                 )
 
+        if ch_cfg.matrix.enabled:
+            try:
+                from langclaw.gateway.matrix import MatrixChannel
+
+                channels.append(MatrixChannel(ch_cfg.matrix))
+            except ImportError:
+                logger.warning(
+                    "Matrix enabled but matrix-nio not installed. Run: uv add 'langclaw[matrix]'"
+                )
+
         channels.extend(self._extra_channels)
         return channels
 
