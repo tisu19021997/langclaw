@@ -302,6 +302,274 @@ def test_telegram_channel_allow_from():
 
 
 # ---------------------------------------------------------------------------
+# Telegram channel — multi-token (one process, multiple labeled bots)
+# ---------------------------------------------------------------------------
+
+
+def test_telegram_labeled_tokens_parser_comma_equals():
+    """``label=token`` pairs must parse into a dict (uses ``=`` because
+    Telegram tokens contain ``:``)."""
+    from langclaw.config.schema import _parse_labeled_tokens
+
+    assert _parse_labeled_tokens("support=111:abc,oncall=222:def") == {
+        "support": "111:abc",
+        "oncall": "222:def",
+    }
+
+
+def test_telegram_labeled_tokens_parser_json():
+    from langclaw.config.schema import _parse_labeled_tokens
+
+    assert _parse_labeled_tokens('{"support":"111:abc"}') == {"support": "111:abc"}
+
+
+def test_telegram_labeled_tokens_parser_empty():
+    from langclaw.config.schema import _parse_labeled_tokens
+
+    assert _parse_labeled_tokens("") == {}
+    assert _parse_labeled_tokens("   ") == {}
+
+
+def test_telegram_labeled_tokens_parser_skips_malformed():
+    """Pairs without ``=`` or with empty key/value must be silently dropped."""
+    from langclaw.config.schema import _parse_labeled_tokens
+
+    assert _parse_labeled_tokens("support=111:abc,garbage,oncall=222:def") == {
+        "support": "111:abc",
+        "oncall": "222:def",
+    }
+    assert _parse_labeled_tokens("=orphan,good=ok") == {"good": "ok"}
+
+
+def test_telegram_config_resolved_tokens_prefers_tokens_dict():
+    from langclaw.config.schema import TelegramChannelConfig
+
+    cfg = TelegramChannelConfig(enabled=True, tokens={"support": "111:abc", "oncall": "222:def"})
+    assert cfg.resolved_tokens() == {"support": "111:abc", "oncall": "222:def"}
+
+
+def test_telegram_config_resolved_tokens_falls_back_to_token():
+    """Legacy single-token mode surfaces as an empty-label entry so
+    ``_build_all_channels`` can route it to the classic ``telegram`` key."""
+    from langclaw.config.schema import TelegramChannelConfig
+
+    cfg = TelegramChannelConfig(enabled=True, token="legacy")
+    assert cfg.resolved_tokens() == {"": "legacy"}
+
+
+def test_telegram_config_resolved_tokens_empty():
+    from langclaw.config.schema import TelegramChannelConfig
+
+    cfg = TelegramChannelConfig(enabled=True)
+    assert cfg.resolved_tokens() == {}
+
+
+def test_telegram_instance_id_shadows_name_with_label():
+    """Passing a label as ``instance_id`` shadows ``name`` per instance."""
+    from langclaw.config.schema import TelegramChannelConfig
+    from langclaw.gateway.telegram import TelegramChannel
+
+    ch_support = TelegramChannel(
+        TelegramChannelConfig(enabled=True, token="t1"), instance_id="support"
+    )
+    ch_oncall = TelegramChannel(
+        TelegramChannelConfig(enabled=True, token="t2"), instance_id="oncall"
+    )
+
+    assert ch_support.name == "telegram:support"
+    assert ch_oncall.name == "telegram:oncall"
+    # Class attribute is untouched
+    assert TelegramChannel.name == "telegram"
+    # Name-keyed routing map must not collide
+    mp = {ch.name: ch for ch in (ch_support, ch_oncall)}
+    assert len(mp) == 2
+
+
+def test_telegram_single_bot_in_build_channels(monkeypatch):
+    """Single-token configs must still register under the classic ``telegram`` key."""
+    from langclaw.app import Langclaw
+    from langclaw.config.schema import LangclawConfig
+
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__ENABLED", "true")
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__TOKEN", "legacy-token")
+
+    cfg = LangclawConfig()
+    lc = Langclaw(config=cfg)
+    channels = lc._build_all_channels()
+
+    telegram_channels = [ch for ch in channels if ch.name.startswith("telegram")]
+    assert len(telegram_channels) == 1
+    assert telegram_channels[0].name == "telegram"
+
+
+def test_telegram_multi_token_in_build_channels(monkeypatch):
+    """Labeled ``tokens`` must spawn one channel per label with stable keys."""
+    from langclaw.app import Langclaw
+    from langclaw.config.schema import LangclawConfig
+
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__ENABLED", "true")
+    monkeypatch.setenv(
+        "LANGCLAW__CHANNELS__TELEGRAM__TOKENS",
+        "support=111:abc,oncall=222:def",
+    )
+
+    cfg = LangclawConfig()
+    assert cfg.channels.telegram.tokens == {
+        "support": "111:abc",
+        "oncall": "222:def",
+    }
+
+    lc = Langclaw(config=cfg)
+    channels = lc._build_all_channels()
+
+    telegram_channels = [ch for ch in channels if ch.name.startswith("telegram")]
+    assert len(telegram_channels) == 2
+
+    names = sorted(ch.name for ch in telegram_channels)
+    assert names == ["telegram:oncall", "telegram:support"]
+
+    # Each channel must see its own isolated token (not the full mapping).
+    by_name = {ch.name: ch for ch in telegram_channels}
+    assert by_name["telegram:support"]._config.token == "111:abc"
+    assert by_name["telegram:oncall"]._config.token == "222:def"
+    for ch in telegram_channels:
+        assert ch._config.tokens == {}
+
+    # And they must not collide in a name-keyed routing map.
+    assert len(by_name) == 2
+
+
+def test_telegram_tokens_takes_precedence_over_token(monkeypatch):
+    """When both ``token`` and ``tokens`` are set, ``tokens`` wins."""
+    from langclaw.app import Langclaw
+    from langclaw.config.schema import LangclawConfig
+
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__ENABLED", "true")
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__TOKEN", "legacy")
+    monkeypatch.setenv("LANGCLAW__CHANNELS__TELEGRAM__TOKENS", "a=new-a,b=new-b")
+
+    cfg = LangclawConfig()
+    lc = Langclaw(config=cfg)
+    channels = lc._build_all_channels()
+
+    telegram_channels = [ch for ch in channels if ch.name.startswith("telegram")]
+    assert len(telegram_channels) == 2
+    tokens = sorted(ch._config.token for ch in telegram_channels)
+    assert tokens == ["new-a", "new-b"]
+    names = sorted(ch.name for ch in telegram_channels)
+    assert names == ["telegram:a", "telegram:b"]
+
+
+# ---------------------------------------------------------------------------
+# GatewayManager — channel-instance auto-routing to named agents
+# ---------------------------------------------------------------------------
+
+
+def _make_manager(agent_names=()):
+    """Build a GatewayManager with mocked named agents (no LLM construction)."""
+    from unittest.mock import MagicMock
+
+    from langclaw.gateway.manager import GatewayManager
+
+    config = MagicMock()
+    checkpointer = MagicMock()
+    checkpointer.get.return_value = MagicMock()
+    agent = MagicMock()
+    bus = MagicMock()
+
+    mgr = GatewayManager(
+        config=config,
+        bus=bus,
+        checkpointer_backend=checkpointer,
+        agent=agent,
+        channels=[],
+    )
+    for name in agent_names:
+        mgr._agent_map[name] = MagicMock()
+        mgr._agent_descriptions[name] = f"{name} agent"
+    return mgr
+
+
+async def test_auto_route_channel_label_to_named_agent():
+    """``telegram:support`` must auto-route to named agent ``support``."""
+    from langclaw.bus.base import InboundMessage
+
+    mgr = _make_manager(agent_names=["support", "oncall"])
+    msg = InboundMessage(
+        channel="telegram:support",
+        user_id="u1",
+        context_id="chat1",
+        chat_id="chat1",
+        content="hi",
+    )
+    assert await mgr._resolve_agent_name(msg) == "support"
+
+
+async def test_auto_route_falls_through_without_matching_agent():
+    """A labeled channel with no matching named agent must fall back to default."""
+    from langclaw.bus.base import InboundMessage
+
+    mgr = _make_manager(agent_names=["support"])
+    msg = InboundMessage(
+        channel="telegram:unknown",
+        user_id="u1",
+        context_id="chat1",
+        chat_id="chat1",
+        content="hi",
+    )
+    assert await mgr._resolve_agent_name(msg) == "default"
+
+
+async def test_auto_route_ignores_default_label():
+    """Label ``"default"`` must not collide with the always-present default agent."""
+    from langclaw.bus.base import InboundMessage
+
+    mgr = _make_manager(agent_names=[])  # only "default" in _agent_map
+    msg = InboundMessage(
+        channel="telegram:default",
+        user_id="u1",
+        context_id="chat1",
+        chat_id="chat1",
+        content="hi",
+    )
+    # Should NOT auto-route — falls through to session lookup → "default" anyway,
+    # but crucially it didn't match via the auto-route rule (covered by the label
+    # filter). This guards against a future change where the fallback differs.
+    assert await mgr._resolve_agent_name(msg) == "default"
+
+
+async def test_auto_route_single_bot_channel_no_label():
+    """Plain ``telegram`` (single-bot mode) must never auto-route."""
+    from langclaw.bus.base import InboundMessage
+
+    mgr = _make_manager(agent_names=["support"])
+    msg = InboundMessage(
+        channel="telegram",  # classic single-bot key, no ":"
+        user_id="u1",
+        context_id="chat1",
+        chat_id="chat1",
+        content="hi",
+    )
+    assert await mgr._resolve_agent_name(msg) == "default"
+
+
+async def test_metadata_agent_name_beats_auto_route():
+    """Cron-stamped ``metadata['agent_name']`` must win over auto-route."""
+    from langclaw.bus.base import InboundMessage
+
+    mgr = _make_manager(agent_names=["support", "oncall"])
+    msg = InboundMessage(
+        channel="telegram:support",  # would auto-route to "support"
+        user_id="u1",
+        context_id="chat1",
+        chat_id="chat1",
+        content="hi",
+        metadata={"agent_name": "oncall"},  # but cron said oncall
+    )
+    assert await mgr._resolve_agent_name(msg) == "oncall"
+
+
+# ---------------------------------------------------------------------------
 # GatewayManager — /agent command tests
 # ---------------------------------------------------------------------------
 

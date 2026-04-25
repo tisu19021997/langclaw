@@ -106,6 +106,46 @@ def _parse_str_dict(v: object) -> dict[str, str]:
 
 StringDict = Annotated[dict[str, str], BeforeValidator(_parse_str_dict)]
 
+
+def _parse_labeled_tokens(v: object) -> dict[str, str]:
+    """Parse ``"label=token,label=token"`` strings into a dict.
+
+    Uses ``=`` as the key/value separator (rather than ``:``) because
+    Telegram bot tokens already contain ``:``. For env-var configuration
+    of multiple Telegram bots::
+
+        LANGCLAW__CHANNELS__TELEGRAM__TOKENS=main=123:abc,backup=456:def
+
+    Accepts:
+        ``{"main": "123:abc"}``            — pass-through
+        ``'main=123:abc,backup=456:def'``  — comma+equals format
+        ``'{"main":"123:abc"}'``           — JSON string
+        ``''``                              — empty → {}
+    """
+    if isinstance(v, dict):
+        return {str(k): str(val) for k, val in v.items()}
+    if isinstance(v, list):
+        v = ",".join(str(item) for item in v)
+    if isinstance(v, str):
+        v = v.strip()
+        if not v:
+            return {}
+        if v.startswith("{"):
+            return json.loads(v)
+        result: dict[str, str] = {}
+        for pair in v.split(","):
+            pair = pair.strip()
+            if not pair:
+                continue
+            key, sep, val = pair.partition("=")
+            if sep and key.strip() and val.strip():
+                result[key.strip()] = val.strip()
+        return result
+    return v  # type: ignore[return-value]
+
+
+LabeledTokenDict = Annotated[dict[str, str], BeforeValidator(_parse_labeled_tokens)]
+
 # ---------------------------------------------------------------------------
 # Langclaw home
 # ---------------------------------------------------------------------------
@@ -121,6 +161,38 @@ _CONFIG_PATH = _LANGCLAW_HOME / "config.json"
 class TelegramChannelConfig(BaseModel):
     enabled: bool = False
     token: str = ""
+    """Single bot token. Kept for backwards compatibility; prefer ``tokens``
+    when running more than one bot in the same process."""
+    tokens: LabeledTokenDict = Field(default_factory=dict)
+    """
+    Label → bot-token mapping for running multiple Telegram bots in the
+    same process, each with a stable routing key of ``telegram:<label>``.
+
+    Env format (comma + equals, because Telegram tokens contain ``:``)::
+
+        LANGCLAW__CHANNELS__TELEGRAM__TOKENS=support=111:abc,oncall=222:def
+
+    JSON also works::
+
+        LANGCLAW__CHANNELS__TELEGRAM__TOKENS='{"support":"111:abc","oncall":"222:def"}'
+
+    When set (non-empty), ``_build_all_channels`` spawns one independent
+    ``TelegramChannel`` per entry. Labels must be non-empty strings and
+    are used verbatim as the instance ID, so reordering the mapping has
+    no effect on routing keys, cron jobs, or session state.
+
+    **Pairs with named agents for full isolation.** If you register a
+    named agent whose name matches a bot label (e.g.
+    ``app.agent("support", ...)``), ``GatewayManager._resolve_agent_name``
+    will auto-route incoming messages from that bot to the matching agent,
+    which already gets its own workspace at ``workspace_dir/<label>/``.
+    Labels with no matching named agent fall through to the default agent
+    and share state with the rest of the channels.
+
+    When ``tokens`` is empty, the legacy single-token ``token`` field is
+    used and the channel is registered under the classic ``telegram`` key.
+    """
+
     allow_from: StringList = Field(default_factory=list)
     user_roles: StringDict = Field(default_factory=dict)
     """Maps Telegram user IDs / @usernames to permission roles.
@@ -143,6 +215,21 @@ class TelegramChannelConfig(BaseModel):
 
     Env: ``LANGCLAW__CHANNELS__TELEGRAM__STREAMING_ENABLED=true``
     """
+
+    def resolved_tokens(self) -> dict[str, str]:
+        """Return the effective label → token mapping to start.
+
+        Prefers the multi-bot ``tokens`` mapping; falls back to the single
+        ``token`` field for backwards compatibility. An empty-string label
+        represents legacy single-bot mode and causes the spawned channel
+        to register under the classic ``telegram`` routing key (without
+        a suffix). Returns an empty dict if neither field is set.
+        """
+        if self.tokens:
+            return dict(self.tokens)
+        if self.token:
+            return {"": self.token}
+        return {}
 
 
 class DiscordChannelConfig(BaseModel):

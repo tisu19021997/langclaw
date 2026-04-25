@@ -368,8 +368,14 @@ class GatewayManager:
         Resolution order:
           1. ``agent_name`` in message metadata — stamped at cron schedule time,
              deterministic and restart-safe.
-          2. Phase 2 ``agent_resolver`` hook — not yet implemented.
-          3. Active agent from :meth:`SessionManager.get_active_agent` (set by ``/agent``).
+          2. Channel-instance auto-routing — if the channel routing key has
+             the form ``"<type>:<label>"`` (e.g. ``telegram:support``) and a
+             named agent with the same label is registered, route to it.
+             This lets multi-bot setups achieve full isolation (prompt, tools,
+             workspace) by pairing each bot token with a same-named named
+             agent, with no middleware or metadata plumbing.
+          3. Active agent from :meth:`SessionManager.get_active_agent` (set
+             by ``/agent``).
           4. Falls back to ``"default"``.
 
         Args:
@@ -383,13 +389,16 @@ class GatewayManager:
         if agent_name_meta and agent_name_meta in self._agent_map:
             return agent_name_meta
 
-        # Phase 2 hook (uncomment and wire when implementing auto-routing):
-        # if self._agent_resolver is not None:
-        #     resolved = await self._agent_resolver(msg)
-        #     if resolved is not None and resolved in self._agent_map:
-        #         return resolved
+        # 2. Channel-instance auto-routing: route "<channel>:<label>" →
+        # named agent "<label>" when one is registered. Only fires for
+        # non-empty, non-"default" labels, so single-instance channels
+        # (key == "telegram", "discord", etc.) fall straight through.
+        if ":" in msg.channel:
+            _, _, label = msg.channel.partition(":")
+            if label and label != "default" and label in self._agent_map:
+                return label
 
-        # 2. Stored user agent name from /agent command.
+        # 3. Stored user agent name from /agent command.
         agent_name = await self._sessions.get_active_agent(msg.channel, msg.user_id)
         return agent_name if agent_name in self._agent_map else "default"
 
