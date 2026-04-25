@@ -390,6 +390,7 @@ class Langclaw:
         name: str,
         *,
         description: str,
+        display_name: str | None = None,
         system_prompt: str | None = None,
         tools: list[Any] | None = None,
         model: str | BaseChatModel | None = None,
@@ -412,6 +413,11 @@ class Langclaw:
             name:          Unique identifier used with ``/switch <name>``.
                            Must not be ``"default"`` (reserved sentinel).
             description:   Short description shown by ``/switch`` with no args.
+            display_name:  Optional human-facing name for this agent. Injected
+                           into the system prompt so the model knows its own
+                           name, and shown alongside the routing key in
+                           ``/agent`` listings.  When ``None``, only the
+                           registered ``name`` is used.
             system_prompt: System prompt for this agent.  When ``None``, the
                            base ``AGENTS.md`` prompt is used unchanged.
             tools:         Explicit list of tool instances for this agent.
@@ -441,6 +447,7 @@ class Langclaw:
         self._named_agents[name] = {
             "name": name,
             "description": description,
+            "display_name": display_name,
             "system_prompt": system_prompt,
             "tools": tools,
             "model": model,
@@ -548,6 +555,7 @@ class Langclaw:
             bus=bus,
             model=model,
             context_schema=context_schema,
+            display_name=effective_config.agents.display_name or None,
         )
 
     # ------------------------------------------------------------------

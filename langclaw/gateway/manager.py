@@ -100,6 +100,9 @@ class GatewayManager:
         # Named agent registry — "default" always points to the main agent.
         self._agent_map: dict[str, CompiledStateGraph] = {"default": agent}
         self._agent_descriptions: dict[str, str] = {"default": "main agent"}
+        self._agent_display_names: dict[str, str] = {
+            "default": config.agents.display_name or "",
+        }
 
         # Spec used to rebuild the default agent when AGENTS.md changes.
         # Mirrors the arguments used by Langclaw.create_agent().
@@ -118,6 +121,7 @@ class GatewayManager:
         if self._named_agent_specs:
             for spec_name, spec in self._named_agent_specs.items():
                 self._agent_descriptions[spec_name] = spec.get("description", "")
+                self._agent_display_names[spec_name] = spec.get("display_name") or ""
                 self._agent_map[spec_name] = self._build_named_agent(spec, spec_name)
 
         # Register /agent only when named agents exist (no-op otherwise).
@@ -205,6 +209,7 @@ class GatewayManager:
             model=spec.get("model"),
             context_schema=self._context_schema,
             agent_name=agent_name,
+            display_name=spec.get("display_name") or None,
         )
 
     async def _ensure_agent_fresh(self, agent_name: str) -> CompiledStateGraph:
@@ -271,6 +276,7 @@ class GatewayManager:
                         bus=self._default_agent_spec.get("bus"),
                         model=self._default_agent_spec.get("model"),
                         context_schema=self._context_schema,
+                        display_name=self._config.agents.display_name or None,
                     )
                 else:
                     # Named agents reuse their original spec.
@@ -307,6 +313,7 @@ class GatewayManager:
         """
         agent_map = self._agent_map
         agent_descriptions = self._agent_descriptions
+        agent_display_names = self._agent_display_names
         sessions = self._sessions
         bus = self._bus
 
@@ -316,9 +323,11 @@ class GatewayManager:
                 lines = ["Available agents:"]
                 for name in agent_map:
                     desc = agent_descriptions.get(name, "")
+                    display = agent_display_names.get(name, "")
                     marker = " (active)" if name == current else ""
+                    label = f"{name} ({display})" if display else name
                     suffix = f" \u2014 {desc}" if desc else ""
-                    lines.append(f"  {name}{suffix}{marker}")
+                    lines.append(f"  {label}{suffix}{marker}")
                 return "\n".join(lines)
 
             target = ctx.args[0].lower()
