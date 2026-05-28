@@ -5,13 +5,17 @@ from langclaw.cron.scheduler import CronJob
 
 def format_cron_job_detail(job: CronJob) -> str:
     """Human-readable full detail for a single job (CLI / tool view)."""
-    agent_label = job.agent_name or "(default agent)"
+    target_label = (
+        f"workflow:{job.workflow_name}"
+        if job.workflow_name
+        else (job.agent_name or "(default agent)")
+    )
     return (
         f"Job ID: {job.id}\n"
         f"Schedule: {job.schedule}\n"
         f"Name: {job.name!r}\n"
         f"Context ID: {job.context_id}\n"
-        f"Agent: {agent_label}\n"
+        f"Target: {target_label}\n"
         "Message:\n"
         f"{job.message}"
     )

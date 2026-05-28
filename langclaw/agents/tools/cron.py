@@ -66,6 +66,10 @@ CRON_TOOL_DOC = """Schedule, list, view, or remove recurring jobs.
                        e.g. ``'0 9 * * *'`` = daily at 09:00 {timezone}.
                        Mutually exclusive with ``every_seconds``.
         job_id:        ID of the job to view or remove. Required for ``view`` and ``remove``.
+        workflow:      Name of a registered workflow to run on schedule instead
+                       of an agent prompt. When set, ``message`` becomes the
+                       workflow's input and ``type`` is not required; the
+                       workflow's result is delivered to this chat.
 
     Examples
     --------
@@ -107,7 +111,11 @@ CRON_TOOL_DOC = """Schedule, list, view, or remove recurring jobs.
 """
 
 
-def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool:
+def make_cron_tool(
+    cron_manager: CronManager,
+    timezone: str = "UTC",
+    workflow_names: tuple[str, ...] = (),
+) -> BaseTool:
     """Return a ``cron`` tool wired to *cron_manager*.
 
     The returned tool is a single LangChain ``BaseTool`` that exposes four
@@ -138,6 +146,7 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
         every_seconds: int | None = None,
         cron_expr: str | None = None,
         job_id: str | None = None,
+        workflow: str | None = None,
         *,
         runtime: ToolRuntime[LangclawContext],
     ) -> str:
@@ -154,8 +163,6 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
 
         # ── add ────────────────────────────────────────────────────────────
         if action == "add":
-            if not type:
-                return "Error: type is required for add. Use 'reminder' or 'task'."
             if not message:
                 return "Error: message is required for add."
             if not channel or not user_id:
@@ -165,6 +172,43 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
                 )
             if every_seconds is None and cron_expr is None:
                 return "Error: either every_seconds or cron_expr is required."
+
+            # Workflow job: fires the workflow instead of an agent prompt. Its
+            # result is delivered to this chat (cron is not agent-spawned).
+            if workflow:
+                if workflow_names and workflow not in workflow_names:
+                    available = ", ".join(sorted(workflow_names)) or "(none registered)"
+                    return f"Error: unknown workflow '{workflow}'. Available: {available}."
+                try:
+                    job_id_new = await cron_manager.add_job(
+                        name=f"workflow:{workflow}",
+                        message=message,
+                        channel=channel,
+                        user_id=user_id,
+                        context_id=context_id,
+                        chat_id=chat_id,
+                        cron_expr=cron_expr,
+                        every_seconds=every_seconds,
+                        user_role=ctx.user_role if ctx else "",
+                        workflow_name=workflow,
+                    )
+                except Exception as exc:
+                    import traceback
+
+                    logger.error(f"cron add (workflow) failed: {exc}\n{traceback.format_exc()}")
+                    return f"Error scheduling workflow job: {exc}"
+                schedule_desc = (
+                    f"every {every_seconds}s"
+                    if every_seconds is not None
+                    else f'cron "{cron_expr}"'
+                )
+                return (
+                    f"Workflow '{workflow}' scheduled ({schedule_desc}).\n"
+                    f"Job ID: {job_id_new}\nInput: {message}"
+                )
+
+            if not type:
+                return "Error: type is required for add. Use 'reminder' or 'task'."
 
             name = f"{message[:40].strip()}..."
             # Tasks get their own isolated thread; reminders share the current one.

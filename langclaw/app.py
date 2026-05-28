@@ -99,6 +99,7 @@ class Langclaw:
         self._extra_commands: list[tuple[str, Callable[[CommandContext], Awaitable[str]], str]] = []
         self._subagents: list[dict[str, Any]] = []
         self._named_agents: dict[str, dict[str, Any]] = {}
+        self._workflows: dict[str, dict[str, Any]] = {}
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None
@@ -454,6 +455,55 @@ class Langclaw:
         }
 
     # ------------------------------------------------------------------
+    # Workflow registration
+    # ------------------------------------------------------------------
+
+    def workflow(self, name: str, *, description: str = "") -> Callable:
+        """Decorator to register a dynamic workflow.
+
+        A workflow is an ``async def`` function that orchestrates the app's
+        registered named agents. It receives a single
+        :class:`~langclaw.workflows.context.WorkflowContext` argument and
+        returns the final user-facing string (or ``None`` to stay silent).
+
+        Because the body is plain Python, *dynamic* structure — loops,
+        conditionals, fan-out sized at runtime — is free. The context exposes
+        :meth:`~langclaw.workflows.context.WorkflowContext.run` (delegate to a
+        named agent), ``parallel`` / ``pipeline`` (composition), and
+        ``phase`` / ``log`` (progress streamed to the channel).
+
+        Users trigger workflows with the built-in ``/workflow`` command, and
+        cron jobs can drive them by stamping ``metadata["workflow_name"]`` —
+        both flow through the same bus path as every other message.
+
+        Args:
+            name:        Unique identifier used with ``/workflow <name>``.
+            description: Short help text shown by ``/workflow`` with no args.
+
+        Returns:
+            A decorator that registers the workflow and returns it unchanged.
+
+        Example::
+
+            @app.workflow("research", description="Research a topic and report")
+            async def research(ctx: WorkflowContext) -> str:
+                await ctx.phase("Plan")
+                outline = await ctx.run(f"Outline: {ctx.input}", agent="planner")
+                await ctx.phase("Write")
+                return await ctx.run(f"Write report from outline: {outline}")
+        """
+
+        def decorator(fn: Callable) -> Callable:
+            self._workflows[name] = {
+                "name": name,
+                "description": description,
+                "fn": fn,
+            }
+            return fn
+
+        return decorator
+
+    # ------------------------------------------------------------------
     # Channels & middleware
     # ------------------------------------------------------------------
 
@@ -544,11 +594,26 @@ class Langclaw:
         """
         effective_config = self._build_effective_config()
 
+        # When workflows are registered and a bus is available, give the main
+        # agent the workflow tools (`run_workflow`, `orchestrate`) so it can
+        # spawn workflows from chat. They publish to the bus; the runner calls
+        # back on completion. Named agents intentionally do not get these — the
+        # main agent is the orchestrator, and the `_depth` guard handles safety.
+        extra_tools: list[Any] = list(self._extra_tools or [])
+        if bus is not None and self._workflows:
+            from langclaw.agents.tools.workflow import build_workflow_tools
+
+            extra_tools += build_workflow_tools(
+                bus,
+                workflow_names=list(self._workflows),
+                known_agents={"default", *self._named_agents},
+            )
+
         return create_claw_agent(
             effective_config,
             checkpointer=checkpointer,
             cron_manager=cron_manager,
-            extra_tools=self._extra_tools or None,
+            extra_tools=extra_tools or None,
             extra_middleware=self._extra_middleware or None,
             subagents=self._subagents or None,
             system_prompt=self._system_prompt,
@@ -556,6 +621,7 @@ class Langclaw:
             model=model,
             context_schema=context_schema,
             display_name=effective_config.agents.display_name or None,
+            workflow_names=tuple(self._workflows),
         )
 
     # ------------------------------------------------------------------
@@ -661,6 +727,7 @@ class Langclaw:
                     context_defaults=self._context_defaults,
                     context_factory=self._context_factory,
                     named_agent_specs=self._named_agents or None,
+                    workflow_specs=self._workflows or None,
                     default_agent_spec={
                         "extra_tools": self._extra_tools or None,
                         "extra_middleware": self._extra_middleware or None,

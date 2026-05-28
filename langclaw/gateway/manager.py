@@ -17,7 +17,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Final
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph
 from loguru import logger
 
@@ -31,6 +31,28 @@ from langclaw.gateway.commands import CommandContext, CommandRouter
 from langclaw.gateway.utils import attachments_to_content_blocks
 from langclaw.session.manager import SessionManager
 from langclaw.utils import preview_message
+from langclaw.workflows.runner import WorkflowRunner
+
+
+def _last_ai_text(result: dict[str, Any]) -> str:
+    """Extract the final AI message's text from a LangGraph invoke result.
+
+    Mirrors the content-flattening used in ``_stream_updates_to_outbound_message``:
+    string content is returned as-is, block-list content is joined into one
+    string. Returns ``""`` when the result holds no AI message — workflows
+    treat an empty reply as "stay silent".
+    """
+    messages = result.get("messages", []) if isinstance(result, dict) else []
+    for m in reversed(messages):
+        if isinstance(m, AIMessage):
+            content = m.content
+            if isinstance(content, str):
+                return content
+            if isinstance(content, list):
+                return " ".join(
+                    b.get("text", "") if isinstance(b, dict) else str(b) for b in content
+                ).strip()
+    return ""
 
 
 class GatewayManager:
@@ -74,6 +96,7 @@ class GatewayManager:
             Callable[[InboundMessage, dict[str, Any]], Awaitable[LangclawContext]] | None
         ) = None,
         named_agent_specs: dict[str, dict[str, Any]] | None = None,
+        workflow_specs: dict[str, dict[str, Any]] | None = None,
         default_agent_spec: dict[str, Any] | None = None,
     ) -> None:
         self._config = config
@@ -127,6 +150,26 @@ class GatewayManager:
         # Register /agent only when named agents exist (no-op otherwise).
         if self._named_agent_specs:
             self._setup_agent_command()
+
+        # Dynamic workflows — registered explicitly via @app.workflow().
+        # The runner delegates each step to a named agent in self._agent_map
+        # and streams progress over the bus, mirroring the named-agent UX. The
+        # built-in `_interpret` workflow is always registered so the agent's
+        # `orchestrate` tool can run plans it composes at runtime. On completion,
+        # agent-spawned runs notify the agent via the bus (`notify=`) and persist
+        # their result under `<workspace>/workflows/` (`result_dir=`).
+        self._workflow_runner: WorkflowRunner | None = None
+        if workflow_specs:
+            from langclaw.workflows.interpret import INTERPRET_SPEC, INTERPRET_WORKFLOW
+
+            specs = {**workflow_specs, INTERPRET_WORKFLOW: INTERPRET_SPEC}
+            self._workflow_runner = WorkflowRunner(
+                specs,
+                run_agent=self._run_agent_for_workflow,
+                notify=self._bus.publish,
+                result_dir=self._config.agents.workspace_dir / "workflows",
+            )
+            self._setup_workflow_command()
 
         # Phase 2 hook point — auto-routing resolver (not yet wired):
         # self._agent_resolver: Callable[[InboundMessage], Awaitable[str | None]] | None = None
@@ -392,6 +435,101 @@ class GatewayManager:
         # 2. Stored user agent name from /agent command.
         agent_name = await self._sessions.get_active_agent(msg.channel, msg.user_id)
         return agent_name if agent_name in self._agent_map else "default"
+
+    # ------------------------------------------------------------------
+    # Workflow support
+    # ------------------------------------------------------------------
+
+    def _setup_workflow_command(self) -> None:
+        """Register the built-in ``/workflow`` command as a closure.
+
+        Mirrors ``/agent``:
+          - ``/workflow`` — list registered workflows
+          - ``/workflow <name> [input]`` — trigger a workflow with optional
+            free-text input; the run streams progress and a final reply.
+
+        Triggering publishes an ``InboundMessage`` with
+        ``metadata["workflow_name"]`` so the run flows through the same bus
+        path as every other message (and so cron can drive it identically).
+        """
+        runner = self._workflow_runner
+        bus = self._bus
+
+        async def _cmd_workflow(ctx: CommandContext) -> str:
+            if runner is None:
+                return "No workflows are registered."
+
+            # Internal workflows (e.g. the "_interpret" plan runner) are hidden
+            # from the listing and not directly triggerable by name.
+            public = [n for n in runner.names() if not n.startswith("_")]
+
+            if not ctx.args:
+                lines = ["Available workflows:"]
+                for name in public:
+                    desc = runner.describe(name)
+                    suffix = f" — {desc}" if desc else ""
+                    lines.append(f"  {name}{suffix}")
+                lines.append("\nRun one with: /workflow <name> [input]")
+                return "\n".join(lines)
+
+            target = ctx.args[0]
+            if target.startswith("_") or target not in runner:
+                available = ", ".join(public)
+                return (
+                    f"Unknown workflow '{target}'. Available: {available or '(none registered)'}."
+                )
+
+            input_text = " ".join(ctx.args[1:])
+            await bus.publish(
+                InboundMessage(
+                    channel=ctx.channel,
+                    user_id=ctx.user_id,
+                    context_id=ctx.context_id,
+                    chat_id=ctx.chat_id,
+                    content=input_text,
+                    metadata={"workflow_name": target},
+                )
+            )
+            return ""  # Empty — the workflow streams its own output.
+
+        self._command_router.register("workflow", _cmd_workflow, "list or run a workflow")
+
+    async def _run_agent_for_workflow(
+        self, agent_name: str, prompt: str, msg: InboundMessage
+    ) -> str:
+        """Run ``prompt`` on a named agent for a workflow step.
+
+        Each step executes on a fresh, isolated thread (``workflow:<uuid>``) so
+        workflow steps never pollute one another's or the user's history.
+
+        Args:
+            agent_name: Named-agent key; falls back to ``"default"`` if unknown.
+            prompt:     Instruction for the agent.
+            msg:        The triggering inbound message (for channel/RBAC context).
+
+        Returns:
+            The agent's final user-facing text.
+        """
+        import uuid
+
+        name = agent_name if agent_name in self._agent_map else "default"
+        agent = await self._ensure_agent_fresh(name)
+        thread_id = f"workflow:{uuid.uuid4()}"
+        context = self._context_schema(
+            user_role=self._resolve_user_role(msg) or "viewer",
+            channel=msg.channel,
+            user_id=msg.user_id,
+            context_id=thread_id,
+            chat_id=msg.chat_id,
+            metadata=msg.metadata or {},
+            **self._context_defaults,
+        )
+        result = await agent.ainvoke(
+            {"messages": [HumanMessage(content=prompt)]},
+            config={"configurable": {"thread_id": thread_id}},
+            context=context,
+        )
+        return _last_ai_text(result)
 
     async def run(self) -> None:
         """
@@ -728,6 +866,19 @@ class GatewayManager:
                     metadata=out_meta,
                 )
             )
+            return
+
+        # Dynamic workflow trigger — stamped by /workflow (or cron) into
+        # metadata["workflow_name"]. Runs ahead of agent routing and streams
+        # its own progress + final reply through the runner, so the message
+        # never reaches the main agent loop.
+        workflow_name = meta.get("workflow_name")
+        if (
+            workflow_name
+            and self._workflow_runner is not None
+            and workflow_name in self._workflow_runner
+        ):
+            await self._workflow_runner.dispatch(workflow_name, msg, channel)
             return
 
         # Message for main agent — resolve which agent handles this session.

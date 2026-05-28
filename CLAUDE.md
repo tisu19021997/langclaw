@@ -31,6 +31,10 @@ uv run pre-commit run --all-files  # Full pre-commit suite
 | Register named agents | `langclaw/app.py` (`app.agent()`) |
 | Agent routing logic | `langclaw/gateway/manager.py` (`_resolve_agent_name`) |
 | Active agent persistence | `langclaw/session/manager.py` (`get_active_agent` / `set_active_agent`) |
+| Register a workflow | `langclaw/app.py` (`app.workflow()`) + fn in `langclaw/workflows/` |
+| Workflow execution / progress | `langclaw/workflows/runner.py`, `context.py` |
+| Agent-spawned workflow tools | `langclaw/agents/tools/workflow.py` (`run_workflow`, `orchestrate`) |
+| Declarative plan (compose) | `langclaw/workflows/plan.py`, `interpret.py` |
 
 ## Extension Patterns
 
@@ -155,6 +159,34 @@ the field default to `""` and fall through to the next priority level — fully 
 `GatewayManager._resolve_agent_name` and wire a `Callable[[InboundMessage], Awaitable[str | None]]`
 through `GatewayManager.__init__` and `Langclaw._run_async`.
 
+### Dynamic Workflows
+
+Register an async workflow that orchestrates named agents. All triggers set
+`metadata["workflow_name"]` and flow through the bus → `GatewayManager._handle`
+→ `WorkflowRunner.dispatch`:
+
+```python
+@app.workflow("digest", description="Summarise overnight commits")
+async def digest(ctx: WorkflowContext) -> str:
+    await ctx.phase("Fetch")
+    raw = await ctx.run(ctx.input, agent="researcher")   # delegate to a named agent
+    return await ctx.run(f"Summarise: {raw}")            # ctx.run / parallel / pipeline
+```
+
+Three trigger paths:
+- `/workflow <name> [input]` — human; result → channel.
+- `run_workflow(name, input)` / `orchestrate(goal, steps)` agent tools — spawned
+  from chat; result calls back via `InboundMessage(origin="workflow", to="agent")`.
+- `cron(action="add", workflow="<name>", ...)` — scheduled; result → channel.
+
+**Compose (no predefined fn):** `orchestrate` takes a declarative `WorkflowPlan`
+DAG (`workflows/plan.py`) as tool args — the agent is the planner, no code exec —
+executed by the built-in `_interpret` workflow over named agents.
+
+The subsystem (runner, `/workflow`, agent tools) activates only when ≥1 workflow
+is registered via `@app.workflow()`. Full guide: `docs/workflows.md`;
+runnable example: `examples/research_workflow.py`.
+
 ## Message Flow
 
 ```
@@ -169,13 +201,20 @@ Command flow (bypasses LLM):
 Channel → /command → CommandRouter → instant response
 
 Cron flow:
-APScheduler → _fire_job() → InboundMessage(origin="cron", metadata={agent_name}) → Bus → same as user flow
+APScheduler → _fire_job() → InboundMessage(origin="cron", metadata={agent_name | workflow_name}) → Bus → same as user flow
+
+Workflow flow:
+/workflow · run_workflow/orchestrate tool · cron(workflow=)
+  → InboundMessage(metadata={workflow_name, [notify_agent, _depth, plan]}) → Bus
+  → _handle() → WorkflowRunner.dispatch() → workflow fn (ctx.run delegates to named agents)
+  → result → channel (human/cron) OR InboundMessage(origin="workflow", to="agent") (agent-spawned)
 ```
 
 Key routing fields on `InboundMessage`:
-- `origin`: `"user"` | `"cron"` | `"heartbeat"` | `"subagent"`
+- `origin`: `"user"` | `"cron"` | `"heartbeat"` | `"subagent"` | `"workflow"`
 - `to`: `"agent"` (default) | `"channel"` (bypass agent)
 - `metadata["agent_name"]`: explicit agent target (stamped by cron at schedule time)
+- `metadata["workflow_name"]`: dispatch to a workflow instead of the agent
 
 ## Common Pitfalls
 
@@ -226,6 +265,13 @@ Don't implement user-facing quick actions as tools — use `@app.command()`.
 `/agent` is registered automatically by `GatewayManager._setup_agent_command()` as a closure
 when at least one named agent exists. It calls `SessionManager.set_active_agent()` for persistent
 switches and publishes directly to the bus for one-off messages.
+
+### Workflow Completion Messages
+
+Agent-spawned workflows (`notify_agent=True`) call back by publishing
+`InboundMessage(origin="workflow", to="agent")`. It **must not** carry
+`workflow_name` — `_handle` would re-dispatch it and loop forever. The `_depth`
+key (capped, default 3) guards agent→workflow→agent recursion: propagate it, don't drop it.
 
 ## Testing
 

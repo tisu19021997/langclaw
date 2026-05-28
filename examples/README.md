@@ -42,6 +42,25 @@ Then message the bot:
 - *"Schedule a daily market summary at 9 AM"* — creates a cron job via the agent
 - `/watchlist` — instant price snapshot, no LLM involved
 
+## Research Workflow
+
+Orchestrate named agents with a dynamic workflow.
+
+**What it shows:** `app.agent()` (named specialist agents), `@app.workflow()` with `ctx.phase` / `ctx.parallel` / `ctx.run`, agent-spawned workflows (`run_workflow` / `orchestrate` tools with completion callback), and cron-scheduled workflows.
+
+```bash
+python examples/research_workflow.py
+```
+
+Then message the bot:
+
+- `/workflow digest quantum networking` — run the digest workflow yourself; result delivered to the chat
+- *"Research the EV battery market for me in the background."* — agent calls `run_workflow` and pings you when ready
+- *"Orchestrate a comparison of Postgres vs SQLite for our use case."* — agent composes a step DAG with `orchestrate`
+- *"Every weekday at 8am, run the digest workflow on AI-agent news."* — agent schedules it via cron (set `LANGCLAW__CRON__ENABLED=true`)
+
+Full guide: [`docs/workflows.md`](../docs/workflows.md).
+
 ## Knowledge Base Bot
 
 A support assistant with custom middleware and LangChain community tools.

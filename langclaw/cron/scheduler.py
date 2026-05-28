@@ -76,6 +76,7 @@ async def _fire_job(
     schedule: str = "",
     user_role: str = "",
     agent_name: str = "",
+    workflow_name: str = "",
 ) -> None:
     """APScheduler job function — must stay at module level to be picklable.
 
@@ -111,12 +112,20 @@ async def _fire_job(
         metadata["user_role"] = user_role
     if agent_name:
         metadata["agent_name"] = agent_name
+    # A workflow job routes to the WorkflowRunner via _handle. Its `message` is
+    # the workflow's input, so it is passed verbatim rather than wrapped in the
+    # agent execution preamble (which would otherwise become workflow input).
+    if workflow_name:
+        metadata["workflow_name"] = workflow_name
+        content = message
+    else:
+        content = _wrap_cron_runtime_prompt(message)
     await manager._bus.publish(
         InboundMessage(
             channel=channel,
             user_id=user_id,
             context_id=context_id,
-            content=_wrap_cron_runtime_prompt(message),
+            content=content,
             chat_id=chat_id,
             origin="cron",
             metadata=metadata,
@@ -142,6 +151,8 @@ class CronJob:
     """Either a cron expression (``"0 9 * * *"``) or ``"every:<seconds>"``."""
     agent_name: str = ""
     """Named agent that should handle this job when it fires. Empty string means default agent."""
+    workflow_name: str = ""
+    """Workflow to run when this job fires. Empty string means a normal agent message."""
 
 
 def _trigger_to_str(trigger: object) -> str:
@@ -197,6 +208,7 @@ def _schedule_to_cronjob(schedule: Schedule) -> CronJob | None:
             chat_id=kwargs.get("chat_id", ""),
             schedule=kwargs.get("schedule") or _trigger_to_str(schedule.trigger),
             agent_name=kwargs.get("agent_name", ""),
+            workflow_name=kwargs.get("workflow_name", ""),
         )
     except Exception:
         logger.debug("Could not reconstruct CronJob from schedule %s", schedule.id, exc_info=True)
@@ -284,6 +296,7 @@ class CronManager:
         every_seconds: int | None = None,
         user_role: str = "",
         agent_name: str = "",
+        workflow_name: str = "",
     ) -> str:
         """
         Schedule a job that fires a message into the agent pipeline.
@@ -332,6 +345,7 @@ class CronManager:
             chat_id=chat_id,
             schedule=cron_expr or f"every:{every_seconds}s",
             agent_name=agent_name,
+            workflow_name=workflow_name,
         )
         # All kwargs are plain strings — safe to pickle for persistent stores.
         # The bus is looked up from _MANAGERS at fire time via manager_id.
@@ -351,6 +365,8 @@ class CronManager:
             fire_kwargs["user_role"] = user_role
         if agent_name:
             fire_kwargs["agent_name"] = agent_name
+        if workflow_name:
+            fire_kwargs["workflow_name"] = workflow_name
         await self._scheduler.add_schedule(
             _fire_job,
             trigger,

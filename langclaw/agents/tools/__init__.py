@@ -100,12 +100,19 @@ def build_fs_tools(config: LangclawConfig, workspace_dir: Path) -> list[Any]:
     return make_fs_tools(workspace_dir)
 
 
-def build_cron_tools(config: LangclawConfig, cron_manager: CronManager) -> list[Any]:
+def build_cron_tools(
+    config: LangclawConfig,
+    cron_manager: CronManager,
+    workflow_names: tuple[str, ...] = (),
+) -> list[Any]:
     """Return the cron tool when ``config.cron.enabled`` is ``True``.
 
     Args:
-        config:       Loaded ``LangclawConfig``.
-        cron_manager: A running ``CronManager`` instance owned by the gateway.
+        config:         Loaded ``LangclawConfig``.
+        cron_manager:   A running ``CronManager`` instance owned by the gateway.
+        workflow_names: Registered workflow names, so the cron tool can validate
+                        a ``workflow=`` schedule request and the agent can
+                        schedule workflows as well as prompts.
 
     Returns:
         A list containing the ``cron`` tool, or an empty list if cron is
@@ -116,7 +123,9 @@ def build_cron_tools(config: LangclawConfig, cron_manager: CronManager) -> list[
 
     from langclaw.agents.tools.cron import make_cron_tool
 
-    return [make_cron_tool(cron_manager, timezone=config.cron.timezone)]
+    return [
+        make_cron_tool(cron_manager, timezone=config.cron.timezone, workflow_names=workflow_names)
+    ]
 
 
 __all__ = [

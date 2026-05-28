@@ -8,6 +8,7 @@ Multi-channel AI agent **framework** (not an app) built on LangChain, LangGraph,
 |---|---|
 | `app.py` | `Langclaw` class — developer's primary interface (decorators, lifecycle, wiring) |
 | `agents/` | LangGraph agent construction, tool wiring, subagent delegation |
+| `workflows/` | Dynamic workflows — orchestrate named agents from async Python; triggered via `/workflow`, agent tools (`run_workflow`/`orchestrate`), or cron |
 | `gateway/` | Channel orchestration (`GatewayManager`), command routing, message dispatch |
 | `bus/` | Message bus abstraction — asyncio (dev), RabbitMQ, Kafka (prod) |
 | `middleware/` | Request pipeline: RBAC, rate limit, content filter, PII redaction |
@@ -34,6 +35,7 @@ Read `docs/ARCHITECTURE.md` for design principles and rationale. Critical invari
 - **Message flow:** Channel → `InboundMessage` → Bus → `GatewayManager` → Middleware → Agent → `OutboundMessage` → Channel
 - **Commands** (`/start`, `/reset`, `/help`) bypass the bus and LLM — handled by `CommandRouter` in `gateway/commands.py`
 - **Cron jobs** publish `InboundMessage` to the same bus, flowing through the identical agent pipeline
+- **Workflows** are dispatched by `GatewayManager._handle` when `metadata["workflow_name"]` is set (via `/workflow`, the `run_workflow`/`orchestrate` agent tools, or cron) — see `workflows/`
 - **Pluggable backends** always follow: abstract `base.py` + factory function (`make_message_bus`, `make_checkpointer_backend`)
 - **Middleware order matters** — see `agents/builder.py` for the stack composition
 - **Explicit registration** over auto-discovery — tools, channels, middleware are registered on the `Langclaw` app object

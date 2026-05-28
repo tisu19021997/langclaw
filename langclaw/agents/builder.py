@@ -172,6 +172,7 @@ def create_claw_agent(
     context_schema: type[LangclawContext] | None = None,
     agent_name: str | None = None,
     display_name: str | None = None,
+    workflow_names: tuple[str, ...] = (),
 ) -> CompiledStateGraph:
     """
     Create a langclaw deep agent backed by ``deepagents.create_deep_agent``.
@@ -250,7 +251,7 @@ def create_claw_agent(
     builtin_tools += build_gmail_tools(config)
     builtin_tools += build_fs_tools(config, workspace_dir)
     if cron_manager is not None:
-        builtin_tools += build_cron_tools(config, cron_manager)
+        builtin_tools += build_cron_tools(config, cron_manager, workflow_names=workflow_names)
 
     # Process extra_tools: resolve string names to actual tools, keep tool objects as-is.
     extra_tool_objects: list[Any] = []
