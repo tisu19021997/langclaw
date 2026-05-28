@@ -183,9 +183,12 @@ Three trigger paths:
 DAG (`workflows/plan.py`) as tool args — the agent is the planner, no code exec —
 executed by the built-in `_interpret` workflow over named agents.
 
-The subsystem (runner, `/workflow`, agent tools) activates only when ≥1 workflow
-is registered via `@app.workflow()`. Full guide: `docs/workflows.md`;
-runnable example: `examples/research_workflow.py`.
+The subsystem (runner, `/workflow`, agent tools) activates when a workflow is
+registered via `@app.workflow()`, **or** when opted in with
+`Langclaw(enable_workflows=True)` / `LANGCLAW__WORKFLOWS__ENABLED=true` — the
+opt-in gives the agent `orchestrate` (compose a dynamic workflow) with no
+predefined workflow. Gate logic: `Langclaw._workflows_active()`. Full guide:
+`docs/workflows.md`; runnable example: `examples/research_workflow.py`.
 
 ## Message Flow
 

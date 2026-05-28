@@ -494,6 +494,20 @@ class ToolsConfig(BaseModel):
     """Gmail tool configuration. See ``GmailConfig``."""
 
 
+class WorkflowsConfig(BaseModel):
+    """Dynamic workflows.
+
+    When ``enabled``, the agent gets the ``orchestrate`` tool (compose a
+    multi-step workflow at runtime) and the ``/workflow`` command even if no
+    workflow is predefined via ``@app.workflow()``. Registering a workflow
+    enables the subsystem regardless of this flag.
+
+    Env: ``LANGCLAW__WORKFLOWS__ENABLED=true``.
+    """
+
+    enabled: bool = False
+
+
 # ---------------------------------------------------------------------------
 # Root config
 # ---------------------------------------------------------------------------
@@ -566,6 +580,7 @@ class LangclawConfig(BaseSettings):
     bus: BusConfig = Field(default_factory=BusConfig)
     cron: CronConfig = Field(default_factory=CronConfig)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
+    workflows: WorkflowsConfig = Field(default_factory=WorkflowsConfig)
 
     @model_validator(mode="before")
     @classmethod

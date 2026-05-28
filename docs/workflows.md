@@ -225,8 +225,12 @@ for tool progress, so no channel changes are required.
 | Registration (`app.workflow()`) + tool wiring | `langclaw/app.py` |
 | Cron `workflow_name` plumbing | `langclaw/cron/scheduler.py` |
 
-The subsystem (runner, `/workflow` command, agent tools) activates only when at
-least one workflow is registered via `@app.workflow()`.
+The subsystem (runner, `/workflow` command, agent tools) activates when at least
+one workflow is registered via `@app.workflow()`, **or** when explicitly opted in
+with `Langclaw(enable_workflows=True)` or `LANGCLAW__WORKFLOWS__ENABLED=true`. The
+opt-in is what lets the agent compose a dynamic workflow with `orchestrate`
+**without any predefined workflow** — ideal for the bare `langclaw gateway`. With
+no named workflows, `orchestrate` is offered but `run_workflow` is omitted.
 
 Each `ctx.run` step runs on a fresh isolated thread (`workflow:<uuid>`) via
 `GatewayManager._run_agent_for_workflow`, so steps never pollute one another's —

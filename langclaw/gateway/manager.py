@@ -97,6 +97,7 @@ class GatewayManager:
         ) = None,
         named_agent_specs: dict[str, dict[str, Any]] | None = None,
         workflow_specs: dict[str, dict[str, Any]] | None = None,
+        workflows_enabled: bool = False,
         default_agent_spec: dict[str, Any] | None = None,
     ) -> None:
         self._config = config
@@ -159,10 +160,10 @@ class GatewayManager:
         # agent-spawned runs notify the agent via the bus (`notify=`) and persist
         # their result under `<workspace>/workflows/` (`result_dir=`).
         self._workflow_runner: WorkflowRunner | None = None
-        if workflow_specs:
+        if workflow_specs or workflows_enabled:
             from langclaw.workflows.interpret import INTERPRET_SPEC, INTERPRET_WORKFLOW
 
-            specs = {**workflow_specs, INTERPRET_WORKFLOW: INTERPRET_SPEC}
+            specs = {**(workflow_specs or {}), INTERPRET_WORKFLOW: INTERPRET_SPEC}
             self._workflow_runner = WorkflowRunner(
                 specs,
                 run_agent=self._run_agent_for_workflow,

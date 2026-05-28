@@ -40,6 +40,21 @@ if TYPE_CHECKING:
 
 DEFAULT_MAX_DEPTH = 3
 
+# Appended to the agent's system prompt when workflow tools are available, so it
+# reaches for them instead of the general `task` subagent on multi-step work.
+WORKFLOW_TOOLS_SYSTEM_PROMPT = (
+    "\n\n## Workflows\n"
+    "For requests that need several steps or parallel research, prefer the "
+    "workflow tools over the general `task` subagent:\n"
+    "- `orchestrate(goal, steps)` — compose a multi-step plan: a list of steps, "
+    "each with an `id`, an `agent`, and a `prompt`. Use `depends_on` to order "
+    "them and `{step_id}` in a prompt to feed an earlier step's output into a "
+    "later one (and `{input}` for the overall goal).\n"
+    "- `run_workflow(name, input)` — launch a predefined workflow by name.\n"
+    "Both run in the background and report back when finished — tell the user "
+    "you've started it rather than waiting."
+)
+
 
 async def _spawn_workflow(
     bus: BaseMessageBus,

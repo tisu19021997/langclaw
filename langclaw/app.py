@@ -88,9 +88,11 @@ class Langclaw:
         *,
         system_prompt: str | None = None,
         context_schema: type[LangclawContext] | None = None,
+        enable_workflows: bool = False,
     ) -> None:
         self._config = config or load_config()
         self._system_prompt = system_prompt
+        self._enable_workflows = enable_workflows
         self._context_schema = context_schema
         self._extra_tools: list[Any] = []
         self._extra_channels: list[BaseChannel] = []
@@ -503,6 +505,40 @@ class Langclaw:
 
         return decorator
 
+    def _workflows_active(self) -> bool:
+        """Whether the workflow subsystem (tools, `/workflow`, runner) is on.
+
+        Active when a workflow is registered (back-compat), or explicitly opted
+        in via ``Langclaw(enable_workflows=True)`` or
+        ``LANGCLAW__WORKFLOWS__ENABLED=true``. The opt-in lets the agent compose
+        dynamic workflows (``orchestrate``) without any predefined workflow.
+        """
+        return bool(self._workflows) or self._enable_workflows or self._config.workflows.enabled
+
+    def _workflow_tools(self, bus: BaseMessageBus | None) -> list[Any]:
+        """Workflow tools for the main agent (empty unless active and a bus exists).
+
+        ``orchestrate`` is always included when active; ``run_workflow`` only when
+        named workflows exist. The bus is required — the tools publish to it.
+        """
+        if bus is None or not self._workflows_active():
+            return []
+        from langclaw.agents.tools.workflow import build_workflow_tools
+
+        return build_workflow_tools(
+            bus,
+            workflow_names=list(self._workflows),
+            known_agents={"default", *self._named_agents},
+        )
+
+    def _augment_system_prompt(self) -> str | None:
+        """Append the workflow-tools nudge to the system prompt when active."""
+        if not self._workflows_active():
+            return self._system_prompt
+        from langclaw.agents.tools.workflow import WORKFLOW_TOOLS_SYSTEM_PROMPT
+
+        return (self._system_prompt or "") + WORKFLOW_TOOLS_SYSTEM_PROMPT
+
     # ------------------------------------------------------------------
     # Channels & middleware
     # ------------------------------------------------------------------
@@ -594,20 +630,14 @@ class Langclaw:
         """
         effective_config = self._build_effective_config()
 
-        # When workflows are registered and a bus is available, give the main
-        # agent the workflow tools (`run_workflow`, `orchestrate`) so it can
-        # spawn workflows from chat. They publish to the bus; the runner calls
-        # back on completion. Named agents intentionally do not get these — the
-        # main agent is the orchestrator, and the `_depth` guard handles safety.
+        # When workflows are active (registered, or opted in via the flag /
+        # config) and a bus is available, give the main agent the workflow tools
+        # (`orchestrate`, plus `run_workflow` when named workflows exist) so it
+        # can spawn workflows from chat. They publish to the bus; the runner
+        # calls back on completion. Named agents intentionally do not get these —
+        # the main agent is the orchestrator, and the `_depth` guard handles safety.
         extra_tools: list[Any] = list(self._extra_tools or [])
-        if bus is not None and self._workflows:
-            from langclaw.agents.tools.workflow import build_workflow_tools
-
-            extra_tools += build_workflow_tools(
-                bus,
-                workflow_names=list(self._workflows),
-                known_agents={"default", *self._named_agents},
-            )
+        extra_tools += self._workflow_tools(bus)
 
         return create_claw_agent(
             effective_config,
@@ -616,7 +646,7 @@ class Langclaw:
             extra_tools=extra_tools or None,
             extra_middleware=self._extra_middleware or None,
             subagents=self._subagents or None,
-            system_prompt=self._system_prompt,
+            system_prompt=self._augment_system_prompt(),
             bus=bus,
             model=model,
             context_schema=context_schema,
@@ -728,6 +758,7 @@ class Langclaw:
                     context_factory=self._context_factory,
                     named_agent_specs=self._named_agents or None,
                     workflow_specs=self._workflows or None,
+                    workflows_enabled=self._workflows_active(),
                     default_agent_spec={
                         "extra_tools": self._extra_tools or None,
                         "extra_middleware": self._extra_middleware or None,
