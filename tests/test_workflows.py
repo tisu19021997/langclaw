@@ -91,21 +91,38 @@ def _inbound(**overrides) -> InboundMessage:
 
 class TestWorkflowContextProgress:
     async def test_phase_sets_title_and_emits_header(self):
+        from langclaw.workflows.context import WORKFLOW_ICON
+
         ctx, emitted, _ = _make_ctx()
         await ctx.phase("Plan")
         assert ctx.phase_title == "Plan"
-        assert emitted[-1] == ("▸ Plan", "Plan")
+        assert emitted[-1] == (f"{WORKFLOW_ICON} ▸ Plan", "Plan")
 
     async def test_log_emits_under_current_phase(self):
+        from langclaw.workflows.context import WORKFLOW_ICON
+
         ctx, emitted, _ = _make_ctx()
         await ctx.phase("Plan")
         await ctx.log("working on it")
-        assert emitted[-1] == ("working on it", "Plan")
+        assert emitted[-1] == (f"{WORKFLOW_ICON} working on it", "Plan")
 
     async def test_log_without_phase_uses_empty_title(self):
+        from langclaw.workflows.context import WORKFLOW_ICON
+
         ctx, emitted, _ = _make_ctx()
         await ctx.log("orphan")
-        assert emitted[-1] == ("orphan", "")
+        assert emitted[-1] == (f"{WORKFLOW_ICON} orphan", "")
+
+    async def test_every_progress_line_is_tagged_with_the_workflow_icon(self):
+        from langclaw.workflows.context import WORKFLOW_ICON
+
+        ctx, emitted, _ = _make_ctx()
+        await ctx.phase("Plan")
+        await ctx.log("note")
+        await ctx.run("do it", agent="planner")
+        # phase + log + run → every emitted line carries the workflow marker.
+        assert emitted, "expected progress emissions"
+        assert all(content.startswith(WORKFLOW_ICON) for content, _phase in emitted)
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +357,28 @@ class TestInterpretWorkflow:
         ctx = WorkflowContext(input="", metadata={}, run_agent=AsyncMock(), emit=AsyncMock())
         out = await interpret_workflow(ctx)
         assert "plan" in out.lower()
+
+    async def test_emits_numbered_step_completion(self):
+        from langclaw.workflows.interpret import interpret_workflow
+
+        emitted: list[str] = []
+
+        async def emit(content, phase):
+            emitted.append(content)
+
+        async def run_agent(name, prompt):
+            return "out"
+
+        plan = {
+            "steps": [
+                {"id": "a", "agent": "default", "prompt": "A"},
+                {"id": "b", "agent": "default", "prompt": "B"},
+            ]
+        }
+        ctx = WorkflowContext(input="X", metadata={"plan": plan}, run_agent=run_agent, emit=emit)
+        await interpret_workflow(ctx)
+        # A "✓ N/2" completion line is emitted as each step finishes.
+        assert any("✓" in c and "2/2" in c for c in emitted)
 
 
 # ---------------------------------------------------------------------------

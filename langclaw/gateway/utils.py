@@ -30,6 +30,8 @@ TOOL_LABELS: dict[str, str] = {
     "execute": "⚙️ Running",
     "task": "🤖 Subagent",
     "write_todos": "📋 Todos",
+    "orchestrate": "🧩 Composing workflow",
+    "run_workflow": "▶️ Running workflow",
 }
 
 
@@ -58,6 +60,15 @@ def _tool_arg_suffix(tool: str, args: dict) -> tuple[str, bool]:
     if tool == "task":
         desc = (args.get("description") or args.get("prompt") or "")[:60]
         return (f": {desc}…", False) if desc else ("…", False)
+    if tool == "orchestrate":
+        # Summarise the plan instead of dumping the whole step DAG as JSON.
+        steps = args.get("steps") or []
+        goal = (args.get("goal") or "").strip()[:60]
+        summary = f"{goal} " if goal else ""
+        return (f": {summary}({len(steps)} steps)", False)
+    if tool == "run_workflow":
+        name = (args.get("name") or "").strip()
+        return (f": {name}", False) if name else ("…", False)
     return ("", False)
 
 

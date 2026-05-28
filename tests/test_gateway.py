@@ -124,6 +124,27 @@ class TestFormatToolProgress:
         result = format_tool_progress("my_custom_tool", {"key": "val"})
         assert "my_custom_tool" in result
 
+    def test_orchestrate_tool_summarizes_plan_without_dumping_json(self):
+        from langclaw.gateway.utils import format_tool_progress
+
+        result = format_tool_progress(
+            "orchestrate",
+            {"goal": "build X", "steps": [{"id": "a", "prompt": "p"}, {"id": "b"}, {"id": "c"}]},
+        )
+        assert "Composing workflow" in result
+        assert "build X" in result
+        assert "3 steps" in result
+        # The raw step DAG must NOT be dumped into the message.
+        assert "prompt" not in result
+        assert "{'goal'" not in result
+
+    def test_run_workflow_tool_shows_name(self):
+        from langclaw.gateway.utils import format_tool_progress
+
+        result = format_tool_progress("run_workflow", {"name": "digest", "input": "x"})
+        assert "Running workflow" in result
+        assert "digest" in result
+
     def test_empty_args(self):
         from langclaw.gateway.utils import format_tool_progress
 
@@ -299,6 +320,56 @@ def test_telegram_channel_allow_from():
     ch = TelegramChannel(config)
     assert ch._is_allowed("999", "alice") is True
     assert ch._is_allowed("999", "bob") is False
+
+
+class TestTelegramWorkflowProgress:
+    """Workflow progress (no tool_call_id) must render immediately, not be
+    dropped — that visible step-by-step trace is the proof-of-execution.
+    """
+
+    def _channel(self):
+        from unittest.mock import AsyncMock
+
+        from langclaw.config.schema import TelegramChannelConfig
+        from langclaw.gateway.telegram import TelegramChannel
+
+        ch = TelegramChannel(TelegramChannelConfig(enabled=True, token="fake"))
+        ch._send_progress = AsyncMock()
+        return ch
+
+    def _msg(self, **md):
+        from langclaw.bus.base import OutboundMessage
+
+        return OutboundMessage(
+            channel="telegram",
+            user_id="u",
+            context_id="c",
+            chat_id="chat",
+            content=md.pop("content", "🧩 ▸ Orchestrate"),
+            type="tool_progress",
+            metadata=md,
+        )
+
+    async def test_standalone_workflow_progress_is_rendered(self):
+        ch = self._channel()
+        await ch.send_tool_progress(self._msg(workflow="_interpret", phase="Orchestrate"))
+        ch._send_progress.assert_awaited_once()
+        chat_id, html = ch._send_progress.call_args[0]
+        assert chat_id == "chat"
+        assert "Orchestrate" in html
+
+    async def test_tool_call_progress_is_buffered_not_rendered(self):
+        ch = self._channel()
+        await ch.send_tool_progress(
+            self._msg(
+                content="read_file",
+                tool_call_id="tc1",
+                tool="read_file",
+                args={"path": "/x"},
+            )
+        )
+        ch._send_progress.assert_not_awaited()
+        assert "tc1" in ch._tool_call_buffer
 
 
 # ---------------------------------------------------------------------------

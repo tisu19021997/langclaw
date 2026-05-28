@@ -13,6 +13,8 @@ turn — no code execution, full middleware coverage.
 
 from __future__ import annotations
 
+from loguru import logger
+
 from langclaw.workflows.context import WorkflowContext
 from langclaw.workflows.plan import WorkflowPlan, run_plan
 
@@ -33,14 +35,23 @@ async def interpret_workflow(ctx: WorkflowContext) -> str:
         return "No plan was provided to interpret."
 
     plan = WorkflowPlan.model_validate(plan_data)
+    total = len(plan.steps)
+    logger.info(f"interpret plan | {total} step(s)")
     await ctx.phase("Orchestrate")
 
+    done = 0
+
     async def run_step(agent: str, prompt: str) -> str:
-        return await ctx.run(prompt, agent=agent)
+        nonlocal done
+        result = await ctx.run(prompt, agent=agent)
+        done += 1
+        await ctx.log(f"✓ {done}/{total} steps complete")
+        return result
 
     # The orchestrate tool already validated the plan against the live agent
     # map, so skip re-validation here (unknown agents fall back to "default").
     outputs = await run_plan(plan, run_step=run_step, input=ctx.input)
+    logger.info(f"interpret done | {total} step(s) executed")
 
     referenced = {dep for step in plan.steps for dep in step.depends_on}
     leaves = [step.id for step in plan.steps if step.id not in referenced]

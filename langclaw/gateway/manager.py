@@ -495,6 +495,35 @@ class GatewayManager:
 
         self._command_router.register("workflow", _cmd_workflow, "list or run a workflow")
 
+        async def _cmd_orchestrate(ctx: CommandContext) -> str:
+            """``/orchestrate <goal>`` — have the agent compose and run a workflow.
+
+            Composing a plan needs the LLM (to design the step DAG), so this
+            publishes an instruction to the agent to use the ``orchestrate``
+            tool — a deterministic entry point that avoids the agent falling
+            back to the general ``task`` subagent.
+            """
+            goal = " ".join(ctx.args).strip()
+            if not goal:
+                return "Usage: /orchestrate <goal> — compose and run a multi-step workflow."
+            await bus.publish(
+                InboundMessage(
+                    channel=ctx.channel,
+                    user_id=ctx.user_id,
+                    context_id=ctx.context_id,
+                    chat_id=ctx.chat_id,
+                    content=(
+                        "Use the orchestrate tool to plan and run this as a multi-step "
+                        f"workflow over the available agents: {goal}"
+                    ),
+                )
+            )
+            return ""
+
+        self._command_router.register(
+            "orchestrate", _cmd_orchestrate, "compose & run a multi-step workflow"
+        )
+
     async def _run_agent_for_workflow(
         self, agent_name: str, prompt: str, msg: InboundMessage
     ) -> str:

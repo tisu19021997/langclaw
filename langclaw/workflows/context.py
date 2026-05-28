@@ -23,6 +23,12 @@ import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from typing import Any
 
+from loguru import logger
+
+# Prefix on every workflow progress line so the user can tell, at a glance, that
+# the message originates from inside a workflow (vs. the agent's own replies).
+WORKFLOW_ICON = "🧩"
+
 # A stage receives (previous_result, original_item, index) and returns the next
 # value — mirrors the no-barrier pipeline contract used elsewhere in the stack.
 Stage = Callable[[Any, Any, int], Awaitable[Any]]
@@ -67,11 +73,13 @@ class WorkflowContext:
     async def phase(self, title: str) -> None:
         """Announce a new phase. Shown as a progress header in the channel."""
         self.phase_title = title
-        await self._emit(f"▸ {title}", title)
+        logger.info(f"workflow phase | {title}")
+        await self._emit(f"{WORKFLOW_ICON} ▸ {title}", title)
 
     async def log(self, message: str) -> None:
         """Emit a freeform progress line under the current phase."""
-        await self._emit(message, self.phase_title)
+        logger.debug(f"workflow log | phase={self.phase_title!r} | {message}")
+        await self._emit(f"{WORKFLOW_ICON} {message}", self.phase_title)
 
     # ------------------------------------------------------------------
     # Delegation — every unit of LLM work goes through a registered agent
@@ -91,8 +99,13 @@ class WorkflowContext:
             The agent's final user-facing text.
         """
         target = agent or self._default_agent
-        await self._emit(f"⚙ {target}: {_clip(prompt)}", self.phase_title)
-        return await self._run_agent(target, prompt)
+        logger.info(
+            f"workflow step → agent={target} | phase={self.phase_title!r} | {_clip(prompt)}"
+        )
+        await self._emit(f"{WORKFLOW_ICON} ⚙ {target}: {_clip(prompt)}", self.phase_title)
+        result = await self._run_agent(target, prompt)
+        logger.debug(f"workflow step ← agent={target} | {len(result)} chars")
+        return result
 
     # ------------------------------------------------------------------
     # Composition — barrier (parallel) and no-barrier (pipeline)

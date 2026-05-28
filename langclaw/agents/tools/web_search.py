@@ -31,7 +31,7 @@ def _make_brave_tool(api_key: str) -> BaseTool:
     """Return a ``web_search`` tool backed by Brave Search."""
 
     @tool
-    async def web_search(query: str, n: int = 5) -> list[dict]:
+    async def web_search(query: str, n: int = 5) -> list[dict] | dict:
         """Search the web for recent or breaking information.
 
         Args:
@@ -53,7 +53,11 @@ def _make_brave_tool(api_key: str) -> BaseTool:
             search_kwargs={"count": n},
         )
         loop = asyncio.get_running_loop()
-        docs = await loop.run_in_executor(None, loader.load)
+        try:
+            docs = await loop.run_in_executor(None, loader.load)
+        except Exception as exc:  # noqa: BLE001 - surface as a tool error, never raise into the agent
+            logger.warning(f"Brave search failed: {exc}")
+            return {"error": f"web_search failed: {exc}"}
 
         results = [
             {
@@ -78,7 +82,7 @@ def _make_tavily_tool(api_key: str) -> BaseTool:
     """
 
     @tool
-    async def web_search(query: str, n: int = 5) -> list[dict]:
+    async def web_search(query: str, n: int = 5) -> list[dict] | dict:
         """Search the web for recent or breaking information.
 
         Args:
@@ -100,7 +104,11 @@ def _make_tavily_tool(api_key: str) -> BaseTool:
             tavily_api_key=api_key,
         )
         loop = asyncio.get_running_loop()
-        docs = await loop.run_in_executor(None, retriever.invoke, query)
+        try:
+            docs = await loop.run_in_executor(None, retriever.invoke, query)
+        except Exception as exc:  # noqa: BLE001 - surface as a tool error, never raise into the agent
+            logger.warning(f"Tavily search failed: {exc}")
+            return {"error": f"web_search failed: {exc}"}
 
         results = [
             {
@@ -125,7 +133,7 @@ def _make_duckduckgo_tool() -> BaseTool:
     """
 
     @tool
-    async def web_search(query: str, n: int = 5) -> list[dict]:
+    async def web_search(query: str, n: int = 5) -> list[dict] | dict:
         """Search the web for recent or breaking information.
 
         Args:
@@ -144,7 +152,11 @@ def _make_duckduckgo_tool() -> BaseTool:
         logger.debug('DuckDuckGo search: "{}" (n={})', query, n)
         ddg = DuckDuckGoSearchResults(num_results=n, output_format="list")
         loop = asyncio.get_running_loop()
-        raw = await loop.run_in_executor(None, ddg.invoke, query)
+        try:
+            raw = await loop.run_in_executor(None, ddg.invoke, query)
+        except Exception as exc:  # noqa: BLE001 - surface as a tool error, never raise into the agent
+            logger.warning(f"DuckDuckGo search failed: {exc}")
+            return {"error": f"web_search failed: {exc}"}
 
         # raw is list[dict] with keys: snippet, title, link
         results = [

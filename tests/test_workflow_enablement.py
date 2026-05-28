@@ -21,8 +21,9 @@ from langclaw.config.schema import LangclawConfig
 
 
 def _app(**kwargs) -> Langclaw:
-    # Pass an explicit config so tests don't depend on the repo .env.
-    return Langclaw(config=LangclawConfig(), **kwargs)
+    # Force workflows off in config so default-state assertions don't depend on
+    # the ambient repo .env (init kwargs override env vars in pydantic-settings).
+    return Langclaw(config=LangclawConfig(workflows={"enabled": False}), **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -104,13 +105,13 @@ class TestWorkflowToolWiring:
 
 class TestSystemPromptAugmentation:
     def test_guidance_added_when_active(self):
-        app = Langclaw(config=LangclawConfig(), system_prompt="BASE", enable_workflows=True)
+        app = _app(system_prompt="BASE", enable_workflows=True)
         prompt = app._augment_system_prompt()
         assert "BASE" in prompt
         assert "orchestrate" in prompt.lower()
 
     def test_prompt_unchanged_when_inactive(self):
-        app = Langclaw(config=LangclawConfig(), system_prompt="BASE")
+        app = _app(system_prompt="BASE")
         assert app._augment_system_prompt() == "BASE"
 
 
@@ -147,3 +148,53 @@ class TestGatewayWorkflowsEnabled:
         mgr = self._mgr()
         assert mgr._workflow_runner is None
         assert mgr._command_router._commands.get("workflow") is None
+        assert mgr._command_router._commands.get("orchestrate") is None
+
+    async def test_orchestrate_command_published_to_agent(self):
+        from unittest.mock import AsyncMock
+
+        from langclaw.gateway.commands import CommandContext
+
+        bus = MagicMock()
+        bus.publish = AsyncMock()
+        config = MagicMock()
+        config.agents.display_name = ""
+        config.permissions.enabled = False
+        cp = MagicMock()
+        cp.get.return_value = MagicMock()
+        from langclaw.gateway.manager import GatewayManager
+
+        mgr = GatewayManager(
+            config=config,
+            bus=bus,
+            checkpointer_backend=cp,
+            agent=MagicMock(),
+            channels=[],
+            workflows_enabled=True,
+        )
+        handler = mgr._command_router._commands.get("orchestrate").handler
+
+        # Empty goal → usage hint, nothing published.
+        usage = await handler(
+            CommandContext(channel="t", user_id="u", context_id="c", chat_id="ch", args=[])
+        )
+        assert "Usage" in usage
+        bus.publish.assert_not_awaited()
+
+        # With a goal → publishes an instruction to the agent (no workflow_name,
+        # so it routes to the agent which then calls the orchestrate tool).
+        out = await handler(
+            CommandContext(
+                channel="t",
+                user_id="u",
+                context_id="c",
+                chat_id="ch",
+                args=["design", "a", "URL", "shortener"],
+            )
+        )
+        assert out == ""
+        bus.publish.assert_awaited_once()
+        msg = bus.publish.call_args[0][0]
+        assert "orchestrate" in msg.content.lower()
+        assert "design a URL shortener" in msg.content
+        assert "workflow_name" not in (msg.metadata or {})
