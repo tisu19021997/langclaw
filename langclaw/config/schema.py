@@ -449,11 +449,19 @@ class GmailConfig(BaseModel):
 
 
 class RoleConfig(BaseModel):
-    """Defines which tools a role may use."""
+    """Defines which tools (and interpreter subagents) a role may use."""
 
     tools: StringList = Field(default_factory=list)
     """Tool names this role is allowed to invoke.
     Use ``["*"]`` to grant access to all tools."""
+
+    subagents: StringList = Field(default_factory=list)
+    """Subagent types this role may invoke from an interpreter script via
+    ``tools.task({subagent_type})``.  **Default-deny** — an empty list means
+    the role cannot spawn any subagent from a script.  Use ``["*"]`` to allow
+    every registered subagent.  This is a separate axis from ``tools``: a role
+    with ``tools=["*"]`` still cannot reach subagents unless they are listed
+    here."""
 
 
 class PermissionsConfig(BaseModel):
@@ -474,6 +482,62 @@ class PermissionsConfig(BaseModel):
 
         {"roles": {"admin": {"tools": ["*"]}, "viewer": {"tools": ["web_search"]}}}
     """
+
+
+class InterpreterConfig(BaseModel):
+    """Sandboxed code-interpreter (RLM) configuration.
+
+    Opt-in and **off by default**.  When enabled, the agent gains an ``eval``
+    tool backed by ``langchain-quickjs``'s ``CodeInterpreterMiddleware``: it
+    writes a sandboxed JavaScript program that can loop, branch, retry, and
+    fan out over a role-filtered allowlist of tools (Programmatic Tool Calling),
+    including ``tools.task({subagent_type})`` to orchestrate registered
+    subagents.
+
+    The QuickJS sandbox has no filesystem, network, or shell access; the real
+    trust boundary is the *exposed tools*, so the PTC allowlist defaults to a
+    read-only set and mutating/egress tools require explicit ``allow_tools``
+    opt-in.  Requires the ``interpreter`` extra::
+
+        uv add 'langclaw[interpreter]'
+
+    Env: ``LANGCLAW__INTERPRETER__ENABLED=true``
+    """
+
+    enabled: bool = False
+    """Enable the ``eval`` code-interpreter tool. Off by default."""
+
+    timeout: float = 5.0
+    """Per-``eval`` wall-clock budget in seconds, **including awaited
+    ``tools.task`` subagent runs**."""
+
+    memory_limit: int = 64 * 1024 * 1024
+    """Bytes the QuickJS heap may use per eval. Default 64 MiB."""
+
+    max_ptc_calls: int = 256
+    """Maximum total ``tools.*`` bridge calls allowed during one ``eval``.
+    Bounds runaway fan-out / PTC-call DoS."""
+
+    max_concurrent_subagents: int = 4
+    """Advisory cap on concurrent ``tools.task`` fan-out width.
+
+    .. note::
+        Reserved for forward compatibility — the current ``langchain-quickjs``
+        ``CodeInterpreterMiddleware`` does not expose a concurrency knob, so
+        this value is documented but not yet enforced by the sandbox.  The
+        effective bound today is ``max_ptc_calls`` plus ``timeout``."""
+
+    max_result_chars: int = 4000
+    """Caps what a script ``return`` (and captured ``console.log``) sends back
+    to the agent turn."""
+
+    snapshot_between_turns: bool = True
+    """Persist REPL state across agent turns (snapshot after / restore before)."""
+
+    allow_tools: StringList = Field(default_factory=list)
+    """Operator opt-in beyond the read-only default PTC allowlist.  Add
+    mutating/egress tool names here to expose them inside scripts, or ``["*"]``
+    to expose every available tool (subject to per-role RBAC)."""
 
 
 class ToolsConfig(BaseModel):
@@ -561,6 +625,7 @@ class LangclawConfig(BaseSettings):
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     agents: AgentConfig = Field(default_factory=AgentConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    interpreter: InterpreterConfig = Field(default_factory=InterpreterConfig)
     permissions: PermissionsConfig = Field(default_factory=PermissionsConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     bus: BusConfig = Field(default_factory=BusConfig)

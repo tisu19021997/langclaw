@@ -35,6 +35,31 @@ Instead of hardcoding tool permission logic into the agent prompt, Langclaw uses
 Conversation state is handled by `BaseCheckpointerBackend`.
 - **Why?** AI agents require persistent memory across asynchronous channel events. Abstracting this allows swapping between in-memory (testing), SQLite (local deployments), and robust databases (production) without changing agent logic.
 
+### Code Interpreter (RLM) — Trust Boundary
+
+The opt-in code interpreter (`langclaw/interpreter/`) exposes an `eval` tool that
+runs a sandboxed JavaScript program in QuickJS via `langchain-quickjs`'s
+`CodeInterpreterMiddleware`. Through Programmatic Tool Calling (PTC) the script
+reaches langclaw tools as `tools.<name>(...)` and orchestrates subagents via
+`tools.task({subagent_type})`, so it can loop, branch, retry, and fan out.
+
+- **Capability-scoped, not host-memory isolation.** QuickJS runs in-process; it
+  is not a VM/process boundary. The real blast radius is the *exposed tools*, not
+  JS escapes — a PTC-allowlisted egress/mutating tool is a genuine capability for
+  an injected script. The allowlist therefore defaults to read-only and mutating
+  tools require explicit operator opt-in (`interpreter.allow_tools`).
+- **Per-call RBAC by ordering.** `CodeInterpreterMiddleware` filters its PTC
+  surface from the *live* per-call toolset. By appending it after
+  `ToolPermissionMiddleware` in the stack, the PTC surface is automatically the
+  role-filtered toolset — no per-tool wrapping needed. The resolver and the
+  permission middleware share one pure `allowed_tool_names` so they cannot drift.
+- **Subagent escalation gate.** `tools.task` targets are bounded by a per-role,
+  default-deny `RoleConfig.subagents` allowlist, so a low-privilege user's script
+  cannot reach a high-privilege subagent.
+- **Resource bounds.** Per-eval wall-clock `timeout` (covering awaited `task`
+  runs), `memory_limit`, `max_ptc_calls`, and `max_result_chars` bound runaway or
+  fan-out-bomb scripts.
+
 ## Comparison with Alternative Frameworks
 
 Understanding where Langclaw sits in the ecosystem helps clarify its architectural choices:

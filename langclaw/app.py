@@ -80,6 +80,11 @@ class Langclaw:
                            )
         context_schema: Custom context schema to use for the agent. If omitted,
                        uses the default LangclawContext.
+        enable_interpreter: Opt into the sandboxed code interpreter (RLM)
+                       programmatically — equivalent to setting
+                       ``interpreter.enabled=true`` in config.  Off by default.
+                       Requires the ``interpreter`` extra
+                       (``uv add 'langclaw[interpreter]'``).
     """
 
     def __init__(
@@ -88,10 +93,12 @@ class Langclaw:
         *,
         system_prompt: str | None = None,
         context_schema: type[LangclawContext] | None = None,
+        enable_interpreter: bool = False,
     ) -> None:
         self._config = config or load_config()
         self._system_prompt = system_prompt
         self._context_schema = context_schema
+        self._enable_interpreter = enable_interpreter
         self._extra_tools: list[Any] = []
         self._extra_channels: list[BaseChannel] = []
         self._extra_middleware: list[Any] = []
@@ -689,13 +696,31 @@ class Langclaw:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _interpreter_active(self) -> bool:
+        """Whether the sandboxed code interpreter should be wired in.
+
+        Active when either the ``enable_interpreter=True`` constructor flag was
+        passed or ``interpreter.enabled`` is set in config.
+        """
+        return bool(self._enable_interpreter or self._config.interpreter.enabled)
+
     def _build_effective_config(self) -> LangclawConfig:
-        """Return a config copy with programmatic roles merged in."""
-        if not self._extra_roles:
+        """Return a config copy with programmatic overrides applied.
+
+        Merges ``app.role()`` definitions and reflects the
+        ``enable_interpreter=True`` constructor flag onto
+        ``interpreter.enabled`` so downstream consumers (the agent builder) see
+        a single coherent config.
+        """
+        flag_flips_interpreter = self._enable_interpreter and not self._config.interpreter.enabled
+        if not self._extra_roles and not flag_flips_interpreter:
             return self._config
 
         cfg = self._config.model_copy(deep=True)
-        cfg.permissions = self._merge_permissions(cfg.permissions)
+        if self._extra_roles:
+            cfg.permissions = self._merge_permissions(cfg.permissions)
+        if flag_flips_interpreter:
+            cfg.interpreter.enabled = True
         return cfg
 
     def _merge_permissions(self, base: PermissionsConfig) -> PermissionsConfig:

@@ -25,6 +25,7 @@ uv run pre-commit run --all-files  # Full pre-commit suite
 | Add message bus | `langclaw/bus/<name>.py` + factory in `bus/__init__.py` |
 | Add checkpointer | `langclaw/checkpointer/<name>.py` + factory in `checkpointer/__init__.py` |
 | Modify config schema | `langclaw/config/schema.py` (Pydantic Settings) |
+| Code interpreter (RLM) | `langclaw/interpreter/__init__.py` (PTC resolver + middleware factory) |
 | CLI commands | `langclaw/cli/app.py` (Typer) |
 | Agent construction | `langclaw/agents/builder.py` |
 | Gateway orchestration | `langclaw/gateway/manager.py` |
@@ -247,4 +248,28 @@ LANGCLAW__CHANNELS__TELEGRAM__TOKEN=bot123:abc
 LANGCLAW__CHANNELS__TELEGRAM__ENABLED=true
 LANGCLAW__BUS__BACKEND=rabbitmq
 LANGCLAW__CHECKPOINTER__BACKEND=postgres
+LANGCLAW__INTERPRETER__ENABLED=true        # opt into the sandboxed `eval` tool
 ```
+
+## Code Interpreter (RLM)
+
+Opt-in sandboxed JavaScript `eval` tool (off by default) backed by
+`langchain-quickjs`'s `CodeInterpreterMiddleware`. Lets the agent write a
+script that loops, branches, retries, and fans out over a role-filtered PTC
+allowlist of tools — including `tools.task({subagent_type})` to orchestrate
+`app.subagent()` subagents.
+
+- **Enable:** `LANGCLAW__INTERPRETER__ENABLED=true` or `Langclaw(enable_interpreter=True)`.
+  Requires the extra: `uv add 'langclaw[interpreter]'`.
+- **Security posture:** the QuickJS sandbox is *capability-scoped, not host-memory
+  isolation*. The real blast radius is the exposed tools, so the PTC allowlist
+  (`langclaw/interpreter/__init__.py:DEFAULT_READONLY_PTC_TOOLS`) defaults to
+  read-only; mutating/egress tools require explicit `interpreter.allow_tools`
+  opt-in.
+- **Per-call RBAC falls out of middleware ordering** — the interpreter middleware
+  is appended *after* `ToolPermissionMiddleware` in `agents/builder.py`, so PTC
+  only ever sees the role-filtered live toolset. `resolve_ptc_allowlist` and the
+  permission middleware share `allowed_tool_names` so they cannot drift.
+- **Subagent gate:** `RoleConfig.subagents` is a per-role, default-deny allowlist
+  of subagent types a script may reach via `tools.task`
+  (`allowed_subagents` / `check_subagent_permission`).
