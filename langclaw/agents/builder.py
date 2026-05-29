@@ -46,20 +46,9 @@ _DEFAULTS_DIR = Path(__file__).parent / "defaults"
 _DEFAULT_AGENTS_MD = _DEFAULTS_DIR / "AGENTS.md"
 _DEFAULT_SKILLS_DIR = _DEFAULTS_DIR / "skills"
 
-# Appended to the system prompt when the code interpreter is enabled. Tells the
-# model *when* to script vs. delegate vs. answer directly. The `eval` tool and
-# its `tools.*` API reference are documented by CodeInterpreterMiddleware itself.
-_INTERPRETER_PROMPT_NUDGE = (
-    "## Code interpreter (`eval`)\n"
-    "You can run a sandboxed JavaScript program via the `eval` tool. Reach for "
-    "it only when real control flow is required — looping until a condition "
-    "holds, retrying a failed step, fanning out over a list whose size you "
-    "learn at runtime, or branching on an intermediate result — and keep large "
-    "intermediate data in script variables, returning only a compact result. "
-    "For a single delegation use one `task` call; for a trivial request answer "
-    "directly. Inside a script, call tools as `tools.<name>(...)` and "
-    "orchestrate subagents with `tools.task({ subagent_type, description })`."
-)
+# The interpreter system-prompt nudge is built dynamically per agent (it lists
+# the live, camelCased PTC tool names so the model calls them correctly) — see
+# ``langclaw.interpreter.interpreter_system_prompt``.
 
 # ---------------------------------------------------------------------------
 # Subagent helpers
@@ -296,7 +285,9 @@ def create_claw_agent(
         system_prompt = base_prompt
 
     if config.interpreter.enabled:
-        system_prompt = f"{system_prompt}\n\n{_INTERPRETER_PROMPT_NUDGE}"
+        from langclaw.interpreter import interpreter_system_prompt
+
+        system_prompt = f"{system_prompt}\n\n{interpreter_system_prompt(config, tools)}"
 
     if display_name:
         system_prompt = f"Your name is {display_name}.\n\n{system_prompt}"

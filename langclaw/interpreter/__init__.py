@@ -231,9 +231,65 @@ def build_interpreter_middleware(
         )
 
 
+def ptc_camel_names(
+    config: LangclawConfig,
+    available_tools: Sequence[Any],
+    *,
+    role: str | None = None,
+) -> list[str]:
+    """The camelCased tool names a script may call as ``tools.<name>(...)``.
+
+    PTC exposes each tool under ``tools`` in camelCase, so this is what the
+    model must actually write — ``read_file`` is reachable only as
+    ``tools.readFile``. Resolves the live allowlist, then camelCases it.
+    """
+    names = resolve_ptc_allowlist(
+        available_tools,
+        interpreter_config=config.interpreter,
+        permissions_config=config.permissions,
+        role=role,
+        runtime_tool_names=RUNTIME_INJECTED_TOOLS,
+    )
+    return sorted(_to_camel_case(n) for n in names)
+
+
+def interpreter_system_prompt(
+    config: LangclawConfig,
+    available_tools: Sequence[Any],
+    *,
+    role: str | None = None,
+) -> str:
+    """System-prompt nudge for the ``eval`` interpreter.
+
+    Tells the model *when* to script, and — critically — that PTC tools are
+    camelCased, listing the exact callable names so it stops emitting
+    snake_case calls like ``tools.read_file`` (which throw "not a function").
+    """
+    camel = ptc_camel_names(config, available_tools, role=role)
+    tool_ref = ", ".join(f"tools.{c}" for c in camel) or "(none available)"
+    return (
+        "## Code interpreter (`eval`)\n"
+        "You can run a sandboxed JavaScript program via the `eval` tool. Reach for "
+        "it only when real control flow is required — looping until a condition "
+        "holds, retrying a failed step, fanning out over a list whose size you "
+        "learn at runtime, or branching on an intermediate result — and keep large "
+        "intermediate data in script variables, returning only a compact result. "
+        "For a single delegation use one `task` call; for a trivial request answer "
+        "directly.\n"
+        "Inside a script, tools are exposed on the `tools` object in **camelCase** "
+        "(e.g. `read_file` → `tools.readFile`). Calling a tool by any other name — "
+        "including its snake_case form — throws `TypeError: not a function`. The "
+        "only callable tools are:\n"
+        f"  {tool_ref}\n"
+        "Delegate to subagents with `tools.task({ subagent_type, description })`."
+    )
+
+
 __all__ = [
     "DEFAULT_READONLY_PTC_TOOLS",
     "RUNTIME_INJECTED_TOOLS",
     "build_interpreter_middleware",
+    "interpreter_system_prompt",
+    "ptc_camel_names",
     "resolve_ptc_allowlist",
 ]

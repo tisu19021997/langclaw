@@ -42,7 +42,9 @@ def test_interpreter_config_defaults():
 def test_interpreter_config_on_root():
     from langclaw.config.schema import LangclawConfig
 
-    cfg = LangclawConfig()
+    # Force off via init kwargs (overrides any ambient .env) so this asserts the
+    # field is wired onto the root, independent of the developer's environment.
+    cfg = LangclawConfig(interpreter={"enabled": False})
     assert cfg.interpreter.enabled is False
 
 
@@ -67,7 +69,7 @@ def test_app_interpreter_inactive_by_default():
     from langclaw.app import Langclaw
     from langclaw.config.schema import LangclawConfig
 
-    app = Langclaw(config=LangclawConfig())
+    app = Langclaw(config=LangclawConfig(interpreter={"enabled": False}))
     assert app._interpreter_active() is False
 
 
@@ -325,7 +327,7 @@ def test_factory_returns_none_when_disabled():
     from langclaw.config.schema import LangclawConfig
     from langclaw.interpreter import build_interpreter_middleware
 
-    cfg = LangclawConfig()  # interpreter disabled by default
+    cfg = LangclawConfig(interpreter={"enabled": False})  # disabled, independent of .env
     assert build_interpreter_middleware(cfg, [_tool("web_search")]) is None
 
 
@@ -400,7 +402,7 @@ def test_builder_omits_interpreter_when_disabled(monkeypatch):
     from langclaw.config.schema import LangclawConfig
 
     captured = _capture_deep_agent(monkeypatch)
-    create_claw_agent(LangclawConfig(), model=object())  # interpreter disabled
+    create_claw_agent(LangclawConfig(interpreter={"enabled": False}), model=object())
     assert "CodeInterpreterMiddleware" not in _mw_names(captured["middleware"])
 
 
@@ -434,3 +436,33 @@ def test_builder_injects_interpreter_prompt_nudge(monkeypatch):
     captured = _capture_deep_agent(monkeypatch)
     create_claw_agent(cfg, model=object())
     assert "eval" in captured["system_prompt"].lower()
+
+
+def test_ptc_camel_names_are_camelcased_and_drop_snake_and_mutating():
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.interpreter import ptc_camel_names
+
+    cfg = LangclawConfig()
+    cfg.interpreter.enabled = True
+    tools = [type("T", (), {"name": n})() for n in ("read_file", "web_search", "delete_file")]
+    names = ptc_camel_names(cfg, tools)
+    assert "readFile" in names
+    assert "webSearch" in names
+    assert "read_file" not in names  # snake_case never leaks
+    assert "deleteFile" not in names  # mutating tool excluded from read-only default
+
+
+def test_interpreter_system_prompt_teaches_camelcase_and_lists_real_tools():
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.interpreter import interpreter_system_prompt
+
+    cfg = LangclawConfig()
+    cfg.interpreter.enabled = True
+    tools = [type("T", (), {"name": n})() for n in ("read_file", "web_search", "delete_file")]
+    prompt = interpreter_system_prompt(cfg, tools)
+    assert "eval" in prompt.lower()
+    assert "camelCase" in prompt  # explicit rule
+    assert "tools.readFile" in prompt  # real resolved name, camelCased
+    assert "tools.webSearch" in prompt
+    assert "tools.read_file" not in prompt  # never present the snake_case form
+    assert "tools.deleteFile" not in prompt  # excluded tool not advertised
