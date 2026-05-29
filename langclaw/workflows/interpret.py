@@ -38,6 +38,9 @@ async def interpret_workflow(ctx: WorkflowContext) -> str:
     total = len(plan.steps)
     logger.info(f"interpret plan | {total} step(s)")
     await ctx.phase("Orchestrate")
+    # One-line structural overview so the run is legible even when several
+    # parallel steps share a prompt prefix (their progress lines look alike).
+    await ctx.log(f"Plan: {_plan_overview(plan)}")
 
     done = 0
 
@@ -60,6 +63,27 @@ async def interpret_workflow(ctx: WorkflowContext) -> str:
     if len(leaves) == 1:
         return outputs[leaves[0]]
     return "\n\n".join(f"## {sid}\n{outputs[sid]}" for sid in leaves)
+
+
+def _plan_overview(plan: WorkflowPlan) -> str:
+    """Render the plan as dependency-ordered waves, e.g.
+    ``reqs → [api, schema, scaling] → tradeoffs → doc``.
+
+    Steps with no outstanding dependencies form each successive wave; a wave
+    with more than one step is shown bracketed (they run in parallel).
+    """
+    by_id = {s.id: s for s in plan.steps}
+    placed: set[str] = set()
+    remaining = set(by_id)
+    waves: list[list[str]] = []
+    while remaining:
+        wave = sorted(sid for sid in remaining if all(d in placed for d in by_id[sid].depends_on))
+        if not wave:  # pragma: no cover - only with a cycle (rejected earlier)
+            wave = sorted(remaining)
+        waves.append(wave)
+        placed |= set(wave)
+        remaining -= set(wave)
+    return " → ".join(w[0] if len(w) == 1 else "[" + ", ".join(w) + "]" for w in waves)
 
 
 # Spec shape the gateway registers into the WorkflowRunner.

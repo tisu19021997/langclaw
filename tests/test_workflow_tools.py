@@ -159,3 +159,13 @@ class TestBuildWorkflowTools:
         names = {t.name for t in tools}
         assert "run_workflow" not in names
         assert "orchestrate" in names
+
+    def test_orchestrate_description_lists_available_agents(self):
+        tools = build_workflow_tools(
+            MagicMock(), workflow_names=[], known_agents={"default", "researcher"}
+        )
+        orch = next(t for t in tools if t.name == "orchestrate")
+        # The agent must know which agent names are valid, or it guesses
+        # (e.g. "general-purpose") and the plan fails validation.
+        assert "default" in orch.description
+        assert "researcher" in orch.description

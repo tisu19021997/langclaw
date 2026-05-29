@@ -358,6 +358,45 @@ class TestInterpretWorkflow:
         out = await interpret_workflow(ctx)
         assert "plan" in out.lower()
 
+    def test_plan_overview_groups_by_dependency_level(self):
+        from langclaw.workflows.interpret import _plan_overview
+        from langclaw.workflows.plan import WorkflowPlan, WorkflowStep
+
+        plan = WorkflowPlan(
+            steps=[
+                WorkflowStep(id="reqs", prompt="x"),
+                WorkflowStep(id="api", prompt="x", depends_on=["reqs"]),
+                WorkflowStep(id="schema", prompt="x", depends_on=["reqs"]),
+                WorkflowStep(id="doc", prompt="x", depends_on=["api", "schema"]),
+            ]
+        )
+        overview = _plan_overview(plan)
+        assert overview.startswith("reqs")
+        assert "[api, schema]" in overview
+        assert overview.endswith("doc")
+        assert "→" in overview
+
+    async def test_emits_plan_overview_line(self):
+        from langclaw.workflows.interpret import interpret_workflow
+
+        emitted: list[str] = []
+
+        async def emit(content, phase):
+            emitted.append(content)
+
+        async def run_agent(name, prompt):
+            return "out"
+
+        plan = {
+            "steps": [
+                {"id": "a", "agent": "default", "prompt": "A"},
+                {"id": "b", "agent": "default", "prompt": "B {a}", "depends_on": ["a"]},
+            ]
+        }
+        ctx = WorkflowContext(input="X", metadata={"plan": plan}, run_agent=run_agent, emit=emit)
+        await interpret_workflow(ctx)
+        assert any("Plan:" in c and "→" in c for c in emitted)
+
     async def test_emits_numbered_step_completion(self):
         from langclaw.workflows.interpret import interpret_workflow
 

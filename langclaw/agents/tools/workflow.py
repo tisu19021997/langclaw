@@ -192,6 +192,13 @@ def make_orchestrate_tool(
             extra_metadata={"plan": plan.model_dump()},
         )
 
+    # Bake the valid agent names into the schema the LLM sees, so it doesn't
+    # guess names like "general-purpose" and fail plan validation.
+    available = ", ".join(sorted(known)) or "default"
+    orchestrate.__doc__ = (
+        f"{orchestrate.__doc__}\n\n        Available agents (use these exact names "
+        f"for each step's `agent`): {available}."
+    )
     return tool(orchestrate)
 
 
