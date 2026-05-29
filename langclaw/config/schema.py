@@ -531,8 +531,13 @@ class InterpreterConfig(BaseModel):
     """Caps what a script ``return`` (and captured ``console.log``) sends back
     to the agent turn."""
 
-    snapshot_between_turns: bool = True
-    """Persist REPL state across agent turns (snapshot after / restore before)."""
+    snapshot_between_turns: bool = False
+    """Persist REPL state across ``eval`` calls (snapshot after / restore before).
+
+    Off by default: a fresh context per ``eval`` avoids cross-call ``const``/
+    ``let`` redeclaration errors when the model retries with the same variable
+    names. Enable only when a workflow genuinely needs to accumulate state
+    across separate ``eval`` calls."""
 
     allow_tools: StringList = Field(default_factory=list)
     """Operator opt-in beyond the read-only default PTC allowlist.  Add

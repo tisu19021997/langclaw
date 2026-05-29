@@ -281,7 +281,14 @@ def interpreter_system_prompt(
         "including its snake_case form — throws `TypeError: not a function`. The "
         "only callable tools are:\n"
         f"  {tool_ref}\n"
-        "Delegate to subagents with `tools.task({ subagent_type, description })`."
+        "Delegate to subagents with `tools.task({ subagent_type, description })`.\n"
+        "Runtime notes: each `eval` runs in a fresh context — variables do NOT "
+        "persist between separate `eval` calls, so do the whole job in one script "
+        "and `return` the result (don't rely on a variable from a previous call). "
+        "File-read tools return the file as a line-numbered string (each line "
+        "prefixed with its number and a tab), not an object — split on newlines "
+        "and strip the leading `number+tab`, e.g. `.replace(/^\\s*\\d+\\t/, '')`. "
+        "If you're unsure of a tool's result shape, `console.log` it once first."
     )
 
 

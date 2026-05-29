@@ -35,7 +35,8 @@ def test_interpreter_config_defaults():
     assert cfg.memory_limit == 64 * 1024 * 1024
     assert cfg.max_ptc_calls == 256
     assert cfg.max_result_chars == 4000
-    assert cfg.snapshot_between_turns is True
+    # Fresh context per eval by default — avoids cross-call `const` redeclaration.
+    assert cfg.snapshot_between_turns is False
     assert cfg.allow_tools == []
 
 
@@ -466,3 +467,18 @@ def test_interpreter_system_prompt_teaches_camelcase_and_lists_real_tools():
     assert "tools.webSearch" in prompt
     assert "tools.read_file" not in prompt  # never present the snake_case form
     assert "tools.deleteFile" not in prompt  # excluded tool not advertised
+
+
+def test_interpreter_system_prompt_warns_about_persistence_and_read_shape():
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.interpreter import interpreter_system_prompt
+
+    cfg = LangclawConfig()
+    cfg.interpreter.enabled = True
+    prompt = interpreter_system_prompt(cfg, [type("T", (), {"name": "read_file"})()])
+    # state does not persist across separate eval calls (fresh context)
+    assert "persist" in prompt.lower()
+    # fs read tools return a line-numbered string, not an object
+    assert "line-numbered" in prompt.lower()
+    # general "probe the shape" advice
+    assert "console.log" in prompt
