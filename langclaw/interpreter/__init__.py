@@ -253,6 +253,81 @@ def ptc_camel_names(
     return sorted(_to_camel_case(n) for n in names)
 
 
+# Curated contracts for the deepagents-injected runtime tools, which are not in
+# the build-time toolset so we cannot introspect their schemas. Bounded (the
+# injected set is fixed) and honest: a ``returns`` note is given ONLY for shapes
+# we have confirmed; unknowns get none and the model is told to console.log-probe.
+RUNTIME_TOOL_CONTRACTS: dict[str, dict[str, Any]] = {
+    "task": {
+        "args": ["subagent_type", "description"],
+        "returns": "a string (the subagent's reply)",
+    },
+    "read_file": {
+        "args": ["file_path"],
+        "returns": (
+            "a line-numbered string (`<n>\\t<line>` per line), NOT an object — split "
+            "on newlines and strip the leading `<n>\\t`"
+        ),
+    },
+    "ls": {"args": ["path"]},
+    "glob": {"args": ["pattern"]},
+    "grep": {"args": ["pattern"]},
+}
+
+# Bounded set of interpreter-ABI rules — properties of the *runtime*, not of any
+# one tool, so they are stated once and never grow as the toolset changes.
+_RUNTIME_ABI_RULES = (
+    "Runtime rules (the sandbox ABI — these never change):\n"
+    "- Tools live on `tools` in **camelCase** (`read_file` → `tools.readFile`). Any "
+    "other spelling — including snake_case — throws `TypeError: not a function`.\n"
+    "- Each `eval` runs in a **fresh context**: variables do NOT persist between "
+    "separate `eval` calls. Do the whole job in one script.\n"
+    "- The script's result must be **JSON-serializable** (object / array / string / "
+    "number / boolean / null). Ending on a Promise (e.g. `run();` where `run` is "
+    "async), a function, or a Map/Set returns `[unmarshalable value]` — `await` it "
+    "and end on a plain value, or `JSON.stringify(...)` it.\n"
+    "- If unsure of a tool's argument or result shape, `console.log` it once first "
+    "(stdout is always returned to you, even when the value itself is not)."
+)
+
+
+def tool_signatures(
+    config: LangclawConfig,
+    available_tools: Sequence[Any],
+    *,
+    role: str | None = None,
+) -> list[str]:
+    """Render each callable PTC tool as ``tools.camelName({args}) → returns …``.
+
+    Generated from data: argument keys come from the build-time tool's own input
+    schema where available, else from the curated runtime-tool contracts; a
+    ``returns`` note is shown only when known. New ``@app.tool()``s self-document
+    here with no prose changes, so the reference can't drift from reality.
+    """
+    names = resolve_ptc_allowlist(
+        available_tools,
+        interpreter_config=config.interpreter,
+        permissions_config=config.permissions,
+        role=role,
+        runtime_tool_names=RUNTIME_INJECTED_TOOLS,
+    )
+    by_name = {getattr(t, "name", None): t for t in available_tools}
+    sigs: list[str] = []
+    for name in names:
+        tool = by_name.get(name)
+        contract = RUNTIME_TOOL_CONTRACTS.get(name, {})
+        if tool is not None and getattr(tool, "args", None):
+            arg_names = list(tool.args)
+        else:
+            arg_names = contract.get("args", [])
+        arg_str = "{ " + ", ".join(arg_names) + " }" if arg_names else ""
+        line = f"tools.{_to_camel_case(name)}({arg_str})"
+        if returns := contract.get("returns"):
+            line += f" → returns {returns}"
+        sigs.append(line)
+    return sorted(sigs)
+
+
 def interpreter_system_prompt(
     config: LangclawConfig,
     available_tools: Sequence[Any],
@@ -261,34 +336,24 @@ def interpreter_system_prompt(
 ) -> str:
     """System-prompt nudge for the ``eval`` interpreter.
 
-    Tells the model *when* to script, and — critically — that PTC tools are
-    camelCased, listing the exact callable names so it stops emitting
-    snake_case calls like ``tools.read_file`` (which throw "not a function").
+    Two parts, both correct by construction: a data-generated reference of the
+    exact callable tool signatures (so the model never guesses names/args), and
+    the bounded set of runtime-ABI rules (camelCase, fresh context, serializable
+    result, probe-if-unsure) that subsume the per-footgun lore.
     """
-    camel = ptc_camel_names(config, available_tools, role=role)
-    tool_ref = ", ".join(f"tools.{c}" for c in camel) or "(none available)"
+    sigs = tool_signatures(config, available_tools, role=role)
+    tool_block = "\n".join(f"  - {s}" for s in sigs) or "  (none available)"
     return (
         "## Code interpreter (`eval`)\n"
-        "You can run a sandboxed JavaScript program via the `eval` tool. Reach for "
-        "it only when real control flow is required — looping until a condition "
-        "holds, retrying a failed step, fanning out over a list whose size you "
-        "learn at runtime, or branching on an intermediate result — and keep large "
-        "intermediate data in script variables, returning only a compact result. "
-        "For a single delegation use one `task` call; for a trivial request answer "
-        "directly.\n"
-        "Inside a script, tools are exposed on the `tools` object in **camelCase** "
-        "(e.g. `read_file` → `tools.readFile`). Calling a tool by any other name — "
-        "including its snake_case form — throws `TypeError: not a function`. The "
-        "only callable tools are:\n"
-        f"  {tool_ref}\n"
-        "Delegate to subagents with `tools.task({ subagent_type, description })`.\n"
-        "Runtime notes: each `eval` runs in a fresh context — variables do NOT "
-        "persist between separate `eval` calls, so do the whole job in one script "
-        "and `return` the result (don't rely on a variable from a previous call). "
-        "File-read tools return the file as a line-numbered string (each line "
-        "prefixed with its number and a tab), not an object — split on newlines "
-        "and strip the leading `number+tab`, e.g. `.replace(/^\\s*\\d+\\t/, '')`. "
-        "If you're unsure of a tool's result shape, `console.log` it once first."
+        "Run a sandboxed JavaScript program via the `eval` tool, but only when real "
+        "control flow is required — looping until a condition holds, retrying a "
+        "failed step, fanning out over a list whose size you learn at runtime, or "
+        "branching on an intermediate result. Keep large intermediate data in "
+        "script variables and return only a compact result. For a single delegation "
+        "use one `tools.task` call; for a trivial request, answer directly.\n\n"
+        f"{_RUNTIME_ABI_RULES}\n\n"
+        "Callable tools (camelCase, with argument keys and known return shapes):\n"
+        f"{tool_block}"
     )
 
 
@@ -299,4 +364,5 @@ __all__ = [
     "interpreter_system_prompt",
     "ptc_camel_names",
     "resolve_ptc_allowlist",
+    "tool_signatures",
 ]

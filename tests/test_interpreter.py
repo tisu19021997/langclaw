@@ -482,3 +482,30 @@ def test_interpreter_system_prompt_warns_about_persistence_and_read_shape():
     assert "line-numbered" in prompt.lower()
     # general "probe the shape" advice
     assert "console.log" in prompt
+
+
+def test_tool_signatures_derive_args_from_schema_and_curated_returns():
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.interpreter import tool_signatures
+
+    cfg = LangclawConfig()
+    cfg.interpreter.enabled = True
+    # A build-time tool exposes its arg keys via `.args`; runtime tools (readFile,
+    # task) are filled from the curated contract table.
+    web = type("T", (), {"name": "web_search", "args": {"query": {}, "n": {}}})()
+    sigs = " | ".join(tool_signatures(cfg, [web]))
+    assert "tools.webSearch({ query, n })" in sigs  # args derived from schema
+    assert "tools.readFile({ file_path })" in sigs  # curated runtime contract
+    assert "line-numbered" in sigs  # known return shape, as data
+    assert "tools.task({ subagent_type, description })" in sigs
+
+
+def test_interpreter_system_prompt_states_marshalability_rule():
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.interpreter import interpreter_system_prompt
+
+    cfg = LangclawConfig()
+    cfg.interpreter.enabled = True
+    prompt = interpreter_system_prompt(cfg, [type("T", (), {"name": "read_file"})()])
+    assert "[unmarshalable value]" in prompt  # the marshalability contract
+    assert "JSON-serializable" in prompt
