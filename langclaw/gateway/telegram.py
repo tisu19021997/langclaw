@@ -255,7 +255,14 @@ class TelegramChannel(BaseChannel):
     # ------------------------------------------------------------------
 
     async def send_tool_progress(self, msg: OutboundMessage) -> None:
-        """Stash the tool call info; actual rendering happens on tool_result."""
+        """Render or buffer a tool-progress message.
+
+        Tool *calls* (carrying a ``tool_call_id``) are buffered and rendered when
+        their matching ``tool_result`` arrives. Standalone progress with no
+        ``tool_call_id`` — e.g. a long-running operation emitting its own status
+        lines — has no result to pair with, so it is rendered immediately.
+        (Previously such messages were silently dropped.)
+        """
         # Don't show tool progress for cron jobs
         if is_cron_context_id(msg.context_id):
             return
@@ -265,6 +272,10 @@ class TelegramChannel(BaseChannel):
                 "tool": msg.metadata.get("tool", ""),
                 "args": msg.metadata.get("args") or {},
             }
+            return
+        if msg.content:
+            escaped = msg.content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            await self._send_progress(msg.chat_id, escaped)
 
     async def send_tool_result(self, msg: OutboundMessage) -> None:
         """
