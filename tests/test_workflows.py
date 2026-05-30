@@ -1235,12 +1235,22 @@ async def test_author_extracts_js_from_fenced_response():
 
 async def test_author_prompt_carries_contract():
     """The authoring prompt includes the task description, the allowlisted tool
-    names, and the run input so the model can write a correct body."""
+    signatures (camelCase name + args + description), the run input, and the
+    defensive result-shape rule so a blind one-shot body extracts correctly."""
+    from langchain_core.tools import StructuredTool
+
     from langclaw.workflows.js_runner import build_workflow_author
     from langclaw.workflows.registry import WorkflowSpec
 
+    async def web_search(query: str, n: int = 5):
+        """Search the web for recent information."""
+        return []
+
     model = _FakeModel("inp.topic;")
-    author = build_workflow_author(model, ptc_tool_names=["web_search", "web_fetch"])
+    author = build_workflow_author(
+        model,
+        tools=[StructuredTool.from_function(coroutine=web_search, name="web_search")],
+    )
     spec = WorkflowSpec(
         name="research",
         fn=lambda c, i: None,
@@ -1251,9 +1261,12 @@ async def test_author_prompt_carries_contract():
     await author(spec, {"topic": "solar"})
     prompt = model.seen_prompt
     assert "Gather angles and synthesize." in prompt
-    assert "webSearch" in prompt  # camelCased PTC names
+    assert "tools.webSearch" in prompt  # camelCased signature
+    assert "query" in prompt  # rendered arg name
+    assert "Search the web" in prompt  # tool description carried through
     assert "solar" in prompt  # the concrete input
     assert "JSON.stringify" in prompt  # the output ABI nudge
+    assert "blind" in prompt.lower()  # the defensive one-shot rule
 
 
 async def test_author_passes_through_unfenced_response():

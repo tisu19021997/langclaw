@@ -177,10 +177,11 @@ class WorkflowRuntime:
 
         async with self._run_gate:
             script, freshly_authored = await resolver.resolve(spec.name, run_id, _author)
-            logger.info(
-                f"Workflow {spec.name!r} run {run_id}: "
-                + ("authored new body" if freshly_authored else "replaying authored body")
-            )
+            verb = "authored new body" if freshly_authored else "replaying authored body"
+            logger.info(f"Workflow {spec.name!r} run {run_id}: {verb} ({len(script)} chars)")
+            # The authored body is the audit-relevant artifact of a Mode-2 run —
+            # log it in full at DEBUG so a surprising result can be traced.
+            logger.debug(f"Workflow {spec.name!r} run {run_id} body:\n{script}")
             coro = script_runner(script, validated_input)
             if spec.timeout_s is not None:
                 output = await asyncio.wait_for(coro, timeout=spec.timeout_s)

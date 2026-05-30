@@ -109,20 +109,23 @@ def build_workflow_script_runner(
 def build_workflow_author(
     model: Any,
     *,
-    ptc_tool_names: Sequence[str] = (),
+    tools: Sequence[BaseTool] = (),
 ) -> ScriptAuthorFn:
     """Build an ``author`` that asks *model* to write a workflow's JS body.
 
     The Mode-2 counterpart to :func:`build_workflow_script_runner`: it renders
-    the workflow's contract (task description, input value + schema, output
-    schema, allowed tools, and the sandbox ABI) into a prompt, calls the model
-    once, and returns the extracted JavaScript body.
+    the workflow's contract (task description, input value, allowed-tool
+    signatures, output schema, and the sandbox ABI) into a prompt, calls the
+    model once, and returns the extracted JavaScript body.
 
     Args:
-        model:          A chat model exposing ``await model.ainvoke(prompt)``.
-        ptc_tool_names: Bare tool names the body may call; rendered camelCased
-                        (``tools.<camelName>``) so they match the runner's PTC
-                        surface. Pass the role-filtered, ``uses_tools``-narrowed set.
+        model: A chat model exposing ``await model.ainvoke(prompt)``.
+        tools: The tools the body may call — the same objects the runner exposes
+               (the spec's ``uses_tools``, role-filtered). Each is rendered as a
+               ``tools.<camelName>({args}) — <description>`` signature so the model
+               writes correct calls and result handling. Unlike the interpreter,
+               a Mode-2 author writes blind in one shot — it cannot ``console.log``
+               and inspect — so honest signatures matter.
 
     Returns:
         An async ``(spec, validated_input) -> script`` callable suitable as the
@@ -130,7 +133,7 @@ def build_workflow_author(
     """
 
     async def author(spec: WorkflowSpec, validated_input: Any) -> str:
-        prompt = _render_authoring_prompt(spec, validated_input, ptc_tool_names)
+        prompt = _render_authoring_prompt(spec, validated_input, tools)
         response = await model.ainvoke(prompt)
         return _extract_js(_message_text(response))
 
@@ -140,13 +143,13 @@ def build_workflow_author(
 def _render_authoring_prompt(
     spec: WorkflowSpec,
     validated_input: Any,
-    ptc_tool_names: Sequence[str],
+    tools: Sequence[BaseTool],
 ) -> str:
     """Render the contract + sandbox ABI into a single authoring prompt."""
-    tools_line = (
-        ", ".join(f"tools.{_camel(n)}({{...}})" for n in ptc_tool_names)
-        if ptc_tool_names
-        else "(none — use only `inp` and plain JavaScript)"
+    tools_block = (
+        "\n".join(f"  - {_render_tool_signature(t)}" for t in tools)
+        if tools
+        else "  (none — use only `inp` and plain JavaScript)"
     )
     out_schema = (
         json.dumps(spec.output_model.model_json_schema())
@@ -158,7 +161,7 @@ def _render_authoring_prompt(
         "Write the body of a workflow as a sandboxed JavaScript program.\n\n"
         f"## Task\n{spec.description}\n\n"
         f"## Input\nThe run input is available as the global `inp`:\n{in_value}\n\n"
-        f"## Allowed tools\nCall ONLY these (await each):\n{tools_line}\n\n"
+        f"## Allowed tools\nCall ONLY these (await each):\n{tools_block}\n\n"
         f"## Required output\nThe program's final expression must produce this "
         f"shape:\n{out_schema}\n\n"
         "## Rules (the sandbox ABI)\n"
@@ -167,9 +170,24 @@ def _render_authoring_prompt(
         "- End on a single final expression — NOT a `return` (top-level return "
         "is a syntax error).\n"
         "- For structured output, end on `JSON.stringify(value)`; a bare object "
-        "marshals to a non-JSON string.\n\n"
+        "marshals to a non-JSON string.\n"
+        "- You are writing this BLIND — you cannot run it or inspect intermediate "
+        "values. Do NOT assume a tool's exact result field names. If a result "
+        "shape is uncertain, keep the WHOLE value (e.g. `JSON.stringify(result)`) "
+        "rather than guessing a field, so no data is silently dropped.\n\n"
         "Output ONLY the JavaScript body — no prose, no markdown fences."
     )
+
+
+def _render_tool_signature(tool: BaseTool) -> str:
+    """``tools.<camel>({args}) — <one-line description>`` from public attributes."""
+    name = getattr(tool, "name", "?")
+    args = getattr(tool, "args", None) or {}
+    arg_str = "{ " + ", ".join(args) + " }" if args else ""
+    desc = (getattr(tool, "description", "") or "").strip().splitlines()
+    first_line = desc[0] if desc else ""
+    sig = f"tools.{_camel(name)}({arg_str})"
+    return f"{sig} — {first_line}" if first_line else sig
 
 
 def _message_text(response: Any) -> str:

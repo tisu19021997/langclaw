@@ -321,8 +321,7 @@ def create_claw_agent(
             return [t for t in _live_tools if getattr(t, "name", None) in wanted]
 
         def _workflow_author_factory(spec: Any) -> Any:
-            names = [t.name for t in _tools_for_spec(spec)]
-            return build_workflow_author(resolved_model, ptc_tool_names=names)
+            return build_workflow_author(resolved_model, tools=_tools_for_spec(spec))
 
         def _workflow_script_runner_factory(spec: Any) -> Any:
             return build_workflow_script_runner(_tools_for_spec(spec))
