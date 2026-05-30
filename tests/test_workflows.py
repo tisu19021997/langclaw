@@ -1401,3 +1401,17 @@ async def test_builder_wires_mode2_end_to_end(monkeypatch):
     wf_tool = next(t for t in captured["tools"] if getattr(t, "name", "") == "workflow_research")
     out = await wf_tool.coroutine(workflow_input={"topic": "AI"})
     assert "HIT[AI]" in out
+
+
+async def test_script_runner_rejects_unmarshalable_result():
+    """A body that ends on a Promise/function yields QuickJS's
+    `[unmarshalable value]`; the runner must raise, not pass garbage through
+    (otherwise the agent confabulates a result from nothing)."""
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.workflows.context import WorkflowStepError
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    runner = build_workflow_script_runner([])
+    # ends on an un-awaited async IIFE → unmarshalable handle
+    with pytest.raises(WorkflowStepError, match="(?i)serializ|json.stringify"):
+        await runner("(async () => ({ a: 1 }))();", None)

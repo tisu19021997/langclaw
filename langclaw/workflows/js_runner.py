@@ -97,6 +97,15 @@ def build_workflow_script_runner(
                     f"Authored workflow script failed: "
                     f"{outcome.error_type}: {outcome.error_message}"
                 )
+            # result_kind="handle" → the script ended on a non-serializable value
+            # (Promise/function/etc.). Don't pass the `[unmarshalable value]`
+            # placeholder through as a result — the agent would treat it as data.
+            if outcome.result_kind == "handle":
+                raise WorkflowStepError(
+                    "Authored workflow script ended on a non-serializable value "
+                    "(a Promise, function, or similar). End on a concrete value: "
+                    "`JSON.stringify(result)` or a primitive — and `await` any async call."
+                )
             return _coerce_result(outcome.result)
         finally:
             registry.evict(thread_id)
@@ -167,6 +176,8 @@ def _render_authoring_prompt(
         "- No filesystem, network, real clock, Date, or Math.random.\n"
         "- End on a single final expression — NOT a `return` (top-level return "
         "is a syntax error).\n"
+        "- Do NOT end on a function, an un-awaited Promise, or `someAsyncCall()` — "
+        "`await` it first. Ending on a non-value yields `[unmarshalable value]`.\n"
         "- For structured output, end on `JSON.stringify(value)`; a bare object "
         "marshals to a non-JSON string.\n"
         "- You are writing this BLIND — you cannot run it or inspect intermediate "

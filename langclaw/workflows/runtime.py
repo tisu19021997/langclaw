@@ -176,13 +176,18 @@ class WorkflowRuntime:
             script, freshly_authored = await resolver.resolve(spec.name, run_id, _author)
             verb = "authored new body" if freshly_authored else "replaying authored body"
             logger.info(f"Workflow {spec.name!r} run {run_id}: {verb} ({len(script)} chars)")
-            # The body is a Mode-2 run's audit artifact — log it at DEBUG.
+            # The body is a Mode-2 run's audit artifact — at DEBUG normally, and
+            # at WARNING on failure so a broken body is visible without DEBUG.
             logger.debug(f"Workflow {spec.name!r} run {run_id} body:\n{script}")
             coro = script_runner(script, validated_input)
-            if spec.timeout_s is not None:
-                output = await asyncio.wait_for(coro, timeout=spec.timeout_s)
-            else:
-                output = await coro
+            try:
+                if spec.timeout_s is not None:
+                    output = await asyncio.wait_for(coro, timeout=spec.timeout_s)
+                else:
+                    output = await coro
+            except Exception:
+                logger.warning(f"Workflow {spec.name!r} run {run_id} failed; body:\n{script}")
+                raise
 
         output = self._validate_output(spec, output)
         logger.info(f"Workflow {spec.name!r} run {run_id} completed")
