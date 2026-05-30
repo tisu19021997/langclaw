@@ -3,7 +3,7 @@
 Multi-channel AI agent framework built on LangChain, LangGraph, and deepagents.
 
 See @AGENTS.md for package map and code conventions.
-See @docs/ARCHITECTURE.md for design rationale.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for design rationale and detailed flow diagrams (read on demand — not auto-loaded).
 
 ## Quick Reference
 
@@ -158,20 +158,39 @@ through `GatewayManager.__init__` and `Langclaw._run_async`.
 
 ## Message Flow
 
-```
-User message flow:
-Channel → InboundMessage → Bus → GatewayManager._handle()
-  → _resolve_agent_name()          # pick agent (metadata > session > default)
-  → SessionManager.get_config()    # get/create LangGraph thread
-  → active_agent.astream()         # run chosen agent
-  → OutboundMessage → Channel
+High-level component architecture — all sources (channels, cron, subagents) converge on the same bus → `_handle()` pipeline:
 
-Command flow (bypasses LLM):
-Channel → /command → CommandRouter → instant response
+```mermaid
+flowchart TB
+    subgraph Sources["Message Sources"]
+        CH["Channels<br/>(Telegram / Discord / WebSocket)"]
+        CRON["CronManager (APScheduler)"]
+        SUB["Channel-routed Subagents"]
+    end
+    BUS{{"Message Bus<br/>asyncio · RabbitMQ · Kafka"}}
+    subgraph Gateway["GatewayManager"]
+        HANDLE["_handle(msg)"]
+        RESOLVE["_resolve_agent_name()"]
+    end
+    AGENT["LangGraph Agent<br/>(middleware stack → model + tools)"]
+    SESS["SessionManager<br/>(channel,user,ctx) → thread_id"]
+    CP["Checkpointer<br/>SQLite · Postgres"]
+    CMD["CommandRouter"]
 
-Cron flow:
-APScheduler → _fire_job() → InboundMessage(origin="cron", metadata={agent_name}) → Bus → same as user flow
+    CH -- "InboundMessage" --> BUS
+    CRON -- "origin=cron" --> BUS
+    SUB -- "origin=subagent, to=channel" --> BUS
+    CH -. "/command (bypass bus + LLM)" .-> CMD
+    CMD -. "str response" .-> CH
+    BUS --> HANDLE --> RESOLVE --> AGENT
+    HANDLE <--> SESS
+    AGENT <--> CP
+    AGENT -- "OutboundMessage (stream)" --> CH
+    HANDLE -- "to=channel shortcut" --> CH
 ```
+
+Detailed end-to-end sequence, middleware-order, and bypass-path diagrams:
+[docs/ARCHITECTURE.md#message-flow-diagrams](docs/ARCHITECTURE.md#message-flow-diagrams).
 
 Key routing fields on `InboundMessage`:
 - `origin`: `"user"` | `"cron"` | `"heartbeat"` | `"subagent"`
