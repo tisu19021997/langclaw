@@ -11,6 +11,7 @@ Multi-channel AI agent **framework** (not an app) built on LangChain, LangGraph,
 | `gateway/` | Channel orchestration (`GatewayManager`), command routing, message dispatch |
 | `bus/` | Message bus abstraction — asyncio (dev), RabbitMQ, Kafka (prod) |
 | `middleware/` | Request pipeline: RBAC, rate limit, content filter, PII redaction |
+| `interpreter/` | Opt-in sandboxed code interpreter (RLM) — PTC allowlist resolver + `CodeInterpreterMiddleware` factory |
 | `config/` | Pydantic Settings with `LANGCLAW__` env var prefix (nested `__` delimiter) |
 | `cron/` | Scheduled jobs via APScheduler v4 |
 | `session/` | Maps (channel, user, context) → LangGraph thread IDs |

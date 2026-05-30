@@ -3,7 +3,7 @@
 Multi-channel AI agent framework built on LangChain, LangGraph, and deepagents.
 
 See @AGENTS.md for package map and code conventions.
-See @docs/ARCHITECTURE.md for design rationale.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for design rationale and detailed flow diagrams (read on demand — not auto-loaded).
 
 ## Quick Reference
 
@@ -25,6 +25,7 @@ uv run pre-commit run --all-files  # Full pre-commit suite
 | Add message bus | `langclaw/bus/<name>.py` + factory in `bus/__init__.py` |
 | Add checkpointer | `langclaw/checkpointer/<name>.py` + factory in `checkpointer/__init__.py` |
 | Modify config schema | `langclaw/config/schema.py` (Pydantic Settings) |
+| Code interpreter (RLM) | `langclaw/interpreter/__init__.py` (PTC resolver + middleware factory) |
 | CLI commands | `langclaw/cli/app.py` (Typer) |
 | Agent construction | `langclaw/agents/builder.py` |
 | Gateway orchestration | `langclaw/gateway/manager.py` |
@@ -157,20 +158,39 @@ through `GatewayManager.__init__` and `Langclaw._run_async`.
 
 ## Message Flow
 
-```
-User message flow:
-Channel → InboundMessage → Bus → GatewayManager._handle()
-  → _resolve_agent_name()          # pick agent (metadata > session > default)
-  → SessionManager.get_config()    # get/create LangGraph thread
-  → active_agent.astream()         # run chosen agent
-  → OutboundMessage → Channel
+High-level component architecture — all sources (channels, cron, subagents) converge on the same bus → `_handle()` pipeline:
 
-Command flow (bypasses LLM):
-Channel → /command → CommandRouter → instant response
+```mermaid
+flowchart TB
+    subgraph Sources["Message Sources"]
+        CH["Channels<br/>(Telegram / Discord / WebSocket)"]
+        CRON["CronManager (APScheduler)"]
+        SUB["Channel-routed Subagents"]
+    end
+    BUS{{"Message Bus<br/>asyncio · RabbitMQ · Kafka"}}
+    subgraph Gateway["GatewayManager"]
+        HANDLE["_handle(msg)"]
+        RESOLVE["_resolve_agent_name()"]
+    end
+    AGENT["LangGraph Agent<br/>(middleware stack → model + tools)"]
+    SESS["SessionManager<br/>(channel,user,ctx) → thread_id"]
+    CP["Checkpointer<br/>SQLite · Postgres"]
+    CMD["CommandRouter"]
 
-Cron flow:
-APScheduler → _fire_job() → InboundMessage(origin="cron", metadata={agent_name}) → Bus → same as user flow
+    CH -- "InboundMessage" --> BUS
+    CRON -- "origin=cron" --> BUS
+    SUB -- "origin=subagent, to=channel" --> BUS
+    CH -. "/command (bypass bus + LLM)" .-> CMD
+    CMD -. "str response" .-> CH
+    BUS --> HANDLE --> RESOLVE --> AGENT
+    HANDLE <--> SESS
+    AGENT <--> CP
+    AGENT -- "OutboundMessage (stream)" --> CH
+    HANDLE -- "to=channel shortcut" --> CH
 ```
+
+Detailed end-to-end sequence, middleware-order, and bypass-path diagrams:
+[docs/ARCHITECTURE.md#message-flow-diagrams](docs/ARCHITECTURE.md#message-flow-diagrams).
 
 Key routing fields on `InboundMessage`:
 - `origin`: `"user"` | `"cron"` | `"heartbeat"` | `"subagent"`
@@ -247,4 +267,28 @@ LANGCLAW__CHANNELS__TELEGRAM__TOKEN=bot123:abc
 LANGCLAW__CHANNELS__TELEGRAM__ENABLED=true
 LANGCLAW__BUS__BACKEND=rabbitmq
 LANGCLAW__CHECKPOINTER__BACKEND=postgres
+LANGCLAW__INTERPRETER__ENABLED=true        # opt into the sandboxed `eval` tool
 ```
+
+## Code Interpreter (RLM)
+
+Opt-in sandboxed JavaScript `eval` tool (off by default) backed by
+`langchain-quickjs`'s `CodeInterpreterMiddleware`. Lets the agent write a
+script that loops, branches, retries, and fans out over a role-filtered PTC
+allowlist of tools — including `tools.task({subagent_type})` to orchestrate
+`app.subagent()` subagents.
+
+- **Enable:** `LANGCLAW__INTERPRETER__ENABLED=true` or `Langclaw(enable_interpreter=True)`.
+  Requires the extra: `uv add 'langclaw[interpreter]'`.
+- **Security posture:** the QuickJS sandbox is *capability-scoped, not host-memory
+  isolation*. The real blast radius is the exposed tools, so the PTC allowlist
+  (`langclaw/interpreter/__init__.py:DEFAULT_READONLY_PTC_TOOLS`) defaults to
+  read-only; mutating/egress tools require explicit `interpreter.allow_tools`
+  opt-in.
+- **Per-call RBAC falls out of middleware ordering** — the interpreter middleware
+  is appended *after* `ToolPermissionMiddleware` in `agents/builder.py`, so PTC
+  only ever sees the role-filtered live toolset. `resolve_ptc_allowlist` and the
+  permission middleware share `allowed_tool_names` so they cannot drift.
+- **Subagent gate:** `RoleConfig.subagents` is a per-role, default-deny allowlist
+  of subagent types a script may reach via `tools.task`
+  (`allowed_subagents` / `check_subagent_permission`).

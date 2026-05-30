@@ -34,7 +34,7 @@ dependencies = [
     "langchain>=1.0",
     "langgraph>=0.4",
     "langchain-core>=0.3",
-    "deepagents>=0.1",
+    "deepagents>=0.6",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "apscheduler>=4.0.0a1",
@@ -62,8 +62,9 @@ kafka    = ["aiokafka>=0.10"]
 mcp      = ["langchain-mcp-adapters>=0.1"]
 gmail    = ["google-api-python-client>=2.100", "google-auth>=2.20", "google-auth-oauthlib>=1.1"]
 search   = ["crawl4ai>=0.4", "langchain-community>=0.3", "tavily-python>=0.3", "duckduckgo-search>=6"]
-dev      = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.4"]
-all      = ["langclaw[telegram,discord,websocket,slack,matrix,postgres,rabbitmq,kafka,mcp,search,gmail]"]
+interpreter = ["langchain-quickjs>=0.1.2"]
+dev      = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.4", "langchain-quickjs>=0.1.2"]
+all      = ["langclaw[telegram,discord,websocket,slack,matrix,postgres,rabbitmq,kafka,mcp,search,gmail,interpreter]"]
 
 [project.scripts]
 langclaw = "langclaw.cli.app:app"

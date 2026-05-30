@@ -1,6 +1,103 @@
 # Langclaw Architecture
 
-This document details the core design principles and architectural decisions of the Langclaw framework. For high-level diagrams, package structures, and data flow, please refer to the [README](../README.md).
+This document details the core design principles and architectural decisions of the Langclaw framework. For the package map and a quick ASCII data-flow overview, see the [README](../README.md); the rendered component, sequence, and middleware diagrams live in [Message Flow Diagrams](#message-flow-diagrams) below.
+
+## Message Flow Diagrams
+
+These diagrams trace a message from a channel through the bus, gateway, middleware, and agent, and back out. They are sourced from the code — `gateway/manager.py` (`_handle`, `_resolve_agent_name`), `bus/base.py` (`InboundMessage` / `OutboundMessage`), and `agents/builder.py` (middleware stack).
+
+> The high-level **component architecture** overview lives in [CLAUDE.md → Message Flow](../CLAUDE.md#message-flow) (the always-loaded agent anchor). This section drills into the runtime sequence, middleware order, and bypass paths.
+
+### End-to-End Sequence (User → Channel)
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Ch as Channel<br/>(BaseChannel)
+    participant Bus as MessageBus
+    participant GM as GatewayManager
+    participant SM as SessionManager
+    participant Agent as LangGraph Agent
+    participant CP as Checkpointer
+
+    User->>Ch: types message
+    Ch->>Bus: publish(InboundMessage)<br/>origin="user", to="agent"
+    Bus-->>GM: _bus_worker: async for msg in subscribe()
+    Note over GM: asyncio.create_task(_handle(msg))
+
+    rect rgb(238,242,255)
+    Note over GM: _handle(msg)
+    GM->>GM: 1. if to=="channel" → shortcut (skip agent)
+    GM->>GM: 2. _resolve_agent_name()<br/>metadata > session > "default"
+    GM->>SM: 3. get_config(channel,user,context_id)
+    SM-->>GM: {thread_id, channel_context}
+    GM->>GM: 4. _resolve_user_role() → RBAC role
+    GM->>GM: 5. build LangclawContext
+    GM->>GM: 6. attachments_to_content_blocks() → HumanMessage
+    GM->>GM: 7. _ensure_agent_fresh() (AGENTS.md hash)
+    end
+
+    GM->>Agent: astream(input_state, config, context,<br/>stream_mode=["updates","messages"])
+    Agent<<->>CP: load/save thread state
+    loop streaming chunks
+        Agent-->>GM: "messages" chunk → _handle_message_chunk
+        GM->>Ch: send(OutboundMessage type="ai" streaming=True)
+        Agent-->>GM: "updates" chunk → tool_calls / ToolMessage
+        GM->>Ch: send(type="tool_progress" / "tool_result")
+    end
+    GM->>Ch: send(OutboundMessage is_final=True)
+    Ch->>User: flush buffered reply
+```
+
+### Middleware Pipeline (order from `agents/builder.py`)
+
+```mermaid
+flowchart LR
+    IN["Input<br/>HumanMessage"] --> M1
+    M1["1 · ChannelContextMiddleware<br/>inject channel/user/ctx"] --> M2
+    M2["2 · ToolPermissionMiddleware<br/>RBAC tool filter<br/>(if permissions.enabled)"] --> M3
+    M3["3 · InterpreterMiddleware<br/>PTC eval sandbox<br/>(if interpreter.enabled)"] --> M4
+    M4["4 · RateLimitMiddleware<br/>rpm cap"] --> M5
+    M5["5 · ContentFilterMiddleware<br/>banned keywords"] --> M6
+    M6["6 · PIIMiddleware<br/>redaction"] --> M7
+    M7["7 · extra_middleware<br/>(user-provided)"] --> LLM["Model + Tools"]
+    LLM --> OUT["Output<br/>(reverse order on the way out)"]
+```
+
+> Order matters: earliest runs first on input, last on output. The interpreter middleware is appended **after** `ToolPermissionMiddleware` so its PTC surface only ever sees the role-filtered toolset (see [Code Interpreter (RLM) — Trust Boundary](#code-interpreter-rlm--trust-boundary)).
+
+### Alternate Entry Paths (bypass / inject)
+
+```mermaid
+flowchart TB
+    subgraph Command["Command path — bypasses bus + LLM"]
+        direction LR
+        C1["User: /reset"] --> C2["CommandRouter.dispatch(name, ctx)"]
+        C2 --> C3["handler(ctx) → str"] --> C4["Channel sends reply directly"]
+    end
+
+    subgraph CronPath["Cron path — same agent pipeline"]
+        direction LR
+        K1["APScheduler fires"] --> K2["_fire_job()"]
+        K2 --> K3["publish InboundMessage<br/>origin='cron'<br/>metadata: agent_name, user_role"]
+        K3 --> K4["Bus → _handle()<br/>(role + agent pre-resolved)"]
+    end
+
+    subgraph SubPath["Subagent → channel — bypasses parent agent"]
+        direction LR
+        S1["Subagent output='channel' finishes"] --> S2["_run_and_publish()"]
+        S2 --> S3["publish InboundMessage<br/>origin='subagent', to='channel'"]
+        S3 --> S4["_handle(): to=='channel' shortcut<br/>→ send straight to Channel"]
+    end
+```
+
+Key routing fields on `InboundMessage` (`bus/base.py`):
+
+- `origin`: `"user"` | `"cron"` | `"subagent"` | `"heartbeat"` — drives how it converts to a LangChain message type.
+- `to`: `"agent"` (default, full pipeline) | `"channel"` (shortcut delivery, skips the LLM).
+- `metadata["agent_name"]`: explicit agent target, stamped by cron at schedule time; highest priority in `_resolve_agent_name`.
+
+All three sources (channels, cron, subagents) converge on the **same bus → `_handle()` pipeline** — the decoupling that lets the bus backend swap between asyncio/RabbitMQ/Kafka without touching the gateway. The two bypasses are commands (never hit the bus) and `to="channel"` messages (hit the bus but skip the agent).
 
 ## Design Vision: A Framework, Not an App
 
@@ -34,6 +131,31 @@ Instead of hardcoding tool permission logic into the agent prompt, Langclaw uses
 ### Checkpointer Abstraction
 Conversation state is handled by `BaseCheckpointerBackend`.
 - **Why?** AI agents require persistent memory across asynchronous channel events. Abstracting this allows swapping between in-memory (testing), SQLite (local deployments), and robust databases (production) without changing agent logic.
+
+### Code Interpreter (RLM) — Trust Boundary
+
+The opt-in code interpreter (`langclaw/interpreter/`) exposes an `eval` tool that
+runs a sandboxed JavaScript program in QuickJS via `langchain-quickjs`'s
+`CodeInterpreterMiddleware`. Through Programmatic Tool Calling (PTC) the script
+reaches langclaw tools as `tools.<name>(...)` and orchestrates subagents via
+`tools.task({subagent_type})`, so it can loop, branch, retry, and fan out.
+
+- **Capability-scoped, not host-memory isolation.** QuickJS runs in-process; it
+  is not a VM/process boundary. The real blast radius is the *exposed tools*, not
+  JS escapes — a PTC-allowlisted egress/mutating tool is a genuine capability for
+  an injected script. The allowlist therefore defaults to read-only and mutating
+  tools require explicit operator opt-in (`interpreter.allow_tools`).
+- **Per-call RBAC by ordering.** `CodeInterpreterMiddleware` filters its PTC
+  surface from the *live* per-call toolset. By appending it after
+  `ToolPermissionMiddleware` in the stack, the PTC surface is automatically the
+  role-filtered toolset — no per-tool wrapping needed. The resolver and the
+  permission middleware share one pure `allowed_tool_names` so they cannot drift.
+- **Subagent escalation gate.** `tools.task` targets are bounded by a per-role,
+  default-deny `RoleConfig.subagents` allowlist, so a low-privilege user's script
+  cannot reach a high-privilege subagent.
+- **Resource bounds.** Per-eval wall-clock `timeout` (covering awaited `task`
+  runs), `memory_limit`, `max_ptc_calls`, and `max_result_chars` bound runaway or
+  fan-out-bomb scripts.
 
 ## Comparison with Alternative Frameworks
 

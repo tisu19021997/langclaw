@@ -46,6 +46,10 @@ _DEFAULTS_DIR = Path(__file__).parent / "defaults"
 _DEFAULT_AGENTS_MD = _DEFAULTS_DIR / "AGENTS.md"
 _DEFAULT_SKILLS_DIR = _DEFAULTS_DIR / "skills"
 
+# The interpreter system-prompt nudge is built dynamically per agent (it lists
+# the live, camelCased PTC tool names so the model calls them correctly) — see
+# ``langclaw.interpreter.interpreter_system_prompt``.
+
 # ---------------------------------------------------------------------------
 # Subagent helpers
 # ---------------------------------------------------------------------------
@@ -280,6 +284,11 @@ def create_claw_agent(
     else:
         system_prompt = base_prompt
 
+    if config.interpreter.enabled:
+        from langclaw.interpreter import interpreter_system_prompt
+
+        system_prompt = f"{system_prompt}\n\n{interpreter_system_prompt(config, tools)}"
+
     if display_name:
         system_prompt = f"Your name is {display_name}.\n\n{system_prompt}"
 
@@ -307,6 +316,16 @@ def create_claw_agent(
         middleware.append(
             build_tool_permission_middleware(config.permissions),
         )
+
+    # Code interpreter (opt-in). Placed *after* the permission filter so the
+    # PTC surface only ever sees the role-filtered live toolset — per-call RBAC
+    # for scripts falls out of middleware ordering rather than per-tool wrapping.
+    if config.interpreter.enabled:
+        from langclaw.interpreter import build_interpreter_middleware
+
+        interpreter_mw = build_interpreter_middleware(config, tools)
+        if interpreter_mw is not None:
+            middleware.append(interpreter_mw)
 
     middleware.extend(
         [
