@@ -150,6 +150,35 @@ def test_app_workflow_decorator_registers():
     assert spec.fn is digest
 
 
+def test_app_role_carries_subagent_and_workflow_axes():
+    """``app.role()`` must accept the ``subagents`` and ``workflows`` axes so
+    operators never have to reach into ``config.permissions.roles`` (which is
+    only populated at build time). The effective config reflects all three."""
+    from langclaw import Langclaw
+
+    app = Langclaw()
+    app.role("analyst", tools=["*"], subagents=["writer"], workflows=["research"])
+
+    cfg = app._build_effective_config()
+    role = cfg.permissions.roles["analyst"]
+    assert role.tools == ["*"]
+    assert role.subagents == ["writer"]
+    assert role.workflows == ["research"]
+
+
+def test_app_role_merges_axes_across_calls():
+    """Repeated ``app.role()`` calls merge each axis, deduping order-stably."""
+    from langclaw import Langclaw
+
+    app = Langclaw()
+    app.role("analyst", tools=["web_search"], workflows=["research"])
+    app.role("analyst", tools=["web_search", "web_fetch"], workflows=["digest"])
+
+    role = app._build_effective_config().permissions.roles["analyst"]
+    assert role.tools == ["web_search", "web_fetch"]
+    assert role.workflows == ["research", "digest"]
+
+
 def test_app_create_agent_wires_registered_workflows(monkeypatch):
     """The production agent-build path (run -> create_agent) must expose
     registered workflows as workflow_<name> tools, not just the builder when

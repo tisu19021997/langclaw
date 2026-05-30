@@ -104,6 +104,8 @@ class Langclaw:
         self._extra_channels: list[BaseChannel] = []
         self._extra_middleware: list[Any] = []
         self._extra_roles: dict[str, list[str]] = {}
+        self._extra_role_subagents: dict[str, list[str]] = {}
+        self._extra_role_workflows: dict[str, list[str]] = {}
         self._extra_commands: list[tuple[str, Callable[[CommandContext], Awaitable[str]], str]] = []
         self._subagents: list[dict[str, Any]] = []
         self._named_agents: dict[str, dict[str, Any]] = {}
@@ -325,20 +327,47 @@ class Langclaw:
     # RBAC
     # ------------------------------------------------------------------
 
-    def role(self, name: str, *, tools: list[str]) -> None:
+    def role(
+        self,
+        name: str,
+        *,
+        tools: list[str] | None = None,
+        subagents: list[str] | None = None,
+        workflows: list[str] | None = None,
+    ) -> None:
         """Define or update a permission role.
 
-        If the role already exists (from config or a prior call), the
-        tool lists are merged.  Registering any role automatically
-        enables the permissions system.
+        If the role already exists (from config or a prior call), each
+        axis is merged independently (order-stable dedupe).  Registering
+        any role automatically enables the permissions system.
+
+        Three independent RBAC axes:
+
+        - ``tools``     — pass-through for unknown roles; ``["*"]`` grants all.
+        - ``subagents`` — **default-deny**; subagent types reachable via the
+                          ``task`` tool. ``["*"]`` allows every registered one.
+        - ``workflows`` — **default-deny**; workflows reachable as the
+                          ``workflow_<name>`` tool. ``["*"]`` allows all.
 
         Args:
-            name:  Role identifier (e.g. ``"admin"``, ``"viewer"``).
-            tools: Tool names this role may invoke. Use ``["*"]`` for all.
+            name:      Role identifier (e.g. ``"admin"``, ``"viewer"``).
+            tools:     Tool names this role may invoke. Use ``["*"]`` for all.
+            subagents: Subagent types this role may delegate to.
+            workflows: Workflow names this role may invoke.
         """
-        existing = self._extra_roles.get(name, [])
-        merged = list(dict.fromkeys(existing + tools))
-        self._extra_roles[name] = merged
+
+        def _merge(store: dict[str, list[str]], values: list[str] | None) -> None:
+            existing = store.get(name, [])
+            store[name] = list(dict.fromkeys(existing + (values or [])))
+
+        # Always key the role into _extra_roles (even with no tools) so a
+        # workflow-only / subagent-only role still triggers the permissions
+        # merge in _effective_config.
+        _merge(self._extra_roles, tools or [])
+        if subagents is not None:
+            _merge(self._extra_role_subagents, subagents)
+        if workflows is not None:
+            _merge(self._extra_role_workflows, workflows)
 
     # ------------------------------------------------------------------
     # Subagent registration
@@ -828,11 +857,14 @@ class Langclaw:
         a single coherent config.
         """
         flag_flips_interpreter = self._enable_interpreter and not self._config.interpreter.enabled
-        if not self._extra_roles and not flag_flips_interpreter:
+        has_roles = bool(
+            self._extra_roles or self._extra_role_subagents or self._extra_role_workflows
+        )
+        if not has_roles and not flag_flips_interpreter:
             return self._config
 
         cfg = self._config.model_copy(deep=True)
-        if self._extra_roles:
+        if has_roles:
             cfg.permissions = self._merge_permissions(cfg.permissions)
         if flag_flips_interpreter:
             cfg.interpreter.enabled = True
@@ -847,13 +879,31 @@ class Langclaw:
         perms = base.model_copy(deep=True)
         perms.enabled = True
 
-        for name, tool_names in self._extra_roles.items():
-            if name in perms.roles:
-                existing = perms.roles[name].tools
-                merged = list(dict.fromkeys(existing + tool_names))
-                perms.roles[name] = RoleConfig(tools=merged)
-            else:
-                perms.roles[name] = RoleConfig(tools=tool_names)
+        names = (
+            set(self._extra_roles)
+            | set(self._extra_role_subagents)
+            | set(self._extra_role_workflows)
+        )
+
+        def _merge(existing: list[str], extra: list[str]) -> list[str]:
+            return list(dict.fromkeys(existing + extra))
+
+        for name in names:
+            current = perms.roles.get(name)
+            perms.roles[name] = RoleConfig(
+                tools=_merge(
+                    current.tools if current else [],
+                    self._extra_roles.get(name, []),
+                ),
+                subagents=_merge(
+                    current.subagents if current else [],
+                    self._extra_role_subagents.get(name, []),
+                ),
+                workflows=_merge(
+                    current.workflows if current else [],
+                    self._extra_role_workflows.get(name, []),
+                ),
+            )
 
         return perms
 

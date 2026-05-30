@@ -125,12 +125,12 @@ async def research(ctx, inp: ResearchBrief) -> str:
 
 # ---------------------------------------------------------------------------
 # RBAC (optional) — the `workflows` axis is DEFAULT-DENY, like `subagents`.
-# Without these lines and permissions disabled, every workflow is invocable.
+# Without this line and permissions disabled, every workflow is invocable.
 # With permissions on, a role must explicitly list the workflow (or "*").
+# `app.role()` takes all three axes — tools / subagents / workflows.
 # ---------------------------------------------------------------------------
 
-# app.role("analyst", tools=["*"])              # tool axis
-# app.config.permissions.roles["analyst"].workflows = ["research"]  # workflow axis
+app.role("analyst", tools=["*"], workflows=["research"])
 
 
 # ---------------------------------------------------------------------------
