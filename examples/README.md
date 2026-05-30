@@ -42,6 +42,28 @@ Then message the bot:
 - *"Schedule a daily market summary at 9 AM"* — creates a cron job via the agent
 - `/watchlist` — instant price snapshot, no LLM involved
 
+## Workflow Research
+
+A bot that exposes an operator-authored `@app.workflow()` — a durable, typed, multi-step routine the agent invokes as the `workflow_research` tool.
+
+**What it shows:** `@app.workflow()`, Pydantic-typed input, `ctx.phase()` / `ctx.parallel()` / `ctx.tool()`, the default-deny `workflows` RBAC axis, and (with the interpreter on) Mode 1 — calling the workflow from an `eval` script.
+
+Workflows are **off by default** — enable them first:
+
+```bash
+export LANGCLAW__WORKFLOWS__ENABLED=true
+python examples/workflow_research.py
+```
+
+Then message the bot:
+
+- *"Run the research workflow on quantum computing"* — the agent calls `workflow_research` with `{"topic": "quantum computing"}`; the workflow fans out one `web_search` per angle in parallel, then synthesises a brief
+- *"Research electric vehicles and solar — use the workflow for each"* — with the interpreter on (`LANGCLAW__INTERPRETER__ENABLED=true`), the agent writes one `eval` script that calls `tools.workflowResearch(...)` per topic (Mode 1)
+
+Unlike a subagent (an LLM improvising in isolated context), a workflow's steps, fan-out, and phases are fixed Python — the LLM only chooses *when* to run it and with *what* typed input.
+
+> Not yet wired (tracked as the live-gateway follow-up): `/workflow` slash commands, cron-fired workflows, live phase/step progress in chat, and durable resume in production. The agent-invoked path above works today.
+
 ## Knowledge Base Bot
 
 A support assistant with custom middleware and LangChain community tools.
