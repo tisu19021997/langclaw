@@ -959,8 +959,8 @@ async def test_authored_script_first_run_authors_and_persists():
         calls += 1
         return "return tools.webSearch({query: inp.topic});"
 
-    script, authored = await resolver.resolve("research", "run-1", author)
-    assert authored is True
+    script, freshly_authored = await resolver.resolve("research", "run-1", author)
+    assert freshly_authored is True
     assert "webSearch" in script
     assert calls == 1
     assert len(store) == 1
@@ -978,10 +978,10 @@ async def test_authored_script_resume_replays_same_script():
     async def author() -> str:
         return next(versions)
 
-    first, a1 = await resolver.resolve("research", "run-1", author)
-    second, a2 = await resolver.resolve("research", "run-1", author)
-    assert (first, a1) == ("FIRST", True)
-    assert (second, a2) == ("FIRST", False)  # replayed, not re-authored
+    first, fresh1 = await resolver.resolve("research", "run-1", author)
+    second, fresh2 = await resolver.resolve("research", "run-1", author)
+    assert (first, fresh1) == ("FIRST", True)
+    assert (second, fresh2) == ("FIRST", False)  # replayed, not re-authored
 
 
 async def test_authored_script_distinct_runs_reauthor():
@@ -1027,3 +1027,110 @@ async def test_in_memory_script_store_roundtrip():
     assert await store.get("w", "r") == (False, None)
     await store.put("w", "r", "BODY")
     assert await store.get("w", "r") == (True, "BODY")
+
+
+# ---------------------------------------------------------------------------
+# 6b — Mode 2: registration validation + runtime dispatch (slice A)
+# ---------------------------------------------------------------------------
+
+
+def test_workflow_spec_rejects_unknown_mode():
+    from langclaw.workflows import WorkflowSpec
+
+    with pytest.raises(ValueError, match="(?i)mode"):
+        WorkflowSpec(name="x", fn=lambda c, i: None, mode="bogus")
+
+
+def test_workflow_spec_llm_authored_requires_description():
+    """llm_authored has no Python body — the description IS the authoring spec
+    the LLM writes the body from, so it must be present."""
+    from langclaw.workflows import WorkflowSpec
+
+    with pytest.raises(ValueError, match="(?i)description"):
+        WorkflowSpec(name="x", fn=lambda c, i: None, mode="llm_authored")
+
+
+async def test_runtime_mode2_authors_then_runs_script():
+    """An llm_authored run authors the body, executes it via the injected
+    script_runner, and returns the validated output."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    spec = WorkflowSpec(
+        name="research",
+        fn=lambda c, i: None,  # ignored for llm_authored
+        description="Research the topic and return a brief.",
+        mode="llm_authored",
+    )
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+    seen: dict = {}
+
+    async def author(s, inp):
+        seen["author"] = (s.name, inp)
+        return "return 'BODY';"
+
+    async def script_runner(script, inp):
+        seen["run"] = (script, inp)
+        return f"ran:{script}"
+
+    out = await rt.start_run(
+        spec, {"topic": "AI"}, run_id="r1", author=author, script_runner=script_runner
+    )
+    assert out == "ran:return 'BODY';"
+    assert seen["author"] == ("research", {"topic": "AI"})
+    assert seen["run"] == ("return 'BODY';", {"topic": "AI"})
+
+
+async def test_runtime_mode2_resume_replays_without_reauthoring():
+    """With a script_store, resuming the same run replays the frozen body and
+    never calls the author again."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import InMemoryScriptStore, WorkflowRuntime, WorkflowSpec
+
+    spec = WorkflowSpec(name="research", fn=lambda c, i: None, description="d", mode="llm_authored")
+    store = InMemoryScriptStore()
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True), script_store=store)
+    versions = iter(["V1", "V2"])
+    author_calls = 0
+
+    async def author(s, inp):
+        nonlocal author_calls
+        author_calls += 1
+        return next(versions)
+
+    async def script_runner(script, inp):
+        return script
+
+    o1 = await rt.start_run(spec, None, run_id="r1", author=author, script_runner=script_runner)
+    o2 = await rt.start_run(spec, None, run_id="r1", author=author, script_runner=script_runner)
+    assert (o1, o2) == ("V1", "V1")
+    assert author_calls == 1
+
+
+async def test_runtime_mode2_requires_author_and_runner():
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    spec = WorkflowSpec(name="research", fn=lambda c, i: None, description="d", mode="llm_authored")
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+    with pytest.raises(ValueError, match="(?i)author"):
+        await rt.start_run(spec, None, run_id="r1")  # no author/script_runner
+
+
+async def test_runtime_python_mode_still_requires_executor():
+    """The default python path is unchanged and still drives spec.fn via the
+    injected step executor."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    async def body(ctx, inp):
+        return await ctx.tool("web_search", query="x")
+
+    spec = WorkflowSpec(name="py", fn=body, description="d")
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+
+    async def executor(req):
+        return f"did:{req.target}"
+
+    out = await rt.start_run(spec, None, run_id="r1", executor=executor)
+    assert out == "did:web_search"

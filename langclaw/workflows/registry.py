@@ -16,6 +16,9 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+#: The orchestration authoring modes a :class:`WorkflowSpec` may declare.
+_VALID_MODES = frozenset({"python", "llm_authored"})
+
 
 @dataclass(slots=True)
 class WorkflowSpec:
@@ -47,6 +50,20 @@ class WorkflowSpec:
 
     uses_tools: list[str] = field(default_factory=list)
     """Tool names this workflow declares it needs, validated at registration."""
+
+    def __post_init__(self) -> None:
+        if self.mode not in _VALID_MODES:
+            raise ValueError(
+                f"Workflow {self.name!r}: unknown mode {self.mode!r}. "
+                f"Expected one of {sorted(_VALID_MODES)}."
+            )
+        # An llm_authored workflow has no Python body — the description is the
+        # spec the LLM writes the body from, so it must be present.
+        if self.mode == "llm_authored" and not (self.description or "").strip():
+            raise ValueError(
+                f"Workflow {self.name!r}: mode='llm_authored' requires a non-empty "
+                "`description` — it is the spec the LLM authors the body from."
+            )
 
     def validate_input(self, value: Any) -> Any:
         """Coerce/validate *value* against ``input_model`` when declared.

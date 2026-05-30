@@ -76,11 +76,14 @@ class AuthoredScriptResolver:
         run_id: str,
         author: ScriptAuthor,
     ) -> tuple[str, bool]:
-        """Return ``(script, was_authored)`` for ``(workflow_name, run_id)``.
+        """Return ``(script, freshly_authored)`` for ``(workflow_name, run_id)``.
 
-        On a store hit the persisted script is replayed (``was_authored`` is
-        ``False``) and *author* is never called.  On a miss *author* runs once,
-        its result is validated and persisted, and ``was_authored`` is ``True``.
+        ``freshly_authored`` reports whether authoring happened *on this call*:
+        on a store hit the persisted script is replayed (``freshly_authored`` is
+        ``False``) and *author* is never called; on a miss *author* runs once,
+        its result is validated and persisted, and ``freshly_authored`` is
+        ``True``.  It lets the caller distinguish a first fire from a resume
+        (e.g. log/emit the authoring event exactly once).
 
         Args:
             workflow_name: The llm_authored workflow's name (identity prefix).
