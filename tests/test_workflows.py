@@ -938,3 +938,92 @@ def test_builder_wires_workflow_permission_middleware(monkeypatch):
     create_claw_agent(cfg, model=object(), workflow_registry=reg, workflow_runtime=rt)
     names = [type(m).__name__ for m in captured["middleware"]]
     assert "_workflow_permission_filter" in names
+
+
+# ---------------------------------------------------------------------------
+# 6 — Mode 2 (llm_authored): authored-script persistence + replay
+# ---------------------------------------------------------------------------
+
+
+async def test_authored_script_first_run_authors_and_persists():
+    """First run of an llm_authored workflow calls the author, persists the
+    script, and reports it was freshly authored."""
+    from langclaw.workflows.authored import AuthoredScriptResolver, InMemoryScriptStore
+
+    store = InMemoryScriptStore()
+    resolver = AuthoredScriptResolver(store)
+    calls = 0
+
+    async def author() -> str:
+        nonlocal calls
+        calls += 1
+        return "return tools.webSearch({query: inp.topic});"
+
+    script, authored = await resolver.resolve("research", "run-1", author)
+    assert authored is True
+    assert "webSearch" in script
+    assert calls == 1
+    assert len(store) == 1
+
+
+async def test_authored_script_resume_replays_same_script():
+    """Resuming the same run returns the persisted script WITHOUT re-authoring
+    — the body is deterministic across restarts (US 26)."""
+    from langclaw.workflows.authored import AuthoredScriptResolver, InMemoryScriptStore
+
+    store = InMemoryScriptStore()
+    resolver = AuthoredScriptResolver(store)
+    versions = iter(["FIRST", "SECOND"])
+
+    async def author() -> str:
+        return next(versions)
+
+    first, a1 = await resolver.resolve("research", "run-1", author)
+    second, a2 = await resolver.resolve("research", "run-1", author)
+    assert (first, a1) == ("FIRST", True)
+    assert (second, a2) == ("FIRST", False)  # replayed, not re-authored
+
+
+async def test_authored_script_distinct_runs_reauthor():
+    """A different run_id re-authors (each run gets its own frozen body)."""
+    from langclaw.workflows.authored import AuthoredScriptResolver, InMemoryScriptStore
+
+    store = InMemoryScriptStore()
+    resolver = AuthoredScriptResolver(store)
+    versions = iter(["A", "B"])
+
+    async def author() -> str:
+        return next(versions)
+
+    s1, _ = await resolver.resolve("research", "run-1", author)
+    s2, _ = await resolver.resolve("research", "run-2", author)
+    assert s1 == "A"
+    assert s2 == "B"
+    assert len(store) == 2
+
+
+async def test_authored_script_rejects_empty_body():
+    """An author that returns a blank/non-string script raises rather than
+    persisting a useless body."""
+    import pytest
+
+    from langclaw.workflows.authored import AuthoredScriptResolver, InMemoryScriptStore
+
+    store = InMemoryScriptStore()
+    resolver = AuthoredScriptResolver(store)
+
+    async def blank_author() -> str:
+        return "   "
+
+    with pytest.raises(ValueError, match="(?i)non-empty"):
+        await resolver.resolve("research", "run-1", blank_author)
+    assert len(store) == 0  # nothing persisted
+
+
+async def test_in_memory_script_store_roundtrip():
+    from langclaw.workflows.authored import InMemoryScriptStore
+
+    store = InMemoryScriptStore()
+    assert await store.get("w", "r") == (False, None)
+    await store.put("w", "r", "BODY")
+    assert await store.get("w", "r") == (True, "BODY")

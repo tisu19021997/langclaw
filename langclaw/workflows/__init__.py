@@ -19,10 +19,18 @@ Deep, isolation-testable modules:
   step-count budget, global ``max_concurrent_runs`` ceiling.
 - :mod:`resume`    — ``StepMemoizer``: persist per-step results so a restart
   replays completed steps instead of re-running them.
+- :mod:`authored`  — ``AuthoredScriptResolver``: Mode 2 (``llm_authored``) —
+  freeze the LLM-authored body so a run replays the same script on resume.
 """
 
 from __future__ import annotations
 
+from langclaw.workflows.authored import (
+    AuthoredScriptResolver,
+    InMemoryScriptStore,
+    ScriptAuthor,
+    ScriptStore,
+)
 from langclaw.workflows.bridge import (
     WORKFLOW_TOOL_PREFIX,
     build_toolset_executor,
@@ -40,7 +48,11 @@ from langclaw.workflows.resume import InMemoryStepStore, StepMemoizer
 from langclaw.workflows.runtime import WorkflowRuntime
 
 __all__ = [
+    "AuthoredScriptResolver",
+    "InMemoryScriptStore",
     "InMemoryStepStore",
+    "ScriptAuthor",
+    "ScriptStore",
     "StepMemoizer",
     "StepRequest",
     "WorkflowBudgetExceeded",
