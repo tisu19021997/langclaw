@@ -246,7 +246,7 @@ def make_send_email_tool(config: GmailConfig) -> BaseTool:
         try:
             sent = await loop.run_in_executor(
                 None,
-                lambda: (service.users().messages().send(userId="me", body={"raw": raw}).execute()),
+                lambda: service.users().messages().send(userId="me", body={"raw": raw}).execute(),
             )
         except Exception as exc:
             return {"error": f"Failed to send email: {exc}"}

@@ -42,6 +42,41 @@ Then message the bot:
 - *"Schedule a daily market summary at 9 AM"* — creates a cron job via the agent
 - `/watchlist` — instant price snapshot, no LLM involved
 
+## Workflow Research
+
+A bot that exposes an operator-authored `@app.workflow()` — a durable, typed, multi-step routine the agent invokes as the `workflow_research` tool.
+
+**What it shows:** `@app.workflow()`, Pydantic-typed input, `ctx.phase()` / `ctx.parallel()` / `ctx.tool()`, the default-deny `workflows` RBAC axis, and (with the interpreter on) Mode 1 — calling the workflow from an `eval` script.
+
+Workflows are **off by default** — enable them first:
+
+```bash
+export LANGCLAW__WORKFLOWS__ENABLED=true
+python examples/workflow_research.py
+```
+
+> If you skip the env var, the `workflow_research` tool is never built and the
+> agent silently uses `web_search` / the `task` subagent instead. The
+> `workflows` RBAC axis is also **default-deny**: defining any `app.role()`
+> auto-enables permissions, so a user who resolves to an ungranted role gets the
+> workflow tool stripped before the model sees it. This example sets
+> `default_role = "analyst"` so a fresh chat user reaches the workflow.
+
+The example registers the **same job two ways**:
+
+- `research` — `mode="python"` (**the recommended path**): the steps, fan-out, and phases are fixed Python — reviewed, typed, unit-testable, deterministic. This is how you should write workflows whose shape you know. When the *composition* varies per call but the building blocks don't, let the agent compose registered workflows via **Mode 1** (PTC, interpreter on) rather than reaching for Mode 2.
+- `research_auto` — `mode="llm_authored"` (**Mode 2 — experimental**): you declare only the contract (typed input, `uses_tools` allowlist, budget, description) and the LLM authors the JS body, frozen per run and run in the QuickJS sandbox over the allowlist. It's an escape hatch for genuinely-variable, low-stakes, supervised tasks — **not** a peer of the python path: the generated body isn't unit-testable, re-authors on every new run (so it's only deterministic within a run), and is codegen running without review. Prefer python or Mode 1 unless you specifically need it.
+
+Then message the bot:
+
+- *"Run the research workflow on quantum computing"* — calls `workflow_research` (python mode); fans out one `web_search` per angle in parallel, then synthesises a brief
+- *"Use research_auto for electric vehicles"* — calls `workflow_research_auto` (Mode 2); needs the interpreter extra (`pip install langclaw[interpreter]`), since the authored body runs in the QuickJS sandbox
+- *"Research electric vehicles and solar — use the workflow for each"* — with the interpreter on (`LANGCLAW__INTERPRETER__ENABLED=true`), the agent writes one `eval` script that calls `tools.workflowResearch(...)` per topic (Mode 1)
+
+Unlike a subagent (an LLM improvising in isolated context), a python workflow's steps are fixed code; a Mode-2 workflow's body is LLM-written but then frozen, typed, and RBAC-gated. In all cases the LLM only chooses *when* to run it and with *what* typed input.
+
+> Not yet wired (tracked as the live-gateway follow-up): `/workflow` slash commands, cron-fired workflows, live phase/step progress in chat, and durable resume in production. The agent-invoked path above works today.
+
 ## Knowledge Base Bot
 
 A support assistant with custom middleware and LangChain community tools.

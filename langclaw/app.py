@@ -34,6 +34,7 @@ from langclaw.config.schema import (
 )
 from langclaw.context import LangclawContext
 from langclaw.gateway.commands import CommandContext
+from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -103,9 +104,13 @@ class Langclaw:
         self._extra_channels: list[BaseChannel] = []
         self._extra_middleware: list[Any] = []
         self._extra_roles: dict[str, list[str]] = {}
+        self._extra_role_subagents: dict[str, list[str]] = {}
+        self._extra_role_workflows: dict[str, list[str]] = {}
         self._extra_commands: list[tuple[str, Callable[[CommandContext], Awaitable[str]], str]] = []
         self._subagents: list[dict[str, Any]] = []
         self._named_agents: dict[str, dict[str, Any]] = {}
+        self._workflows = WorkflowRegistry()
+        self._workflow_runtime: WorkflowRuntime | None = None
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None
@@ -223,23 +228,160 @@ class Langclaw:
         return decorator
 
     # ------------------------------------------------------------------
+    # Workflow registration
+    # ------------------------------------------------------------------
+
+    def _reserved_names(self) -> set[str]:
+        """Names already claimed by tools, subagents, named agents, commands.
+
+        Used to reject a workflow name that would make dispatch ambiguous.
+        Collision detection runs against the names known at registration time;
+        register tools/subagents/agents before the workflows that must not
+        clash with them.
+        """
+        names: set[str] = set()
+        for t in self._extra_tools:
+            tname = getattr(t, "name", None)
+            if tname:
+                names.add(tname)
+        names.update(s["name"] for s in self._subagents if s.get("name"))
+        names.update(self._named_agents)
+        names.update(name for name, _fn, _desc in self._extra_commands)
+        return names
+
+    def workflow(
+        self,
+        name: str,
+        *,
+        description: str = "",
+        input: type | None = None,
+        output: type | None = None,
+        mode: str = "python",
+        max_steps: int | None = None,
+        max_concurrency: int = 8,
+        timeout_s: float | None = None,
+        uses_tools: list[str] | None = None,
+    ) -> Callable:
+        """Register an operator-authored workflow via decorator (issue #38).
+
+        A workflow is an ``async def (ctx, inp) -> output`` that orchestrates
+        multi-step agent work.  Each step (``ctx.agent`` / ``ctx.subagent`` /
+        ``ctx.tool`` / ``ctx.parallel``) round-trips through the same bus →
+        gateway pipeline as an ordinary message, so RBAC, rate limiting, channel
+        context, and checkpointing are inherited.  Unlike the interpreter
+        (``eval``), a workflow is durable, typed, named, and RBAC-gated.
+
+        Workflows are inert unless ``config.workflows.enabled`` is ``True``.
+
+        Example::
+
+            class Brief(BaseModel):
+                topic: str
+
+            @app.workflow("research", input=Brief, description="Deep research")
+            async def research(ctx, inp: Brief) -> str:
+                ctx.phase("gather")
+                facts = await ctx.parallel([
+                    lambda c: c.subagent("researcher", f"Find facts on {inp.topic}"),
+                    lambda c: c.subagent("researcher", f"Find risks of {inp.topic}"),
+                ])
+                ctx.phase("synthesize")
+                return await ctx.agent("writer", f"Summarize: {facts}")
+
+        Args:
+            name:            Unique workflow handle (invoked as ``workflow_<name>``,
+                             ``/workflow <name>``, cron, or PTC).
+            description:     Becomes the **tool description** the LLM reads to
+                             decide *when* to call this workflow — exactly like a
+                             ``@app.tool`` docstring. Write it as guidance ("Research
+                             a topic across several angles in parallel; prefer over
+                             ad-hoc searches when multiple perspectives help"), not a
+                             label. Omitting it falls back to a bland
+                             ``"Run the '<name>' workflow."`` that rarely beats a
+                             plain ``web_search`` or ``task``. (The *input* shape is
+                             advertised separately, from the ``input`` model below.)
+            input:           Optional Pydantic model validating the run input. Its
+                             fields become the tool's argument schema, so add
+                             ``Field(description=...)`` to tell the LLM *what* to pass.
+            output:          Optional Pydantic model validating the run output.
+            mode:            ``"python"`` (default, recommended — you author the
+                             body; reviewed, typed, testable) or ``"llm_authored"``
+                             (Mode 2, **experimental** — the LLM authors the body
+                             from this contract; an escape hatch for variable,
+                             low-stakes, supervised tasks, not a peer of python).
+            max_steps:       Per-workflow step budget (``None`` → global default).
+            max_concurrency: Fan-out width for ``ctx.parallel``.
+            timeout_s:       Per-run wall-clock budget in seconds.
+            uses_tools:      Tool names this workflow declares it needs.
+
+        Raises:
+            ValueError: If the name collides with an existing workflow, tool,
+                        subagent, named agent, or command.
+        """
+
+        def decorator(func: Callable) -> Callable:
+            spec = WorkflowSpec(
+                name=name,
+                fn=func,
+                description=description,
+                input_model=input,
+                output_model=output,
+                mode=mode,
+                max_steps=max_steps,
+                max_concurrency=max_concurrency,
+                timeout_s=timeout_s,
+                uses_tools=list(uses_tools or []),
+            )
+            self._workflows.register(spec, reserved_names=self._reserved_names())
+            return func
+
+        return decorator
+
+    # ------------------------------------------------------------------
     # RBAC
     # ------------------------------------------------------------------
 
-    def role(self, name: str, *, tools: list[str]) -> None:
+    def role(
+        self,
+        name: str,
+        *,
+        tools: list[str] | None = None,
+        subagents: list[str] | None = None,
+        workflows: list[str] | None = None,
+    ) -> None:
         """Define or update a permission role.
 
-        If the role already exists (from config or a prior call), the
-        tool lists are merged.  Registering any role automatically
-        enables the permissions system.
+        If the role already exists (from config or a prior call), each
+        axis is merged independently (order-stable dedupe).  Registering
+        any role automatically enables the permissions system.
+
+        Three independent RBAC axes:
+
+        - ``tools``     — pass-through for unknown roles; ``["*"]`` grants all.
+        - ``subagents`` — **default-deny**; subagent types reachable via the
+                          ``task`` tool. ``["*"]`` allows every registered one.
+        - ``workflows`` — **default-deny**; workflows reachable as the
+                          ``workflow_<name>`` tool. ``["*"]`` allows all.
 
         Args:
-            name:  Role identifier (e.g. ``"admin"``, ``"viewer"``).
-            tools: Tool names this role may invoke. Use ``["*"]`` for all.
+            name:      Role identifier (e.g. ``"admin"``, ``"viewer"``).
+            tools:     Tool names this role may invoke. Use ``["*"]`` for all.
+            subagents: Subagent types this role may delegate to.
+            workflows: Workflow names this role may invoke.
         """
-        existing = self._extra_roles.get(name, [])
-        merged = list(dict.fromkeys(existing + tools))
-        self._extra_roles[name] = merged
+
+        def _merge(store: dict[str, list[str]], values: list[str] | None) -> None:
+            existing = store.get(name, [])
+            store[name] = list(dict.fromkeys(existing + (values or [])))
+
+        # Always key the role into _extra_roles (even with no tools) so a
+        # workflow-only / subagent-only role still triggers the permissions
+        # merge in _effective_config.
+        _merge(self._extra_roles, tools or [])
+        if subagents is not None:
+            _merge(self._extra_role_subagents, subagents)
+        if workflows is not None:
+            _merge(self._extra_role_workflows, workflows)
 
     # ------------------------------------------------------------------
     # Subagent registration
@@ -563,7 +705,23 @@ class Langclaw:
             model=model,
             context_schema=context_schema,
             display_name=effective_config.agents.display_name or None,
+            workflow_registry=self._workflows if len(self._workflows) else None,
+            workflow_runtime=self._get_workflow_runtime(effective_config),
         )
+
+    def _get_workflow_runtime(self, effective_config: LangclawConfig) -> WorkflowRuntime | None:
+        """Lazily build (and cache) the shared :class:`WorkflowRuntime`.
+
+        Returns ``None`` when workflows are disabled or none are registered, so
+        the builder leaves the workflow tools off entirely.  Cached so every
+        agent (default + named) shares one runtime — i.e. one global
+        ``max_concurrent_runs`` ceiling.
+        """
+        if not effective_config.workflows.enabled or not len(self._workflows):
+            return None
+        if self._workflow_runtime is None:
+            self._workflow_runtime = WorkflowRuntime(effective_config.workflows)
+        return self._workflow_runtime
 
     # ------------------------------------------------------------------
     # Gateway (high-level API)
@@ -713,11 +871,14 @@ class Langclaw:
         a single coherent config.
         """
         flag_flips_interpreter = self._enable_interpreter and not self._config.interpreter.enabled
-        if not self._extra_roles and not flag_flips_interpreter:
+        has_roles = bool(
+            self._extra_roles or self._extra_role_subagents or self._extra_role_workflows
+        )
+        if not has_roles and not flag_flips_interpreter:
             return self._config
 
         cfg = self._config.model_copy(deep=True)
-        if self._extra_roles:
+        if has_roles:
             cfg.permissions = self._merge_permissions(cfg.permissions)
         if flag_flips_interpreter:
             cfg.interpreter.enabled = True
@@ -732,13 +893,31 @@ class Langclaw:
         perms = base.model_copy(deep=True)
         perms.enabled = True
 
-        for name, tool_names in self._extra_roles.items():
-            if name in perms.roles:
-                existing = perms.roles[name].tools
-                merged = list(dict.fromkeys(existing + tool_names))
-                perms.roles[name] = RoleConfig(tools=merged)
-            else:
-                perms.roles[name] = RoleConfig(tools=tool_names)
+        names = (
+            set(self._extra_roles)
+            | set(self._extra_role_subagents)
+            | set(self._extra_role_workflows)
+        )
+
+        def _merge(existing: list[str], extra: list[str]) -> list[str]:
+            return list(dict.fromkeys(existing + extra))
+
+        for name in names:
+            current = perms.roles.get(name)
+            perms.roles[name] = RoleConfig(
+                tools=_merge(
+                    current.tools if current else [],
+                    self._extra_roles.get(name, []),
+                ),
+                subagents=_merge(
+                    current.subagents if current else [],
+                    self._extra_role_subagents.get(name, []),
+                ),
+                workflows=_merge(
+                    current.workflows if current else [],
+                    self._extra_role_workflows.get(name, []),
+                ),
+            )
 
         return perms
 

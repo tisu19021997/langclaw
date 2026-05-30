@@ -26,7 +26,11 @@ from langclaw.config.schema import LangclawConfig
 from langclaw.context import LangclawContext
 from langclaw.middleware.channel_context import ChannelContextMiddleware
 from langclaw.middleware.guardrails import ContentFilterMiddleware, PIIMiddleware
-from langclaw.middleware.permissions import build_tool_permission_middleware
+from langclaw.middleware.permissions import (
+    build_subagent_permission_middleware,
+    build_tool_permission_middleware,
+    build_workflow_permission_middleware,
+)
 from langclaw.middleware.rate_limit import RateLimitMiddleware
 from langclaw.utils import to_virtual_path  # for extra_skills conversion
 
@@ -107,6 +111,9 @@ def _build_deepagent_subagents(
             sa_middleware.append(
                 build_tool_permission_middleware(config.permissions),
             )
+            sa_middleware.append(
+                build_subagent_permission_middleware(config.permissions),
+            )
 
         sa: dict[str, Any] = {
             "name": spec["name"],
@@ -149,6 +156,9 @@ def _prepare_external_subagents(
             sa_middleware.append(
                 build_tool_permission_middleware(config.permissions),
             )
+            sa_middleware.append(
+                build_subagent_permission_middleware(config.permissions),
+            )
 
         existing_mw = list(spec.get("middleware", []))
         prepared = {**spec, "middleware": sa_middleware + existing_mw}
@@ -176,6 +186,8 @@ def create_claw_agent(
     context_schema: type[LangclawContext] | None = None,
     agent_name: str | None = None,
     display_name: str | None = None,
+    workflow_registry: Any | None = None,
+    workflow_runtime: Any | None = None,
 ) -> CompiledStateGraph:
     """
     Create a langclaw deep agent backed by ``deepagents.create_deep_agent``.
@@ -275,6 +287,53 @@ def create_claw_agent(
     else:
         tools = builtin_tools + extra_tool_objects
 
+    # Workflow primitive (opt-in, `config.workflows.enabled`): expose each
+    # registered workflow as a `workflow_<name>` tool. The step executor closes
+    # over the live toolset, so steps reach exactly the tools the agent has.
+    _workflows_active = (
+        config.workflows.enabled
+        and workflow_registry is not None
+        and workflow_runtime is not None
+        and len(workflow_registry) > 0
+    )
+    _workflow_ptc_names: list[str] = []
+    if _workflows_active:
+        from langclaw.workflows import (
+            build_toolset_executor,
+            build_workflow_author,
+            build_workflow_script_runner,
+            make_workflow_tools,
+            resolve_workflow_ptc_names,
+        )
+
+        _live_tools = tools
+
+        async def _workflow_executor_factory(_tool_runtime: Any) -> Any:
+            return build_toolset_executor(_live_tools)
+
+        def _tools_for_spec(spec: Any) -> list[Any]:
+            # Mode 2 allowlist: spec.uses_tools ∩ live toolset (none → none).
+            wanted = set(spec.uses_tools or [])
+            return [t for t in _live_tools if getattr(t, "name", None) in wanted]
+
+        def _workflow_author_factory(spec: Any) -> Any:
+            return build_workflow_author(resolved_model, tools=_tools_for_spec(spec))
+
+        def _workflow_script_runner_factory(spec: Any) -> Any:
+            return build_workflow_script_runner(_tools_for_spec(spec))
+
+        tools = tools + make_workflow_tools(
+            workflow_registry,
+            workflow_runtime,
+            executor_factory=_workflow_executor_factory,
+            author_factory=_workflow_author_factory,
+            script_runner_factory=_workflow_script_runner_factory,
+        )
+        # Mode 1 PTC names (build-time, unnarrowed; per-call RBAC narrows later).
+        _workflow_ptc_names = resolve_workflow_ptc_names(
+            workflow_registry, workflows_config=config.workflows
+        )
+
     agents_md = workspace_dir / "AGENTS.md"
     if not agents_md.exists():
         agents_md = config.agents.agents_md_file  # fall back to global
@@ -304,10 +363,11 @@ def create_claw_agent(
     # Built-in middleware stack (order matters):
     #   1. ChannelContextMiddleware  — inject channel metadata first
     #   2. ToolPermission middleware — filter tools per-user role
-    #   3. RateLimitMiddleware       — rate-check early
-    #   4. ContentFilterMiddleware   — block banned content
-    #   5. PIIMiddleware             — redact PII
-    #   6. caller-provided extras
+    #   3. Subagent gate             — enforce RoleConfig.subagents on `task`
+    #   4. RateLimitMiddleware       — rate-check early
+    #   5. ContentFilterMiddleware   — block banned content
+    #   6. PIIMiddleware             — redact PII
+    #   7. caller-provided extras
     middleware: list[Any] = [
         ChannelContextMiddleware(),
     ]
@@ -316,6 +376,19 @@ def create_claw_agent(
         middleware.append(
             build_tool_permission_middleware(config.permissions),
         )
+        # Enforce the per-role subagent allowlist on model-invoked `task` calls.
+        # The tool-permission filter governs *which tools* are visible; this
+        # governs *which subagent_type* a visible `task` tool may target.
+        middleware.append(
+            build_subagent_permission_middleware(config.permissions),
+        )
+        # Enforce the per-role workflow allowlist on `workflow_<name>` tools
+        # (the third RBAC axis). Runs before the interpreter so a role-stripped
+        # workflow tool is unreachable from PTC too (Mode 1).
+        if _workflows_active:
+            middleware.append(
+                build_workflow_permission_middleware(config.permissions),
+            )
 
     # Code interpreter (opt-in). Placed *after* the permission filter so the
     # PTC surface only ever sees the role-filtered live toolset — per-call RBAC
@@ -323,7 +396,9 @@ def create_claw_agent(
     if config.interpreter.enabled:
         from langclaw.interpreter import build_interpreter_middleware
 
-        interpreter_mw = build_interpreter_middleware(config, tools)
+        interpreter_mw = build_interpreter_middleware(
+            config, tools, extra_ptc_tool_names=_workflow_ptc_names
+        )
         if interpreter_mw is not None:
             middleware.append(interpreter_mw)
 

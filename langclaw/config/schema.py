@@ -463,6 +463,14 @@ class RoleConfig(BaseModel):
     with ``tools=["*"]`` still cannot reach subagents unless they are listed
     here."""
 
+    workflows: StringList = Field(default_factory=list)
+    """Workflow names this role may invoke — via the ``workflow_<name>`` tool,
+    a ``/workflow`` command, cron, or (Phase 2) ``tools.workflow.<name>`` inside
+    an interpreter script.  **Default-deny** like ``subagents`` — an empty list
+    means the role may invoke no workflows.  Use ``["*"]`` to allow every
+    registered workflow.  A third RBAC axis alongside ``tools`` and
+    ``subagents``; their unification is tracked in issue #37."""
+
 
 class PermissionsConfig(BaseModel):
     """Global RBAC definitions.
@@ -543,6 +551,39 @@ class InterpreterConfig(BaseModel):
     """Operator opt-in beyond the read-only default PTC allowlist.  Add
     mutating/egress tool names here to expose them inside scripts, or ``["*"]``
     to expose every available tool (subject to per-role RBAC)."""
+
+
+class WorkflowsConfig(BaseModel):
+    """Operator-authored Workflow primitive configuration (issue #38).
+
+    Opt-in and **off by default**.  When enabled, workflows registered with
+    ``@app.workflow()`` become invocable: each is a durable, typed, multi-step
+    orchestration whose steps round-trip through the same bus → gateway pipeline
+    as ordinary messages, so RBAC, rate limiting, channel context, and
+    checkpointing are inherited rather than reimplemented.
+
+    Env: ``LANGCLAW__WORKFLOWS__ENABLED=true``
+    """
+
+    enabled: bool = False
+    """Enable the Workflow primitive.  Off by default — registering workflows
+    is inert until this is set."""
+
+    max_concurrent_runs: int = 16
+    """Global ceiling on simultaneously-running workflow runs across the host,
+    regardless of any single workflow's own budget."""
+
+    max_steps_per_run: int = 1000
+    """Hard backstop on total steps a single run may execute.  Guards against a
+    runaway loop in an operator-authored body."""
+
+    max_depth: int = 2
+    """Maximum nesting depth — how many levels a workflow may invoke other
+    workflows.  Bounds recursive fan-out."""
+
+    resume_on_startup: bool = False
+    """When ``True``, incomplete runs persisted in the checkpointer are resumed
+    on process startup (replaying completed steps).  Off by default."""
 
 
 class ToolsConfig(BaseModel):
@@ -631,6 +672,7 @@ class LangclawConfig(BaseSettings):
     agents: AgentConfig = Field(default_factory=AgentConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     interpreter: InterpreterConfig = Field(default_factory=InterpreterConfig)
+    workflows: WorkflowsConfig = Field(default_factory=WorkflowsConfig)
     permissions: PermissionsConfig = Field(default_factory=PermissionsConfig)
     checkpointer: CheckpointerConfig = Field(default_factory=CheckpointerConfig)
     bus: BusConfig = Field(default_factory=BusConfig)

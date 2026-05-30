@@ -31,6 +31,11 @@ from langclaw.gateway.commands import CommandContext, CommandRouter
 from langclaw.gateway.utils import attachments_to_content_blocks
 from langclaw.session.manager import SessionManager
 from langclaw.utils import preview_message
+from langclaw.workflows.progress import (
+    render_workflow_progress,
+    reset_progress_sink,
+    set_progress_sink,
+)
 
 
 class GatewayManager:
@@ -682,6 +687,36 @@ class GatewayManager:
                 role = user_roles.get(username)
         return role if role is not None else perms.default_role
 
+    def _make_workflow_progress_sink(
+        self, msg: InboundMessage, channel: BaseChannel
+    ) -> Callable[[dict], None]:
+        """Build a sink that projects workflow progress events to *channel*.
+
+        Each event becomes a standalone ``tool_progress`` ``OutboundMessage``
+        (no ``tool_call_id``, so channels render it immediately). The send is
+        fire-and-forget — progress must never block or fail the workflow.
+        """
+
+        def _sink(event: dict) -> None:
+            content = render_workflow_progress(event)
+            if not content:
+                return
+            out = OutboundMessage(
+                channel=msg.channel,
+                user_id=msg.user_id,
+                context_id=msg.context_id,
+                chat_id=msg.chat_id,
+                content=content,
+                type="tool_progress",
+                metadata={
+                    "workflow_event": event.get("kind", ""),
+                    "workflow": event.get("workflow", ""),
+                },
+            )
+            asyncio.create_task(channel.send(out))
+
+        return _sink
+
     async def _handle(self, msg: InboundMessage) -> None:
         """
         Full message handling pipeline:
@@ -780,6 +815,10 @@ class GatewayManager:
         # contents for this agent's workspace before streaming.
         active_agent = await self._ensure_agent_fresh(agent_name)
 
+        # Project in-tool workflow progress (phases / Mode-2 authored body) to
+        # this channel as standalone tool_progress lines. Request-scoped via a
+        # ContextVar the runtime reads — no plumbing threaded through the agent.
+        progress_token = set_progress_sink(self._make_workflow_progress_sink(msg, channel))
         try:
             stream_kwargs: dict[str, Any] = {
                 "config": runnable_config,
@@ -853,3 +892,5 @@ class GatewayManager:
                 logger.exception(
                     "Failed to send error response.",
                 )
+        finally:
+            reset_progress_sink(progress_token)
