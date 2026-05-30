@@ -1,15 +1,71 @@
 name: Publish to PyPI
 
+# Tag, build, publish to PyPI, and cut a GitHub Release — all in one run on
+# push to main. Consolidated from the old auto-tag-release.yml + publish.yml:
+# previously the bot-pushed tag (GITHUB_TOKEN) never triggered the separate
+# publish workflow, so PyPI silently froze while tags advanced. Doing it in a
+# single workflow triggered by the merge event avoids that gap entirely.
+#
+# The filename (publish.yml) and `pypi` environment are kept unchanged so the
+# existing PyPI trusted-publisher (OIDC) config keeps matching.
+
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
 
 jobs:
+  tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      new: ${{ steps.tag.outputs.new }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from pyproject.toml
+        id: version
+        run: |
+          VERSION=$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+          print(data["project"]["version"])
+          PY
+          )
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag if missing
+        id: tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on origin. Nothing to release."
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "new=true" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: tag
+    if: needs.tag.outputs.new == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
 
       - uses: actions/setup-python@v5
         with:
@@ -27,7 +83,8 @@ jobs:
           path: dist/
 
   publish:
-    needs: build
+    needs: [tag, build]
+    if: needs.tag.outputs.new == 'true'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -41,7 +98,8 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
 
   github-release:
-    needs: publish
+    needs: [tag, publish]
+    if: needs.tag.outputs.new == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -51,4 +109,4 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" --generate-notes
+        run: gh release create "${{ needs.tag.outputs.tag }}" --generate-notes
