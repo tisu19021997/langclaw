@@ -34,7 +34,7 @@ from langclaw.config.schema import (
 )
 from langclaw.context import LangclawContext
 from langclaw.gateway.commands import CommandContext
-from langclaw.workflows import WorkflowRegistry, WorkflowSpec
+from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -108,6 +108,7 @@ class Langclaw:
         self._subagents: list[dict[str, Any]] = []
         self._named_agents: dict[str, dict[str, Any]] = {}
         self._workflows = WorkflowRegistry()
+        self._workflow_runtime: WorkflowRuntime | None = None
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None
@@ -661,7 +662,23 @@ class Langclaw:
             model=model,
             context_schema=context_schema,
             display_name=effective_config.agents.display_name or None,
+            workflow_registry=self._workflows if len(self._workflows) else None,
+            workflow_runtime=self._get_workflow_runtime(effective_config),
         )
+
+    def _get_workflow_runtime(self, effective_config: LangclawConfig) -> WorkflowRuntime | None:
+        """Lazily build (and cache) the shared :class:`WorkflowRuntime`.
+
+        Returns ``None`` when workflows are disabled or none are registered, so
+        the builder leaves the workflow tools off entirely.  Cached so every
+        agent (default + named) shares one runtime — i.e. one global
+        ``max_concurrent_runs`` ceiling.
+        """
+        if not effective_config.workflows.enabled or not len(self._workflows):
+            return None
+        if self._workflow_runtime is None:
+            self._workflow_runtime = WorkflowRuntime(effective_config.workflows)
+        return self._workflow_runtime
 
     # ------------------------------------------------------------------
     # Gateway (high-level API)

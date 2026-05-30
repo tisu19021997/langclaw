@@ -150,6 +150,61 @@ def test_app_workflow_decorator_registers():
     assert spec.fn is digest
 
 
+def test_app_create_agent_wires_registered_workflows(monkeypatch):
+    """The production agent-build path (run -> create_agent) must expose
+    registered workflows as workflow_<name> tools, not just the builder when
+    called directly with explicit kwargs."""
+    import deepagents
+
+    from langclaw import Langclaw
+    from langclaw.config.schema import LangclawConfig
+
+    captured: dict = {}
+
+    def fake_create_deep_agent(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(deepagents, "create_deep_agent", fake_create_deep_agent)
+
+    app = Langclaw(config=LangclawConfig(interpreter={"enabled": False}))
+    app.config.workflows.enabled = True
+
+    @app.workflow("digest", description="PR digest")
+    async def digest(ctx, inp):
+        return "ok"
+
+    app.create_agent(model=object())
+    tool_names = [getattr(t, "name", "") for t in captured["tools"]]
+    assert "workflow_digest" in tool_names
+
+
+def test_app_create_agent_omits_workflows_when_disabled(monkeypatch):
+    import deepagents
+
+    from langclaw import Langclaw
+    from langclaw.config.schema import LangclawConfig
+
+    captured: dict = {}
+
+    def fake_create_deep_agent(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(deepagents, "create_deep_agent", fake_create_deep_agent)
+
+    app = Langclaw(config=LangclawConfig(interpreter={"enabled": False}))
+    # workflows disabled (default)
+
+    @app.workflow("digest", description="PR digest")
+    async def digest(ctx, inp):
+        return "ok"
+
+    app.create_agent(model=object())
+    tool_names = [getattr(t, "name", "") for t in captured["tools"]]
+    assert not any(n.startswith("workflow_") for n in tool_names)
+
+
 def test_app_workflow_collides_with_command():
     from langclaw import Langclaw
     from langclaw.gateway.commands import CommandContext  # noqa: F401
