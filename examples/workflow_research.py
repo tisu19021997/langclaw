@@ -125,12 +125,24 @@ async def research(ctx, inp: ResearchBrief) -> str:
 
 # ---------------------------------------------------------------------------
 # RBAC (optional) — the `workflows` axis is DEFAULT-DENY, like `subagents`.
-# Without this line and permissions disabled, every workflow is invocable.
-# With permissions on, a role must explicitly list the workflow (or "*").
+#
+# IMPORTANT: defining ANY role auto-enables the permissions system. Once on,
+# every user resolves to `permissions.default_role` (schema default: "viewer")
+# unless mapped via a channel's `user_roles`. A role that does not list the
+# workflow — or an undefined role like the default "viewer" — is DENIED, and
+# the `workflow_<name>` tool is stripped before the model ever sees it (so the
+# agent silently falls back to a plain web_search or the `task` subagent).
+#
 # `app.role()` takes all three axes — tools / subagents / workflows.
 # ---------------------------------------------------------------------------
 
 app.role("analyst", tools=["*"], workflows=["research"])
+
+# Make the granted role the default so a fresh Telegram/Discord user actually
+# reaches the workflow. In production you would instead map specific user IDs
+# to roles via `channels.<name>.user_roles`. Comment BOTH lines out to leave
+# permissions disabled — then every workflow is invocable with no RBAC.
+app.config.permissions.default_role = "analyst"
 
 
 # ---------------------------------------------------------------------------

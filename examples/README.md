@@ -55,6 +55,13 @@ export LANGCLAW__WORKFLOWS__ENABLED=true
 python examples/workflow_research.py
 ```
 
+> If you skip the env var, the `workflow_research` tool is never built and the
+> agent silently uses `web_search` / the `task` subagent instead. The
+> `workflows` RBAC axis is also **default-deny**: defining any `app.role()`
+> auto-enables permissions, so a user who resolves to an ungranted role gets the
+> workflow tool stripped before the model sees it. This example sets
+> `default_role = "analyst"` so a fresh chat user reaches the workflow.
+
 Then message the bot:
 
 - *"Run the research workflow on quantum computing"* — the agent calls `workflow_research` with `{"topic": "quantum computing"}`; the workflow fans out one `web_search` per angle in parallel, then synthesises a brief
