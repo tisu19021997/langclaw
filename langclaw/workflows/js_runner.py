@@ -26,6 +26,7 @@ depending on ``langchain_quickjs._ptc``.
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Any
@@ -35,8 +36,12 @@ from langclaw.workflows.context import WorkflowStepError
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
+    from langclaw.workflows.registry import WorkflowSpec
+
 #: A script runner executes a resolved body against the validated input.
 ScriptRunnerFn = Callable[[str, Any], Awaitable[Any]]
+#: An author produces a workflow's JS body from its spec + validated input.
+ScriptAuthorFn = Callable[["WorkflowSpec", Any], Awaitable[str]]
 
 # Sandbox defaults — generous; the workflow's own ``timeout_s`` is the outer
 # bound (the runtime wraps the run in ``asyncio.wait_for``).
@@ -99,6 +104,102 @@ def build_workflow_script_runner(
             registry.evict(thread_id)
 
     return run
+
+
+def build_workflow_author(
+    model: Any,
+    *,
+    ptc_tool_names: Sequence[str] = (),
+) -> ScriptAuthorFn:
+    """Build an ``author`` that asks *model* to write a workflow's JS body.
+
+    The Mode-2 counterpart to :func:`build_workflow_script_runner`: it renders
+    the workflow's contract (task description, input value + schema, output
+    schema, allowed tools, and the sandbox ABI) into a prompt, calls the model
+    once, and returns the extracted JavaScript body.
+
+    Args:
+        model:          A chat model exposing ``await model.ainvoke(prompt)``.
+        ptc_tool_names: Bare tool names the body may call; rendered camelCased
+                        (``tools.<camelName>``) so they match the runner's PTC
+                        surface. Pass the role-filtered, ``uses_tools``-narrowed set.
+
+    Returns:
+        An async ``(spec, validated_input) -> script`` callable suitable as the
+        ``author`` argument of ``WorkflowRuntime.start_run``.
+    """
+
+    async def author(spec: WorkflowSpec, validated_input: Any) -> str:
+        prompt = _render_authoring_prompt(spec, validated_input, ptc_tool_names)
+        response = await model.ainvoke(prompt)
+        return _extract_js(_message_text(response))
+
+    return author
+
+
+def _render_authoring_prompt(
+    spec: WorkflowSpec,
+    validated_input: Any,
+    ptc_tool_names: Sequence[str],
+) -> str:
+    """Render the contract + sandbox ABI into a single authoring prompt."""
+    tools_line = (
+        ", ".join(f"tools.{_camel(n)}({{...}})" for n in ptc_tool_names)
+        if ptc_tool_names
+        else "(none — use only `inp` and plain JavaScript)"
+    )
+    out_schema = (
+        json.dumps(spec.output_model.model_json_schema())
+        if getattr(spec.output_model, "model_json_schema", None)
+        else "(any JSON-serializable value)"
+    )
+    in_value = json.dumps(_to_jsonable(validated_input))
+    return (
+        "Write the body of a workflow as a sandboxed JavaScript program.\n\n"
+        f"## Task\n{spec.description}\n\n"
+        f"## Input\nThe run input is available as the global `inp`:\n{in_value}\n\n"
+        f"## Allowed tools\nCall ONLY these (await each):\n{tools_line}\n\n"
+        f"## Required output\nThe program's final expression must produce this "
+        f"shape:\n{out_schema}\n\n"
+        "## Rules (the sandbox ABI)\n"
+        "- Tools live on `tools` in camelCase; await every call.\n"
+        "- No filesystem, network, real clock, Date, or Math.random.\n"
+        "- End on a single final expression — NOT a `return` (top-level return "
+        "is a syntax error).\n"
+        "- For structured output, end on `JSON.stringify(value)`; a bare object "
+        "marshals to a non-JSON string.\n\n"
+        "Output ONLY the JavaScript body — no prose, no markdown fences."
+    )
+
+
+def _message_text(response: Any) -> str:
+    """Extract text from a chat-model response (AIMessage-like or str)."""
+    content = getattr(response, "content", response)
+    if isinstance(content, str):
+        return content
+    # Some models return a list of content blocks; concatenate text parts.
+    if isinstance(content, list):
+        parts = [
+            block.get("text", "") if isinstance(block, dict) else str(block) for block in content
+        ]
+        return "".join(parts)
+    return str(content)
+
+
+_FENCE_RE = re.compile(r"```(?:[a-zA-Z]+)?\s*\n(.*?)\n```", re.DOTALL)
+
+
+def _extract_js(text: str) -> str:
+    """Return the JS body, stripping a single markdown code fence if present."""
+    match = _FENCE_RE.search(text)
+    if match:
+        return match.group(1).strip()
+    return text.strip()
+
+
+def _camel(name: str) -> str:
+    """``snake_case`` / ``kebab-case`` → ``camelCase`` (matches the PTC surface)."""
+    return re.sub(r"[-_]+(\w)", lambda m: m.group(1).upper(), name)
 
 
 def _to_jsonable(value: Any) -> Any:

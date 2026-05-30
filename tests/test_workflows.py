@@ -1199,3 +1199,68 @@ async def test_script_runner_disallowed_tool_is_unavailable():
     runner = build_workflow_script_runner([])  # no tools exposed
     with pytest.raises(WorkflowStepError):
         await runner("await tools.webSearch({query: 'x'});", None)
+
+
+# ---------------------------------------------------------------------------
+# 6d — Mode 2: the authoring prompt + model call (slice B2)
+# ---------------------------------------------------------------------------
+
+
+class _FakeModel:
+    """Records the prompt and returns a canned AIMessage-like response."""
+
+    def __init__(self, content: str) -> None:
+        self._content = content
+        self.seen_prompt: str | None = None
+
+    async def ainvoke(self, prompt, *_, **__):
+        self.seen_prompt = prompt if isinstance(prompt, str) else str(prompt)
+        return SimpleNamespace(content=self._content)
+
+
+async def test_author_extracts_js_from_fenced_response():
+    """The author strips a ```js fence and returns the bare script body."""
+    from langclaw.workflows.js_runner import build_workflow_author
+    from langclaw.workflows.registry import WorkflowSpec
+
+    model = _FakeModel("```javascript\nJSON.stringify({ok: inp.topic});\n```")
+    author = build_workflow_author(model)
+    spec = WorkflowSpec(
+        name="research", fn=lambda c, i: None, description="Research it.", mode="llm_authored"
+    )
+
+    script = await author(spec, {"topic": "AI"})
+    assert script == "JSON.stringify({ok: inp.topic});"
+
+
+async def test_author_prompt_carries_contract():
+    """The authoring prompt includes the task description, the allowlisted tool
+    names, and the run input so the model can write a correct body."""
+    from langclaw.workflows.js_runner import build_workflow_author
+    from langclaw.workflows.registry import WorkflowSpec
+
+    model = _FakeModel("inp.topic;")
+    author = build_workflow_author(model, ptc_tool_names=["web_search", "web_fetch"])
+    spec = WorkflowSpec(
+        name="research",
+        fn=lambda c, i: None,
+        description="Gather angles and synthesize.",
+        mode="llm_authored",
+    )
+
+    await author(spec, {"topic": "solar"})
+    prompt = model.seen_prompt
+    assert "Gather angles and synthesize." in prompt
+    assert "webSearch" in prompt  # camelCased PTC names
+    assert "solar" in prompt  # the concrete input
+    assert "JSON.stringify" in prompt  # the output ABI nudge
+
+
+async def test_author_passes_through_unfenced_response():
+    from langclaw.workflows.js_runner import build_workflow_author
+    from langclaw.workflows.registry import WorkflowSpec
+
+    model = _FakeModel("  inp.n * 2;  ")
+    author = build_workflow_author(model)
+    spec = WorkflowSpec(name="x", fn=lambda c, i: None, description="d", mode="llm_authored")
+    assert await author(spec, {"n": 3}) == "inp.n * 2;"
