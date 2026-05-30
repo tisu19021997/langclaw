@@ -26,7 +26,10 @@ from langclaw.config.schema import LangclawConfig
 from langclaw.context import LangclawContext
 from langclaw.middleware.channel_context import ChannelContextMiddleware
 from langclaw.middleware.guardrails import ContentFilterMiddleware, PIIMiddleware
-from langclaw.middleware.permissions import build_tool_permission_middleware
+from langclaw.middleware.permissions import (
+    build_subagent_permission_middleware,
+    build_tool_permission_middleware,
+)
 from langclaw.middleware.rate_limit import RateLimitMiddleware
 from langclaw.utils import to_virtual_path  # for extra_skills conversion
 
@@ -107,6 +110,9 @@ def _build_deepagent_subagents(
             sa_middleware.append(
                 build_tool_permission_middleware(config.permissions),
             )
+            sa_middleware.append(
+                build_subagent_permission_middleware(config.permissions),
+            )
 
         sa: dict[str, Any] = {
             "name": spec["name"],
@@ -148,6 +154,9 @@ def _prepare_external_subagents(
         if config.permissions.enabled:
             sa_middleware.append(
                 build_tool_permission_middleware(config.permissions),
+            )
+            sa_middleware.append(
+                build_subagent_permission_middleware(config.permissions),
             )
 
         existing_mw = list(spec.get("middleware", []))
@@ -304,10 +313,11 @@ def create_claw_agent(
     # Built-in middleware stack (order matters):
     #   1. ChannelContextMiddleware  — inject channel metadata first
     #   2. ToolPermission middleware — filter tools per-user role
-    #   3. RateLimitMiddleware       — rate-check early
-    #   4. ContentFilterMiddleware   — block banned content
-    #   5. PIIMiddleware             — redact PII
-    #   6. caller-provided extras
+    #   3. Subagent gate             — enforce RoleConfig.subagents on `task`
+    #   4. RateLimitMiddleware       — rate-check early
+    #   5. ContentFilterMiddleware   — block banned content
+    #   6. PIIMiddleware             — redact PII
+    #   7. caller-provided extras
     middleware: list[Any] = [
         ChannelContextMiddleware(),
     ]
@@ -315,6 +325,12 @@ def create_claw_agent(
     if config.permissions.enabled:
         middleware.append(
             build_tool_permission_middleware(config.permissions),
+        )
+        # Enforce the per-role subagent allowlist on model-invoked `task` calls.
+        # The tool-permission filter governs *which tools* are visible; this
+        # governs *which subagent_type* a visible `task` tool may target.
+        middleware.append(
+            build_subagent_permission_middleware(config.permissions),
         )
 
     # Code interpreter (opt-in). Placed *after* the permission filter so the

@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
-from langclaw.middleware.permissions import allowed_tool_names
+from langclaw.middleware.permissions import allowed_subagents, allowed_tool_names
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -125,7 +125,14 @@ def resolve_ptc_allowlist(
     4. Per-role narrowing (when ``role`` + an enabled ``permissions_config``
        are given): intersect with
        :func:`~langclaw.middleware.permissions.allowed_tool_names` so the PTC
-       surface is a subset of the role's permitted tools.
+       surface is a subset of the role's permitted tools.  As part of this
+       step the ``task`` (subagent-delegation) tool is dropped from the script
+       surface when the role may use *zero* subagents — PTC calls bypass the
+       ``ToolNode``, so this coarse gate is the script-side counterpart to the
+       per-type ``task`` gate enforced for model-invoked calls by
+       :func:`~langclaw.middleware.permissions.build_subagent_permission_middleware`.
+       Both read :func:`~langclaw.middleware.permissions.allowed_subagents` so
+       they cannot drift (finer per-type PTC gating is tracked in #37).
     5. Reject camelCase identifier collisions.
 
     Args:
@@ -153,6 +160,10 @@ def resolve_ptc_allowlist(
 
     if role is not None and permissions_config is not None and permissions_config.enabled:
         surface &= allowed_tool_names(permissions_config, role, universe)
+        # Coarse subagent gate: PTC `tools.task(...)` bypasses the ToolNode, so
+        # drop `task` entirely when the role may reach no subagents at all.
+        if "task" in surface and not allowed_subagents(permissions_config, role):
+            surface = surface - {"task"}
 
     _reject_ptc_name_collisions(surface)
     return sorted(surface)

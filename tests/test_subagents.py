@@ -248,7 +248,8 @@ class TestBuildDeepagentSubagents:
         ]
         config = self._make_config(permissions_enabled=True)
         result = _build_deepagent_subagents(specs, [], config, LangclawContext)
-        assert len(result[0]["middleware"]) == 2
+        # channel-context + tool-permission + subagent-gate
+        assert len(result[0]["middleware"]) == 3
 
     def test_middleware_no_rbac_when_disabled(self):
         from langclaw.agents.builder import _build_deepagent_subagents
@@ -536,7 +537,8 @@ class TestPrepareExternalSubagents:
         ]
         config = self._make_config(permissions_enabled=True)
         result = _prepare_external_subagents(specs, config)
-        assert len(result[0]["middleware"]) == 2
+        # channel-context + tool-permission + subagent-gate
+        assert len(result[0]["middleware"]) == 3
 
     def test_subagent_no_rbac_when_disabled(self):
         from langclaw.agents.builder import _prepare_external_subagents

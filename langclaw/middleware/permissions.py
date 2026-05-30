@@ -20,11 +20,11 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
-from langchain.agents.middleware import wrap_model_call
+from langchain.agents.middleware import wrap_model_call, wrap_tool_call
 from loguru import logger
 
 if TYPE_CHECKING:
-    from langchain.agents.middleware import ModelRequest, ModelResponse
+    from langchain.agents.middleware import ModelRequest, ModelResponse, ToolCallRequest
 
     from langclaw.config.schema import PermissionsConfig
 
@@ -105,6 +105,75 @@ def check_subagent_permission(
     )
 
 
+def build_subagent_permission_middleware(
+    config: PermissionsConfig,
+) -> Callable:
+    """Return a ``@wrap_tool_call`` middleware enforcing ``RoleConfig.subagents``.
+
+    The deepagents ``task`` tool (subagent delegation) is built by
+    ``SubAgentMiddleware`` and never sees langclaw's RBAC on its own — so a
+    role's :attr:`~langclaw.config.schema.RoleConfig.subagents` allowlist was
+    declared but unenforced.  This middleware closes that gap on the
+    *model-invoked* path: it intercepts every ``task`` call, resolves the
+    caller's role, and short-circuits a disallowed ``subagent_type`` with an
+    error :class:`~langchain_core.messages.ToolMessage` (status ``"error"``)
+    instead of letting the subagent run — and without raising into the agent
+    loop.
+
+    Per-type granularity lives here.  The *PTC* path (``tools.task(...)`` inside
+    an ``eval`` script) bypasses the ``ToolNode``, so it is gated more coarsely
+    in :func:`langclaw.interpreter.resolve_ptc_allowlist` (``task`` is dropped
+    from the script surface entirely when the role may use zero subagents).
+    Both paths read the same :func:`allowed_subagents` /
+    :func:`check_subagent_permission` helpers so they cannot drift.  Unifying
+    the two enforcement seams is tracked in issue #37.
+    """
+
+    @wrap_tool_call
+    async def _subagent_gate(
+        request: ToolCallRequest,
+        handler: Callable,
+    ):
+        tool_call = request.tool_call
+        if tool_call.get("name") != "task":
+            return await _maybe_await(handler(request))
+
+        subagent_type = (tool_call.get("args") or {}).get("subagent_type", "")
+
+        runtime = getattr(request, "runtime", None)
+        ctx = getattr(runtime, "context", None) if runtime else None
+        role = getattr(ctx, "user_role", config.default_role) if ctx else config.default_role
+
+        allowed = allowed_subagents(config, role)
+        error = check_subagent_permission(subagent_type, allowed)
+        if error is None:
+            return await _maybe_await(handler(request))
+
+        logger.warning(
+            f"Subagent gate: role={role!r} blocked subagent {subagent_type!r}",
+        )
+        from langchain_core.messages import ToolMessage
+
+        return ToolMessage(
+            content=error,
+            tool_call_id=tool_call.get("id", ""),
+            status="error",
+        )
+
+    return _subagent_gate
+
+
+async def _maybe_await(value):
+    """Await *value* if it is awaitable, else return it.
+
+    ``handler`` may be sync (returning a ``ToolMessage``) or async (returning a
+    coroutine); normalise both so the gate works under either driver.
+    """
+    if hasattr(value, "__await__"):
+        return await value
+    return value
+
+
 def build_tool_permission_middleware(
     config: PermissionsConfig,
 ) -> Callable:
@@ -147,6 +216,7 @@ def build_tool_permission_middleware(
 __all__ = [
     "allowed_subagents",
     "allowed_tool_names",
+    "build_subagent_permission_middleware",
     "build_tool_permission_middleware",
     "check_subagent_permission",
 ]
