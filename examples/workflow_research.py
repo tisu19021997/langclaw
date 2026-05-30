@@ -111,9 +111,9 @@ class ResearchBrief(BaseModel):
     "research",
     input=ResearchBrief,
     description=(
-        "Research a topic across several angles in parallel, then synthesise "
-        "a short brief. Prefer this over ad-hoc searches for anything that "
-        "benefits from multiple perspectives."
+        "THE DEFAULT research workflow — use this for any normal research "
+        "request. Runs a fixed pipeline: one parallel web_search per angle, then "
+        "a synthesis step. Prefer this over `research_auto`."
     ),
     max_concurrency=4,
 )
@@ -153,9 +153,10 @@ async def research(ctx, inp: ResearchBrief) -> str:
     input=ResearchBrief,
     uses_tools=["web_search"],
     description=(
-        "Research `inp.topic` across the angles in `inp.angles`. For each angle, "
-        "call web_search with a query combining the topic and the angle, then "
-        "assemble a short markdown brief as the result."
+        "EXPERIMENTAL variant of `research` whose body is LLM-authored at runtime. "
+        "Do NOT use for normal requests — prefer `research`. Only reach for this "
+        "when the user explicitly asks for the auto/LLM-authored version. For each "
+        "angle it searches and assembles a markdown brief."
     ),
     timeout_s=60,
 )
