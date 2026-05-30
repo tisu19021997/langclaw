@@ -449,3 +449,217 @@ async def test_resume_distinct_runs_do_not_share_cache():
     b = await StepMemoizer(store, "run2").wrap(req, runner_b)
     assert a == "A"
     assert b == "B"  # different run_id → not served from run1's cache
+
+
+# ---------------------------------------------------------------------------
+# 6 — Bridge: workflow_<name> tool factory + default toolset executor
+# ---------------------------------------------------------------------------
+
+
+def _fake_tool(name: str, fn):
+    """A minimal async tool stand-in exposing ``.name`` and ``.ainvoke``.
+
+    The executor only reads ``.name`` and awaits ``.ainvoke(args_dict)``, so a
+    tiny shim avoids langchain's docstring/schema requirements for test fns.
+    """
+
+    class _FakeTool:
+        def __init__(self) -> None:
+            self.name = name
+
+        async def ainvoke(self, args: dict):
+            return await fn(**args)
+
+    return _FakeTool()
+
+
+@pytest.mark.asyncio
+async def test_toolset_executor_invokes_live_tool():
+    from langclaw.workflows.bridge import build_toolset_executor
+
+    async def echo(text: str) -> str:
+        return f"echo:{text}"
+
+    executor = build_toolset_executor([_fake_tool("echo", echo)])
+
+    from langclaw.workflows.context import StepRequest
+
+    req = StepRequest(kind="tool", target="echo", payload={"text": "hi"}, step_id="p#0")
+    out = await executor(req)
+    assert "echo:hi" in str(out)
+
+
+@pytest.mark.asyncio
+async def test_toolset_executor_unknown_tool_raises_step_error():
+    from langclaw.workflows.bridge import build_toolset_executor
+    from langclaw.workflows.context import StepRequest, WorkflowStepError
+
+    executor = build_toolset_executor([])
+    req = StepRequest(kind="tool", target="nope", payload={}, step_id="p#0")
+    with pytest.raises(WorkflowStepError, match="(?i)tool 'nope'"):
+        await executor(req)
+
+
+@pytest.mark.asyncio
+async def test_toolset_executor_subagent_routes_through_task():
+    from langclaw.workflows.bridge import build_toolset_executor
+    from langclaw.workflows.context import StepRequest
+
+    seen = {}
+
+    async def task(subagent_type: str, description: str) -> str:
+        seen["type"] = subagent_type
+        seen["desc"] = description
+        return "delegated"
+
+    executor = build_toolset_executor([_fake_tool("task", task)])
+    req = StepRequest(kind="subagent", target="researcher", payload="go deep", step_id="p#0")
+    out = await executor(req)
+    assert "delegated" in str(out)
+    assert seen["type"] == "researcher"
+    assert seen["desc"] == "go deep"
+
+
+def test_make_workflow_tools_names_and_count():
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.bridge import make_workflow_tools
+
+    reg = WorkflowRegistry()
+
+    async def body(ctx, inp):
+        return "ok"
+
+    reg.register(WorkflowSpec(name="digest", fn=body, description="PR digest"))
+    reg.register(WorkflowSpec(name="report", fn=body, description="Report"))
+
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+
+    async def executor_factory(_runtime):
+        async def _exec(_req):
+            return "x"
+
+        return _exec
+
+    tools = make_workflow_tools(reg, rt, executor_factory=executor_factory)
+    names = sorted(t.name for t in tools)
+    assert names == ["workflow_digest", "workflow_report"]
+
+
+@pytest.mark.asyncio
+async def test_make_workflow_tool_runs_workflow_and_returns_output():
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.bridge import make_workflow_tools
+
+    reg = WorkflowRegistry()
+
+    async def body(ctx, inp):
+        a = await ctx.tool("greet", who=inp["who"])
+        return {"result": a}
+
+    reg.register(WorkflowSpec(name="hello", fn=body))
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+
+    async def executor_factory(_tool_runtime):
+        async def _exec(request):
+            return f"hi {request.payload['who']}"
+
+        return _exec
+
+    tools = make_workflow_tools(reg, rt, executor_factory=executor_factory)
+    tool = next(t for t in tools if t.name == "workflow_hello")
+
+    result = await tool.ainvoke({"workflow_input": {"who": "sam"}})
+    assert "hi sam" in str(result)
+
+
+@pytest.mark.asyncio
+async def test_make_workflow_tool_returns_error_string_on_failure():
+    """A failing workflow returns an error string, never raises into the agent."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.bridge import make_workflow_tools
+
+    reg = WorkflowRegistry()
+
+    async def body(ctx, inp):
+        raise RuntimeError("kaboom")
+
+    reg.register(WorkflowSpec(name="boom", fn=body))
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+
+    async def executor_factory(_tool_runtime):
+        async def _exec(_req):
+            return "x"
+
+        return _exec
+
+    tools = make_workflow_tools(reg, rt, executor_factory=executor_factory)
+    tool = next(t for t in tools if t.name == "workflow_boom")
+
+    result = await tool.ainvoke({"workflow_input": {}})
+    assert "error" in str(result).lower()
+    assert "kaboom" in str(result)
+
+
+# ---------------------------------------------------------------------------
+# 7 — Builder wiring: workflow tools added only when enabled
+# ---------------------------------------------------------------------------
+
+
+def _capture_deep_agent(monkeypatch):
+    import deepagents
+
+    captured: dict = {}
+
+    def fake_create_deep_agent(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(deepagents, "create_deep_agent", fake_create_deep_agent)
+    return captured
+
+
+def test_builder_adds_workflow_tools_when_enabled(monkeypatch):
+    from langclaw.agents.builder import create_claw_agent
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
+
+    reg = WorkflowRegistry()
+
+    async def body(ctx, inp):
+        return "ok"
+
+    reg.register(WorkflowSpec(name="digest", fn=body))
+
+    cfg = LangclawConfig(interpreter={"enabled": False})
+    cfg.workflows.enabled = True
+    rt = WorkflowRuntime(cfg.workflows)
+
+    captured = _capture_deep_agent(monkeypatch)
+    create_claw_agent(cfg, model=object(), workflow_registry=reg, workflow_runtime=rt)
+    tool_names = [getattr(t, "name", "") for t in captured["tools"]]
+    assert "workflow_digest" in tool_names
+
+
+def test_builder_omits_workflow_tools_when_disabled(monkeypatch):
+    from langclaw.agents.builder import create_claw_agent
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
+
+    reg = WorkflowRegistry()
+
+    async def body(ctx, inp):
+        return "ok"
+
+    reg.register(WorkflowSpec(name="digest", fn=body))
+
+    cfg = LangclawConfig(interpreter={"enabled": False})
+    cfg.workflows.enabled = False
+    rt = WorkflowRuntime(cfg.workflows)
+
+    captured = _capture_deep_agent(monkeypatch)
+    create_claw_agent(cfg, model=object(), workflow_registry=reg, workflow_runtime=rt)
+    tool_names = [getattr(t, "name", "") for t in captured["tools"]]
+    assert not any(n.startswith("workflow_") for n in tool_names)

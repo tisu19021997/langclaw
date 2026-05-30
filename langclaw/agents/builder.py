@@ -185,6 +185,8 @@ def create_claw_agent(
     context_schema: type[LangclawContext] | None = None,
     agent_name: str | None = None,
     display_name: str | None = None,
+    workflow_registry: Any | None = None,
+    workflow_runtime: Any | None = None,
 ) -> CompiledStateGraph:
     """
     Create a langclaw deep agent backed by ``deepagents.create_deep_agent``.
@@ -283,6 +285,30 @@ def create_claw_agent(
         tools += extra_tool_objects
     else:
         tools = builtin_tools + extra_tool_objects
+
+    # Workflow primitive (opt-in). When enabled and a populated registry is
+    # provided, expose each registered workflow as a `workflow_<name>` tool.
+    # The default step executor closes over the (final) live toolset, so a
+    # workflow's `ctx.tool` / `ctx.subagent` steps reach exactly the tools the
+    # agent itself has. Inert unless `config.workflows.enabled`.
+    if (
+        config.workflows.enabled
+        and workflow_registry is not None
+        and workflow_runtime is not None
+        and len(workflow_registry) > 0
+    ):
+        from langclaw.workflows import build_toolset_executor, make_workflow_tools
+
+        _live_tools = tools
+
+        async def _workflow_executor_factory(_tool_runtime: Any) -> Any:
+            return build_toolset_executor(_live_tools)
+
+        tools = tools + make_workflow_tools(
+            workflow_registry,
+            workflow_runtime,
+            executor_factory=_workflow_executor_factory,
+        )
 
     agents_md = workspace_dir / "AGENTS.md"
     if not agents_md.exists():
