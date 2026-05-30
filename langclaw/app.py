@@ -304,7 +304,11 @@ class Langclaw:
                              fields become the tool's argument schema, so add
                              ``Field(description=...)`` to tell the LLM *what* to pass.
             output:          Optional Pydantic model validating the run output.
-            mode:            ``"python"`` (default) or ``"llm_authored"`` (Mode 2).
+            mode:            ``"python"`` (default, recommended — you author the
+                             body; reviewed, typed, testable) or ``"llm_authored"``
+                             (Mode 2, **experimental** — the LLM authors the body
+                             from this contract; an escape hatch for variable,
+                             low-stakes, supervised tasks, not a peer of python).
             max_steps:       Per-workflow step budget (``None`` → global default).
             max_concurrency: Fan-out width for ``ctx.parallel``.
             timeout_s:       Per-run wall-clock budget in seconds.

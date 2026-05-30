@@ -64,8 +64,8 @@ python examples/workflow_research.py
 
 The example registers the **same job two ways**:
 
-- `research` — `mode="python"`: the steps, fan-out, and phases are fixed Python
-- `research_auto` — `mode="llm_authored"` (**Mode 2**): you declare only the contract (typed input, `uses_tools` allowlist, budget, description); the LLM authors the JS body on first run, which is then frozen and replayed on resume and runs in the QuickJS sandbox over the allowlist
+- `research` — `mode="python"` (**the recommended path**): the steps, fan-out, and phases are fixed Python — reviewed, typed, unit-testable, deterministic. This is how you should write workflows whose shape you know. When the *composition* varies per call but the building blocks don't, let the agent compose registered workflows via **Mode 1** (PTC, interpreter on) rather than reaching for Mode 2.
+- `research_auto` — `mode="llm_authored"` (**Mode 2 — experimental**): you declare only the contract (typed input, `uses_tools` allowlist, budget, description) and the LLM authors the JS body, frozen per run and run in the QuickJS sandbox over the allowlist. It's an escape hatch for genuinely-variable, low-stakes, supervised tasks — **not** a peer of the python path: the generated body isn't unit-testable, re-authors on every new run (so it's only deterministic within a run), and is codegen running without review. Prefer python or Mode 1 unless you specifically need it.
 
 Then message the bot:
 

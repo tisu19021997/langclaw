@@ -46,11 +46,17 @@ Run
 
 This file shows two workflows over the same job:
 
-- ``research``      — ``mode="python"``: YOU author the steps (this is the default).
-- ``research_auto`` — ``mode="llm_authored"`` (Mode 2): you declare only the
-                      contract; the LLM authors the JS body on first run, it is
-                      frozen + replayed on resume, and runs in the QuickJS sandbox
-                      over the declared ``uses_tools`` allowlist.
+- ``research``      — ``mode="python"`` (**recommended**): YOU author the steps.
+                      Reviewed, typed, unit-testable, deterministic. When the
+                      composition varies per call but the steps don't, let the
+                      agent compose registered workflows via Mode 1 (PTC) instead.
+- ``research_auto`` — ``mode="llm_authored"`` (**Mode 2 — experimental**): you
+                      declare only the contract; the LLM authors the JS body,
+                      frozen per run and run in the QuickJS sandbox over the
+                      declared ``uses_tools`` allowlist. An escape hatch for
+                      genuinely-variable, low-stakes, supervised tasks — the body
+                      is not unit-testable and re-authors each new run. Prefer the
+                      python path or Mode 1 unless you specifically need it.
 
 Then message the bot
 --------------------
@@ -135,13 +141,19 @@ async def research(ctx, inp: ResearchBrief) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Mode 2 — the SAME job, but the LLM authors the body (mode="llm_authored").
+# Mode 2 (EXPERIMENTAL) — the SAME job, but the LLM authors the body.
+#
+# Prefer the python `research` above (or Mode 1) for production. Mode 2 is an
+# escape hatch: the generated body is not unit-testable, re-authors on every new
+# run (deterministic only within a run), and is codegen running without review —
+# the QuickJS sandbox + uses_tools allowlist bound the blast radius, but the
+# trade-offs are real. Use it only for variable, low-stakes, supervised tasks.
 #
 # You declare only the *contract*: the input, the allowed tools (uses_tools),
 # the budget, and a `description` that IS the spec the LLM writes the body from.
 # There is no Python orchestration here — the decorated function is a stub whose
 # body is never executed. On first run the model writes a sandboxed JS program;
-# that script is frozen and replayed on resume, so the run stays deterministic.
+# that script is frozen and replayed on resume of THAT run.
 #
 # Requires the interpreter extra (`pip install langclaw[interpreter]`) — the
 # authored body runs in the same QuickJS sandbox as `eval`, and may call ONLY
