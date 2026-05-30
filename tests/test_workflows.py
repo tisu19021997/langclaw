@@ -1134,3 +1134,68 @@ async def test_runtime_python_mode_still_requires_executor():
 
     out = await rt.start_run(spec, None, run_id="r1", executor=executor)
     assert out == "did:web_search"
+
+
+# ---------------------------------------------------------------------------
+# 6c — Mode 2: the JS script runner (real QuickJS, slice B1)
+# ---------------------------------------------------------------------------
+
+
+def _fake_async_tool(name: str, fn):
+    from langchain_core.tools import StructuredTool
+
+    return StructuredTool.from_function(coroutine=fn, name=name, description=f"{name} tool")
+
+
+async def test_script_runner_executes_authored_body_with_tool_and_input():
+    """A built runner injects the typed input as `inp`, exposes the allowlisted
+    tools as `tools.<camel>`, runs the authored JS, and returns its JSON output."""
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    async def web_search(query: str) -> str:
+        return f"HIT[{query}]"
+
+    runner = build_workflow_script_runner([_fake_async_tool("web_search", web_search)])
+    script = (
+        "const hits = [];\n"
+        "for (let i = 0; i < inp.n; i++) "
+        "{ hits.push(await tools.webSearch({query: inp.topic + ':' + i})); }\n"
+        "JSON.stringify({topic: inp.topic, hits});"
+    )
+    out = await runner(script, {"topic": "AI", "n": 2})
+    assert out == {"topic": "AI", "hits": ["HIT[AI:0]", "HIT[AI:1]"]}
+
+
+async def test_script_runner_accepts_pydantic_input():
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    class Brief(BaseModel):
+        topic: str
+
+    runner = build_workflow_script_runner([])
+    out = await runner("inp.topic.toUpperCase();", Brief(topic="solar"))
+    assert out == "SOLAR"
+
+
+async def test_script_runner_raises_workflowsteperror_on_js_error():
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.workflows.context import WorkflowStepError
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    runner = build_workflow_script_runner([])
+    with pytest.raises(WorkflowStepError):
+        await runner("nonexistentFunction();", None)
+
+
+async def test_script_runner_disallowed_tool_is_unavailable():
+    """A tool NOT in the runner's list is not on `tools` — the list IS the
+    capability allowlist (the workflow's uses_tools, role-filtered upstream)."""
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.workflows.context import WorkflowStepError
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    runner = build_workflow_script_runner([])  # no tools exposed
+    with pytest.raises(WorkflowStepError):
+        await runner("await tools.webSearch({query: 'x'});", None)

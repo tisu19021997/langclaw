@@ -43,6 +43,7 @@ from langclaw.workflows.context import (
     WorkflowContext,
     WorkflowStepError,
 )
+from langclaw.workflows.js_runner import build_workflow_script_runner
 from langclaw.workflows.registry import WorkflowRegistry, WorkflowSpec
 from langclaw.workflows.resume import InMemoryStepStore, StepMemoizer
 from langclaw.workflows.runtime import WorkflowRuntime
@@ -63,6 +64,7 @@ __all__ = [
     "WorkflowSpec",
     "WorkflowStepError",
     "build_toolset_executor",
+    "build_workflow_script_runner",
     "make_workflow_tools",
     "resolve_workflow_ptc_names",
 ]
