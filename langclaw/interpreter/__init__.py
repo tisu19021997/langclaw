@@ -368,7 +368,7 @@ def interpreter_system_prompt(
     sigs = tool_signatures(config, available_tools, role=role)
     tool_block = "\n".join(f"  - {s}" for s in sigs) or "  (none available)"
     return (
-        "## Code interpreter (`eval`)\n"
+        "<code_interpreter>\n"
         "Run a sandboxed JavaScript program via the `eval` tool, but only when real "
         "control flow is required — looping until a condition holds, retrying a "
         "failed step, fanning out over a list whose size you learn at runtime, or "
@@ -377,7 +377,8 @@ def interpreter_system_prompt(
         "use one `tools.task` call; for a trivial request, answer directly.\n\n"
         f"{_RUNTIME_ABI_RULES}\n\n"
         "Callable tools (camelCase, with argument keys and known return shapes):\n"
-        f"{tool_block}"
+        f"{tool_block}\n"
+        "</code_interpreter>"
     )
 
 
