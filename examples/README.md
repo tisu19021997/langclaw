@@ -62,12 +62,18 @@ python examples/workflow_research.py
 > workflow tool stripped before the model sees it. This example sets
 > `default_role = "analyst"` so a fresh chat user reaches the workflow.
 
+The example registers the **same job two ways**:
+
+- `research` — `mode="python"`: the steps, fan-out, and phases are fixed Python
+- `research_auto` — `mode="llm_authored"` (**Mode 2**): you declare only the contract (typed input, `uses_tools` allowlist, budget, description); the LLM authors the JS body on first run, which is then frozen and replayed on resume and runs in the QuickJS sandbox over the allowlist
+
 Then message the bot:
 
-- *"Run the research workflow on quantum computing"* — the agent calls `workflow_research` with `{"topic": "quantum computing"}`; the workflow fans out one `web_search` per angle in parallel, then synthesises a brief
+- *"Run the research workflow on quantum computing"* — calls `workflow_research` (python mode); fans out one `web_search` per angle in parallel, then synthesises a brief
+- *"Use research_auto for electric vehicles"* — calls `workflow_research_auto` (Mode 2); needs the interpreter extra (`pip install langclaw[interpreter]`), since the authored body runs in the QuickJS sandbox
 - *"Research electric vehicles and solar — use the workflow for each"* — with the interpreter on (`LANGCLAW__INTERPRETER__ENABLED=true`), the agent writes one `eval` script that calls `tools.workflowResearch(...)` per topic (Mode 1)
 
-Unlike a subagent (an LLM improvising in isolated context), a workflow's steps, fan-out, and phases are fixed Python — the LLM only chooses *when* to run it and with *what* typed input.
+Unlike a subagent (an LLM improvising in isolated context), a python workflow's steps are fixed code; a Mode-2 workflow's body is LLM-written but then frozen, typed, and RBAC-gated. In all cases the LLM only chooses *when* to run it and with *what* typed input.
 
 > Not yet wired (tracked as the live-gateway follow-up): `/workflow` slash commands, cron-fired workflows, live phase/step progress in chat, and durable resume in production. The agent-invoked path above works today.
 

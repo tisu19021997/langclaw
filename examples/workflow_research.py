@@ -44,11 +44,22 @@ Run
    )
 4. ``python examples/workflow_research.py``
 
+This file shows two workflows over the same job:
+
+- ``research``      — ``mode="python"``: YOU author the steps (this is the default).
+- ``research_auto`` — ``mode="llm_authored"`` (Mode 2): you declare only the
+                      contract; the LLM authors the JS body on first run, it is
+                      frozen + replayed on resume, and runs in the QuickJS sandbox
+                      over the declared ``uses_tools`` allowlist.
+
 Then message the bot
 --------------------
 - *"Run the research workflow on quantum computing"*
-      → the agent calls ``workflow_research`` with ``{"topic": "quantum computing"}``;
-        two web searches run in parallel, then a synthesis step.
+      → the agent calls ``workflow_research`` (python mode); web searches run in
+        parallel, then a synthesis step.
+- *"Use research_auto for electric vehicles"*  (interpreter extra installed)
+      → the agent calls ``workflow_research_auto``; the model authors a sandboxed
+        JS body that searches each angle and returns a brief (Mode 2).
 - *"Research electric vehicles and also solar — use the workflow for each"*
       (interpreter on) → the agent writes ONE ``eval`` script that calls
       ``tools.workflowResearch(...)`` per topic (Mode 1).
@@ -124,6 +135,38 @@ async def research(ctx, inp: ResearchBrief) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Mode 2 — the SAME job, but the LLM authors the body (mode="llm_authored").
+#
+# You declare only the *contract*: the input, the allowed tools (uses_tools),
+# the budget, and a `description` that IS the spec the LLM writes the body from.
+# There is no Python orchestration here — the decorated function is a stub whose
+# body is never executed. On first run the model writes a sandboxed JS program;
+# that script is frozen and replayed on resume, so the run stays deterministic.
+#
+# Requires the interpreter extra (`pip install langclaw[interpreter]`) — the
+# authored body runs in the same QuickJS sandbox as `eval`, and may call ONLY
+# the tools listed in `uses_tools` (here, `web_search`).
+# ---------------------------------------------------------------------------
+
+
+@app.workflow(
+    "research_auto",
+    mode="llm_authored",
+    input=ResearchBrief,
+    uses_tools=["web_search"],
+    description=(
+        "Research `inp.topic` across the angles in `inp.angles`. For each angle, "
+        "call web_search with a query combining the topic and the angle, then "
+        "assemble a short markdown brief. End on JSON.stringify(briefString)."
+    ),
+    timeout_s=60,
+)
+async def research_auto(ctx, inp: ResearchBrief) -> str:  # noqa: ARG001 — body unused
+    """Stub: in mode='llm_authored' the LLM writes the body; this never runs."""
+    raise NotImplementedError("llm_authored workflow body is authored by the LLM")
+
+
+# ---------------------------------------------------------------------------
 # RBAC (optional) — the `workflows` axis is DEFAULT-DENY, like `subagents`.
 #
 # IMPORTANT: defining ANY role auto-enables the permissions system. Once on,
@@ -136,7 +179,7 @@ async def research(ctx, inp: ResearchBrief) -> str:
 # `app.role()` takes all three axes — tools / subagents / workflows.
 # ---------------------------------------------------------------------------
 
-app.role("analyst", tools=["*"], workflows=["research"])
+app.role("analyst", tools=["*"], workflows=["research", "research_auto"])
 
 # Make the granted role the default so a fresh Telegram/Discord user actually
 # reaches the workflow. In production you would instead map specific user IDs
