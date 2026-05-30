@@ -287,11 +287,9 @@ def create_claw_agent(
     else:
         tools = builtin_tools + extra_tool_objects
 
-    # Workflow primitive (opt-in). When enabled and a populated registry is
-    # provided, expose each registered workflow as a `workflow_<name>` tool.
-    # The default step executor closes over the (final) live toolset, so a
-    # workflow's `ctx.tool` / `ctx.subagent` steps reach exactly the tools the
-    # agent itself has. Inert unless `config.workflows.enabled`.
+    # Workflow primitive (opt-in, `config.workflows.enabled`): expose each
+    # registered workflow as a `workflow_<name>` tool. The step executor closes
+    # over the live toolset, so steps reach exactly the tools the agent has.
     _workflows_active = (
         config.workflows.enabled
         and workflow_registry is not None
@@ -314,9 +312,7 @@ def create_claw_agent(
             return build_toolset_executor(_live_tools)
 
         def _tools_for_spec(spec: Any) -> list[Any]:
-            # Mode 2 capability allowlist: the spec's declared uses_tools,
-            # resolved against the live (role-filtered) toolset. No declaration
-            # → no tools (the authored body must declare what it needs).
+            # Mode 2 allowlist: spec.uses_tools ∩ live toolset (none → none).
             wanted = set(spec.uses_tools or [])
             return [t for t in _live_tools if getattr(t, "name", None) in wanted]
 
@@ -333,9 +329,7 @@ def create_claw_agent(
             author_factory=_workflow_author_factory,
             script_runner_factory=_workflow_script_runner_factory,
         )
-        # Mode 1: the bare ``workflow_<name>`` tool names to advertise on the
-        # interpreter's PTC surface (build-time, unnarrowed — the workflow RBAC
-        # axis + live request.tools filtering do per-call narrowing).
+        # Mode 1 PTC names (build-time, unnarrowed; per-call RBAC narrows later).
         _workflow_ptc_names = resolve_workflow_ptc_names(
             workflow_registry, workflows_config=config.workflows
         )

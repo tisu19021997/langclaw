@@ -118,19 +118,15 @@ class ResearchBrief(BaseModel):
     max_concurrency=4,
 )
 async def research(ctx, inp: ResearchBrief) -> str:
-    # Phase 1 — fan out one web search per angle, bounded by max_concurrency.
-    # Each thunk takes a child context `c` and returns an awaitable; ctx.parallel
-    # runs them concurrently and returns results in order. We build the thunks
-    # with a small factory so each closes over its OWN angle (not the loop var).
+    # Fan out one search per angle. The factory makes each thunk close over its
+    # OWN angle (not the loop var); ctx.parallel runs them, results in order.
     def _search(angle: str):
         return lambda c: c.tool("web_search", query=f"{inp.topic} {angle}")
 
     ctx.phase("gather")
     findings = await ctx.parallel([_search(angle) for angle in inp.angles])
 
-    # Phase 2 — synthesise. (A ctx.subagent("writer", ...) step would route
-    # through the `task` tool if you register a writer subagent; here we just
-    # format the gathered findings so the example needs no extra wiring.)
+    # Synthesise. (A ctx.subagent("writer", ...) step would delegate instead.)
     ctx.phase("synthesize")
     lines = [f"# Research brief: {inp.topic}", ""]
     for angle, result in zip(inp.angles, findings, strict=False):
@@ -143,21 +139,11 @@ async def research(ctx, inp: ResearchBrief) -> str:
 # ---------------------------------------------------------------------------
 # Mode 2 (EXPERIMENTAL) — the SAME job, but the LLM authors the body.
 #
-# Prefer the python `research` above (or Mode 1) for production. Mode 2 is an
-# escape hatch: the generated body is not unit-testable, re-authors on every new
-# run (deterministic only within a run), and is codegen running without review —
-# the QuickJS sandbox + uses_tools allowlist bound the blast radius, but the
-# trade-offs are real. Use it only for variable, low-stakes, supervised tasks.
-#
-# You declare only the *contract*: the input, the allowed tools (uses_tools),
-# the budget, and a `description` that IS the spec the LLM writes the body from.
-# There is no Python orchestration here — the decorated function is a stub whose
-# body is never executed. On first run the model writes a sandboxed JS program;
-# that script is frozen and replayed on resume of THAT run.
-#
-# Requires the interpreter extra (`pip install langclaw[interpreter]`) — the
-# authored body runs in the same QuickJS sandbox as `eval`, and may call ONLY
-# the tools listed in `uses_tools` (here, `web_search`).
+# Prefer python `research` (or Mode 1) for production: the generated body isn't
+# unit-testable, re-authors each new run, and is codegen-without-review (the
+# sandbox + uses_tools allowlist bound the blast radius). You declare only the
+# contract — input, uses_tools, budget, and the `description` the LLM writes the
+# body from; the decorated function is an unused stub. Needs the interpreter extra.
 # ---------------------------------------------------------------------------
 
 

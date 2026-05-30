@@ -164,11 +164,8 @@ class WorkflowRuntime:
                 "`author` and a `script_runner`."
             )
 
-        # A durable script_store freezes the body so a later run/resume with the
-        # same run_id replays it. With no store, each run authors fresh (resume
-        # is impossible anyway — same contract as step_store=None).
-        # NB: explicit None check — an empty InMemoryScriptStore is falsy
-        # (``__len__`` is 0), so ``or`` would silently discard a provided store.
+        # Durable store freezes the body per run_id (replayed on resume); none →
+        # author fresh. `is not None`: an empty store is falsy, `or` would drop it.
         store = self._script_store if self._script_store is not None else InMemoryScriptStore()
         resolver = AuthoredScriptResolver(store)
 
@@ -179,8 +176,7 @@ class WorkflowRuntime:
             script, freshly_authored = await resolver.resolve(spec.name, run_id, _author)
             verb = "authored new body" if freshly_authored else "replaying authored body"
             logger.info(f"Workflow {spec.name!r} run {run_id}: {verb} ({len(script)} chars)")
-            # The authored body is the audit-relevant artifact of a Mode-2 run —
-            # log it in full at DEBUG so a surprising result can be traced.
+            # The body is a Mode-2 run's audit artifact — log it at DEBUG.
             logger.debug(f"Workflow {spec.name!r} run {run_id} body:\n{script}")
             coro = script_runner(script, validated_input)
             if spec.timeout_s is not None:

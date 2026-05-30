@@ -43,8 +43,7 @@ ScriptRunnerFn = Callable[[str, Any], Awaitable[Any]]
 #: An author produces a workflow's JS body from its spec + validated input.
 ScriptAuthorFn = Callable[["WorkflowSpec", Any], Awaitable[str]]
 
-# Sandbox defaults — generous; the workflow's own ``timeout_s`` is the outer
-# bound (the runtime wraps the run in ``asyncio.wait_for``).
+# Sandbox defaults; the workflow's own timeout_s is the outer bound.
 _DEFAULT_MEMORY_LIMIT = 64 * 1024 * 1024
 _DEFAULT_TIMEOUT_S = 10.0
 _DEFAULT_MAX_STDOUT = 16 * 1024
@@ -73,8 +72,7 @@ def build_workflow_script_runner(
         An async ``(script, validated_input) -> output`` callable suitable as the
         ``script_runner`` argument of ``WorkflowRuntime.start_run``.
     """
-    # Imported lazily (and from the private REPL module) for the reasons in the
-    # module docstring. One registry per runner; each run gets its own slot.
+    # Lazy import from the private REPL module (see module docstring).
     from langchain_quickjs._repl import _Registry
 
     registry = _Registry(
