@@ -291,8 +291,18 @@ class Langclaw:
         Args:
             name:            Unique workflow handle (invoked as ``workflow_<name>``,
                              ``/workflow <name>``, cron, or PTC).
-            description:     One-line summary for humans and the LLM.
-            input:           Optional Pydantic model validating the run input.
+            description:     Becomes the **tool description** the LLM reads to
+                             decide *when* to call this workflow — exactly like a
+                             ``@app.tool`` docstring. Write it as guidance ("Research
+                             a topic across several angles in parallel; prefer over
+                             ad-hoc searches when multiple perspectives help"), not a
+                             label. Omitting it falls back to a bland
+                             ``"Run the '<name>' workflow."`` that rarely beats a
+                             plain ``web_search`` or ``task``. (The *input* shape is
+                             advertised separately, from the ``input`` model below.)
+            input:           Optional Pydantic model validating the run input. Its
+                             fields become the tool's argument schema, so add
+                             ``Field(description=...)`` to tell the LLM *what* to pass.
             output:          Optional Pydantic model validating the run output.
             mode:            ``"python"`` (default) or ``"llm_authored"`` (Mode 2).
             max_steps:       Per-workflow step budget (``None`` → global default).

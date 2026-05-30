@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
     from langclaw.config.schema import PermissionsConfig, WorkflowsConfig
-    from langclaw.workflows.registry import WorkflowRegistry
+    from langclaw.workflows.registry import WorkflowRegistry, WorkflowSpec
     from langclaw.workflows.runtime import WorkflowRuntime
 
 ExecutorFactory = Callable[[Any], Awaitable[StepExecutor]]
@@ -181,7 +181,12 @@ def make_workflow_tools(
     return tools
 
 
-def _make_one_workflow_tool(spec, runtime, executor_factory, structured_tool_cls):
+def _make_one_workflow_tool(
+    spec: WorkflowSpec,
+    runtime: WorkflowRuntime,
+    executor_factory: ExecutorFactory,
+    structured_tool_cls: type[BaseTool],
+) -> BaseTool:
     description = spec.description or f"Run the {spec.name!r} workflow."
 
     async def _run(workflow_input: Any = None) -> str:

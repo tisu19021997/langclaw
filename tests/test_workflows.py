@@ -222,8 +222,12 @@ def test_app_create_agent_omits_workflows_when_disabled(monkeypatch):
 
     monkeypatch.setattr(deepagents, "create_deep_agent", fake_create_deep_agent)
 
-    app = Langclaw(config=LangclawConfig(interpreter={"enabled": False}))
-    # workflows disabled (default)
+    # Disable workflows EXPLICITLY — do not rely on the ambient default, which
+    # LangclawConfig() reads from ~/.langclaw/config.json (a developer who has
+    # enabled workflows there would otherwise break this test).
+    app = Langclaw(
+        config=LangclawConfig(interpreter={"enabled": False}, workflows={"enabled": False})
+    )
 
     @app.workflow("digest", description="PR digest")
     async def digest(ctx, inp):
