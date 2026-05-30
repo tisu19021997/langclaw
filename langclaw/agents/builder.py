@@ -302,6 +302,8 @@ def create_claw_agent(
     if _workflows_active:
         from langclaw.workflows import (
             build_toolset_executor,
+            build_workflow_author,
+            build_workflow_script_runner,
             make_workflow_tools,
             resolve_workflow_ptc_names,
         )
@@ -311,10 +313,26 @@ def create_claw_agent(
         async def _workflow_executor_factory(_tool_runtime: Any) -> Any:
             return build_toolset_executor(_live_tools)
 
+        def _tools_for_spec(spec: Any) -> list[Any]:
+            # Mode 2 capability allowlist: the spec's declared uses_tools,
+            # resolved against the live (role-filtered) toolset. No declaration
+            # → no tools (the authored body must declare what it needs).
+            wanted = set(spec.uses_tools or [])
+            return [t for t in _live_tools if getattr(t, "name", None) in wanted]
+
+        def _workflow_author_factory(spec: Any) -> Any:
+            names = [t.name for t in _tools_for_spec(spec)]
+            return build_workflow_author(resolved_model, ptc_tool_names=names)
+
+        def _workflow_script_runner_factory(spec: Any) -> Any:
+            return build_workflow_script_runner(_tools_for_spec(spec))
+
         tools = tools + make_workflow_tools(
             workflow_registry,
             workflow_runtime,
             executor_factory=_workflow_executor_factory,
+            author_factory=_workflow_author_factory,
+            script_runner_factory=_workflow_script_runner_factory,
         )
         # Mode 1: the bare ``workflow_<name>`` tool names to advertise on the
         # interpreter's PTC surface (build-time, unnarrowed — the workflow RBAC

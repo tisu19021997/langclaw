@@ -1264,3 +1264,127 @@ async def test_author_passes_through_unfenced_response():
     author = build_workflow_author(model)
     spec = WorkflowSpec(name="x", fn=lambda c, i: None, description="d", mode="llm_authored")
     assert await author(spec, {"n": 3}) == "inp.n * 2;"
+
+
+# ---------------------------------------------------------------------------
+# 6e — Mode 2: bridge dispatch (workflow_<name> tool routes by mode, slice B3)
+# ---------------------------------------------------------------------------
+
+
+async def test_make_workflow_tools_routes_llm_authored_to_author_and_runner():
+    """The workflow_<name> tool for an llm_authored spec drives author +
+    script_runner (not the step executor)."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.bridge import make_workflow_tools
+
+    reg = WorkflowRegistry()
+    reg.register(
+        WorkflowSpec(name="research", fn=lambda c, i: None, description="d", mode="llm_authored")
+    )
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+
+    calls: dict = {}
+
+    async def author(spec, inp):
+        calls["authored"] = spec.name
+        return "SCRIPT"
+
+    async def script_runner(script, inp):
+        calls["ran"] = script
+        return "DONE"
+
+    async def executor_factory(_runtime):
+        raise AssertionError("python executor must NOT be used for llm_authored")
+
+    tools = make_workflow_tools(
+        reg,
+        rt,
+        executor_factory=executor_factory,
+        author_factory=lambda spec: author,
+        script_runner_factory=lambda spec: script_runner,
+    )
+    result = await tools[0].coroutine(workflow_input={"topic": "AI"})
+    assert calls == {"authored": "research", "ran": "SCRIPT"}
+    assert "DONE" in result
+
+
+async def test_make_workflow_tools_python_still_uses_executor():
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.bridge import make_workflow_tools
+
+    reg = WorkflowRegistry()
+
+    async def body(ctx, inp):
+        return await ctx.tool("web_search", query="x")
+
+    reg.register(WorkflowSpec(name="py", fn=body, description="d"))
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+
+    async def executor_factory(_runtime):
+        async def executor(req):
+            return f"did:{req.target}"
+
+        return executor
+
+    tools = make_workflow_tools(reg, rt, executor_factory=executor_factory)
+    result = await tools[0].coroutine(workflow_input=None)
+    assert "did:web_search" in result
+
+
+async def test_builder_wires_mode2_end_to_end(monkeypatch):
+    """Through create_claw_agent: an llm_authored workflow becomes a tool whose
+    invocation has the (fake) model author a JS body and runs it over the
+    spec's uses_tools allowlist in real QuickJS."""
+    pytest.importorskip("langchain_quickjs")
+    import deepagents
+    from langchain_core.tools import StructuredTool
+
+    from langclaw.agents.builder import create_claw_agent
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
+
+    captured: dict = {}
+
+    def fake_create_deep_agent(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(deepagents, "create_deep_agent", fake_create_deep_agent)
+
+    async def lookup(query: str) -> str:
+        return f"HIT[{query}]"
+
+    lookup_tool = StructuredTool.from_function(coroutine=lookup, name="lookup", description="x")
+
+    class FakeModel:
+        async def ainvoke(self, prompt, *_, **__):
+            return SimpleNamespace(
+                content="JSON.stringify(await tools.lookup({query: inp.topic}));"
+            )
+
+    reg = WorkflowRegistry()
+    reg.register(
+        WorkflowSpec(
+            name="research",
+            fn=lambda c, i: None,
+            description="Look up the topic.",
+            mode="llm_authored",
+            uses_tools=["lookup"],
+        )
+    )
+    cfg = LangclawConfig(interpreter={"enabled": False})
+    cfg.workflows.enabled = True
+    rt = WorkflowRuntime(cfg.workflows)
+
+    create_claw_agent(
+        cfg,
+        model=FakeModel(),
+        extra_tools=[lookup_tool],
+        workflow_registry=reg,
+        workflow_runtime=rt,
+    )
+    wf_tool = next(t for t in captured["tools"] if getattr(t, "name", "") == "workflow_research")
+    out = await wf_tool.coroutine(workflow_input={"topic": "AI"})
+    assert "HIT[AI]" in out
