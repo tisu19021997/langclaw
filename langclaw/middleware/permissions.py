@@ -85,6 +85,46 @@ def allowed_subagents(config: PermissionsConfig, role: str) -> set[str]:
     return set(role_cfg.subagents)
 
 
+def allowed_workflow_names(
+    config: PermissionsConfig,
+    role: str,
+    all_workflow_names: Iterable[str],
+) -> set[str]:
+    """Return the set of workflow names *role* may invoke, given the registry.
+
+    The third RBAC axis, alongside :func:`allowed_tool_names` and
+    :func:`allowed_subagents`.  Semantics mirror ``allowed_subagents``
+    (**default-deny**), not ``allowed_tool_names`` (pass-through):
+
+    - An **unknown role** (not in ``config.roles``) yields the empty set.
+    - A role whose ``workflows`` contains ``"*"`` yields every registered
+      workflow.
+    - Otherwise the role's listed workflow names, intersected with what is
+      actually registered.
+
+    Default-deny is deliberate: a workflow can compose tools and subagents, so
+    a role with ``tools=["*"]`` should still not reach a workflow unless it is
+    explicitly granted.  Shared by the ``workflow_<name>`` tool gate, the
+    ``/workflow`` command, cron dispatch, and the PTC workflow-namespace
+    resolver so the axis cannot drift (unification tracked in #37).
+
+    Args:
+        config:             RBAC definitions.
+        role:               Resolved user role.
+        all_workflow_names: Names of the workflows currently registered.
+
+    Returns:
+        The allowed subset of ``all_workflow_names``.
+    """
+    universe = set(all_workflow_names)
+    role_cfg = config.roles.get(role)
+    if role_cfg is None:
+        return set()
+    if "*" in role_cfg.workflows:
+        return universe
+    return set(role_cfg.workflows) & universe
+
+
 def check_subagent_permission(
     subagent_type: str,
     allowed: Iterable[str],
@@ -216,6 +256,7 @@ def build_tool_permission_middleware(
 __all__ = [
     "allowed_subagents",
     "allowed_tool_names",
+    "allowed_workflow_names",
     "build_subagent_permission_middleware",
     "build_tool_permission_middleware",
     "check_subagent_permission",

@@ -34,6 +34,7 @@ from langclaw.config.schema import (
 )
 from langclaw.context import LangclawContext
 from langclaw.gateway.commands import CommandContext
+from langclaw.workflows import WorkflowRegistry, WorkflowSpec
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -106,6 +107,7 @@ class Langclaw:
         self._extra_commands: list[tuple[str, Callable[[CommandContext], Awaitable[str]], str]] = []
         self._subagents: list[dict[str, Any]] = []
         self._named_agents: dict[str, dict[str, Any]] = {}
+        self._workflows = WorkflowRegistry()
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None
@@ -219,6 +221,102 @@ class Langclaw:
         ) -> Callable[[CommandContext], Awaitable[str]]:
             self._extra_commands.append((name, fn, description))
             return fn
+
+        return decorator
+
+    # ------------------------------------------------------------------
+    # Workflow registration
+    # ------------------------------------------------------------------
+
+    def _reserved_names(self) -> set[str]:
+        """Names already claimed by tools, subagents, named agents, commands.
+
+        Used to reject a workflow name that would make dispatch ambiguous.
+        Collision detection runs against the names known at registration time;
+        register tools/subagents/agents before the workflows that must not
+        clash with them.
+        """
+        names: set[str] = set()
+        for t in self._extra_tools:
+            tname = getattr(t, "name", None)
+            if tname:
+                names.add(tname)
+        names.update(s["name"] for s in self._subagents if s.get("name"))
+        names.update(self._named_agents)
+        names.update(name for name, _fn, _desc in self._extra_commands)
+        return names
+
+    def workflow(
+        self,
+        name: str,
+        *,
+        description: str = "",
+        input: type | None = None,
+        output: type | None = None,
+        mode: str = "python",
+        max_steps: int | None = None,
+        max_concurrency: int = 8,
+        timeout_s: float | None = None,
+        uses_tools: list[str] | None = None,
+    ) -> Callable:
+        """Register an operator-authored workflow via decorator (issue #38).
+
+        A workflow is an ``async def (ctx, inp) -> output`` that orchestrates
+        multi-step agent work.  Each step (``ctx.agent`` / ``ctx.subagent`` /
+        ``ctx.tool`` / ``ctx.parallel``) round-trips through the same bus →
+        gateway pipeline as an ordinary message, so RBAC, rate limiting, channel
+        context, and checkpointing are inherited.  Unlike the interpreter
+        (``eval``), a workflow is durable, typed, named, and RBAC-gated.
+
+        Workflows are inert unless ``config.workflows.enabled`` is ``True``.
+
+        Example::
+
+            class Brief(BaseModel):
+                topic: str
+
+            @app.workflow("research", input=Brief, description="Deep research")
+            async def research(ctx, inp: Brief) -> str:
+                ctx.phase("gather")
+                facts = await ctx.parallel([
+                    lambda c: c.subagent("researcher", f"Find facts on {inp.topic}"),
+                    lambda c: c.subagent("researcher", f"Find risks of {inp.topic}"),
+                ])
+                ctx.phase("synthesize")
+                return await ctx.agent("writer", f"Summarize: {facts}")
+
+        Args:
+            name:            Unique workflow handle (invoked as ``workflow_<name>``,
+                             ``/workflow <name>``, cron, or PTC).
+            description:     One-line summary for humans and the LLM.
+            input:           Optional Pydantic model validating the run input.
+            output:          Optional Pydantic model validating the run output.
+            mode:            ``"python"`` (default) or ``"llm_authored"`` (Mode 2).
+            max_steps:       Per-workflow step budget (``None`` → global default).
+            max_concurrency: Fan-out width for ``ctx.parallel``.
+            timeout_s:       Per-run wall-clock budget in seconds.
+            uses_tools:      Tool names this workflow declares it needs.
+
+        Raises:
+            ValueError: If the name collides with an existing workflow, tool,
+                        subagent, named agent, or command.
+        """
+
+        def decorator(func: Callable) -> Callable:
+            spec = WorkflowSpec(
+                name=name,
+                fn=func,
+                description=description,
+                input_model=input,
+                output_model=output,
+                mode=mode,
+                max_steps=max_steps,
+                max_concurrency=max_concurrency,
+                timeout_s=timeout_s,
+                uses_tools=list(uses_tools or []),
+            )
+            self._workflows.register(spec, reserved_names=self._reserved_names())
+            return func
 
         return decorator
 
