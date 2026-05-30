@@ -34,10 +34,53 @@ from langclaw.workflows.context import StepExecutor, StepRequest, WorkflowStepEr
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
+    from langclaw.config.schema import PermissionsConfig, WorkflowsConfig
     from langclaw.workflows.registry import WorkflowRegistry
     from langclaw.workflows.runtime import WorkflowRuntime
 
 ExecutorFactory = Callable[[Any], Awaitable[StepExecutor]]
+
+#: Prefix every workflow tool/PTC symbol carries. The agent invokes a workflow
+#: as the tool ``workflow_<name>`` and, inside an ``eval`` script (Mode 1),
+#: reaches it as ``tools.workflow<Name>`` (camelCased by the PTC layer).
+WORKFLOW_TOOL_PREFIX = "workflow_"
+
+
+def resolve_workflow_ptc_names(
+    registry: WorkflowRegistry,
+    *,
+    workflows_config: WorkflowsConfig,
+    permissions_config: PermissionsConfig | None = None,
+    role: str | None = None,
+) -> list[str]:
+    """Resolve which ``workflow_<name>`` tools a script may call (Mode 1).
+
+    Pure and side-effect free — the workflow-axis analogue of
+    :func:`langclaw.interpreter.resolve_ptc_allowlist`.  Resolution:
+
+    1. Workflows disabled → ``[]``.
+    2. Otherwise every registered workflow, as ``workflow_<name>``.
+    3. When ``role`` + an enabled ``permissions_config`` are given, narrow to the
+       role's :func:`~langclaw.middleware.permissions.allowed_workflow_names`
+       (**default-deny**) — so a script can never reach a workflow the role lacks
+       and the PTC surface cannot drift from the live ``workflow_<name>`` tool
+       gate (both read ``allowed_workflow_names``; unification tracked in #37).
+
+    Returns:
+        Sorted ``workflow_<name>`` tool names to merge into the interpreter's
+        PTC allowlist.
+    """
+    if not workflows_config.enabled:
+        return []
+
+    names = registry.names()
+    if role is not None and permissions_config is not None and permissions_config.enabled:
+        from langclaw.middleware.permissions import allowed_workflow_names
+
+        permitted = allowed_workflow_names(permissions_config, role, names)
+        names = [n for n in names if n in permitted]
+
+    return sorted(f"{WORKFLOW_TOOL_PREFIX}{n}" for n in names)
 
 
 class _WorkflowToolArgs(BaseModel):

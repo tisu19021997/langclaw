@@ -28,6 +28,11 @@ if TYPE_CHECKING:
 
     from langclaw.config.schema import PermissionsConfig
 
+# Prefix carried by every workflow tool. Kept as a literal here (rather than
+# imported from langclaw.workflows) so this RBAC module stays free of a workflow
+# import cycle; the two are asserted equal by a test.
+_WORKFLOW_TOOL_PREFIX = "workflow_"
+
 
 # ---------------------------------------------------------------------------
 # Pure RBAC helpers — shared by the middleware *and* the interpreter PTC
@@ -235,7 +240,11 @@ def build_tool_permission_middleware(
         else:
             user_role = config.default_role
 
-        all_names = [t.name for t in request.tools]
+        # ``workflow_<name>`` tools are governed by the *workflow* RBAC axis
+        # (build_workflow_permission_middleware), not the tool axis — exclude
+        # them here so the two axes don't double-gate or fight each other.
+        gated = [t for t in request.tools if not t.name.startswith(_WORKFLOW_TOOL_PREFIX)]
+        all_names = [t.name for t in gated]
         allowed = allowed_tool_names(config, user_role, all_names)
         if allowed == set(all_names):
             logger.debug(
@@ -243,7 +252,12 @@ def build_tool_permission_middleware(
             )
             return await handler(request)
 
-        filtered = [t for t in request.tools if t.name in allowed]
+        # Keep allowed tool-axis tools AND all workflow_* tools (passed through).
+        filtered = [
+            t
+            for t in request.tools
+            if t.name in allowed or t.name.startswith(_WORKFLOW_TOOL_PREFIX)
+        ]
         logger.debug(
             f"Permissions: role={user_role} allowed tools {allowed} for this call",
         )
@@ -253,11 +267,62 @@ def build_tool_permission_middleware(
     return _tool_permission_filter
 
 
+def build_workflow_permission_middleware(
+    config: PermissionsConfig,
+) -> Callable:
+    """Return a ``@wrap_model_call`` middleware enforcing ``RoleConfig.workflows``.
+
+    The third RBAC axis.  Registered workflows are exposed to the agent as
+    ``workflow_<name>`` tools; this filter removes any whose bare name the
+    caller's role is not granted via
+    :func:`allowed_workflow_names` (**default-deny**).  Non-workflow tools pass
+    through untouched — the tool axis owns those.
+
+    Because the interpreter middleware recomputes its PTC surface from the live
+    ``request.tools`` on every call, stripping a ``workflow_<name>`` tool here
+    also removes it from a script's ``tools.workflow<Name>`` reach (Mode 1) — one
+    gate covers both the direct tool call and the PTC call.
+    """
+
+    @wrap_model_call
+    async def _workflow_permission_filter(
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelResponse:
+        runtime = request.runtime
+        ctx = getattr(runtime, "context", None) if runtime else None
+        user_role = getattr(ctx, "user_role", config.default_role) if ctx else config.default_role
+
+        wf_tools = [t for t in request.tools if t.name.startswith(_WORKFLOW_TOOL_PREFIX)]
+        if not wf_tools:
+            return await handler(request)
+
+        bare_names = [t.name[len(_WORKFLOW_TOOL_PREFIX) :] for t in wf_tools]
+        permitted = allowed_workflow_names(config, user_role, bare_names)
+        permitted_full = {f"{_WORKFLOW_TOOL_PREFIX}{n}" for n in permitted}
+
+        kept = [
+            t
+            for t in request.tools
+            if not t.name.startswith(_WORKFLOW_TOOL_PREFIX) or t.name in permitted_full
+        ]
+        if len(kept) == len(request.tools):
+            return await handler(request)
+
+        logger.debug(
+            f"Workflow permissions: role={user_role} allowed workflows {permitted}",
+        )
+        return await handler(request.override(tools=kept))
+
+    return _workflow_permission_filter
+
+
 __all__ = [
     "allowed_subagents",
     "allowed_tool_names",
     "allowed_workflow_names",
     "build_subagent_permission_middleware",
     "build_tool_permission_middleware",
+    "build_workflow_permission_middleware",
     "check_subagent_permission",
 ]

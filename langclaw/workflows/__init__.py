@@ -23,7 +23,12 @@ Deep, isolation-testable modules:
 
 from __future__ import annotations
 
-from langclaw.workflows.bridge import build_toolset_executor, make_workflow_tools
+from langclaw.workflows.bridge import (
+    WORKFLOW_TOOL_PREFIX,
+    build_toolset_executor,
+    make_workflow_tools,
+    resolve_workflow_ptc_names,
+)
 from langclaw.workflows.context import (
     StepRequest,
     WorkflowBudgetExceeded,
@@ -42,8 +47,10 @@ __all__ = [
     "WorkflowContext",
     "WorkflowRegistry",
     "WorkflowRuntime",
+    "WORKFLOW_TOOL_PREFIX",
     "WorkflowSpec",
     "WorkflowStepError",
     "build_toolset_executor",
     "make_workflow_tools",
+    "resolve_workflow_ptc_names",
 ]

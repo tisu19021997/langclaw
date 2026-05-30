@@ -14,6 +14,7 @@ Covers the deep, isolation-testable cores, asserting external behaviour:
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 from pydantic import BaseModel
@@ -663,3 +664,189 @@ def test_builder_omits_workflow_tools_when_disabled(monkeypatch):
     create_claw_agent(cfg, model=object(), workflow_registry=reg, workflow_runtime=rt)
     tool_names = [getattr(t, "name", "") for t in captured["tools"]]
     assert not any(n.startswith("workflow_") for n in tool_names)
+
+
+# ---------------------------------------------------------------------------
+# 8 — Phase 2 / Mode 1: PTC workflow surface + workflow-axis RBAC
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_workflow_ptc_names_disabled_returns_empty():
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowSpec
+    from langclaw.workflows.bridge import resolve_workflow_ptc_names
+
+    reg = WorkflowRegistry()
+
+    async def body(ctx, inp):
+        return None
+
+    reg.register(WorkflowSpec(name="digest", fn=body))
+    out = resolve_workflow_ptc_names(reg, workflows_config=WorkflowsConfig(enabled=False))
+    assert out == []
+
+
+def test_resolve_workflow_ptc_names_all_when_no_permissions():
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowSpec
+    from langclaw.workflows.bridge import resolve_workflow_ptc_names
+
+    reg = WorkflowRegistry()
+
+    async def body(ctx, inp):
+        return None
+
+    reg.register(WorkflowSpec(name="digest", fn=body))
+    reg.register(WorkflowSpec(name="report", fn=body))
+    out = resolve_workflow_ptc_names(reg, workflows_config=WorkflowsConfig(enabled=True))
+    # Returns the actual tool names (workflow_<name>) to merge into the PTC allowlist.
+    assert out == ["workflow_digest", "workflow_report"]
+
+
+def test_resolve_workflow_ptc_names_role_gated_default_deny():
+    from langclaw.config.schema import PermissionsConfig, RoleConfig, WorkflowsConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowSpec
+    from langclaw.workflows.bridge import resolve_workflow_ptc_names
+
+    reg = WorkflowRegistry()
+
+    async def body(ctx, inp):
+        return None
+
+    reg.register(WorkflowSpec(name="digest", fn=body))
+    reg.register(WorkflowSpec(name="report", fn=body))
+
+    perms = PermissionsConfig(
+        enabled=True,
+        roles={
+            "viewer": RoleConfig(tools=["*"]),  # no workflows → deny all
+            "power": RoleConfig(workflows=["digest"]),
+        },
+    )
+    wcfg = WorkflowsConfig(enabled=True)
+    assert (
+        resolve_workflow_ptc_names(
+            reg, workflows_config=wcfg, permissions_config=perms, role="viewer"
+        )
+        == []
+    )
+    assert resolve_workflow_ptc_names(
+        reg, workflows_config=wcfg, permissions_config=perms, role="power"
+    ) == ["workflow_digest"]
+
+
+# -- workflow-axis RBAC middleware --------------------------------------------
+
+
+def _wf_tool(name: str):
+    return SimpleNamespace(name=name)
+
+
+def _run_model_call(mw, tools, user_role):
+    """Drive a wrap_model_call middleware once and return the tools the handler saw.
+
+    Mirrors the proven pattern in ``test_interpreter`` (SimpleNamespace request
+    with an ``override`` lambda, executed via ``asyncio.run``) so the harness
+    matches langchain's handler contract exactly.
+    """
+    import asyncio
+
+    runtime = SimpleNamespace(context=SimpleNamespace(user_role=user_role))
+    request = SimpleNamespace(
+        runtime=runtime,
+        tools=tools,
+        override=lambda **kw: SimpleNamespace(**{"tools": tools, "runtime": runtime, **kw}),
+    )
+    captured = {}
+
+    async def handler(req):
+        captured["tools"] = req.tools
+        return "ok"
+
+    asyncio.run(mw.awrap_model_call(request, handler))
+    return {t.name for t in captured["tools"]}
+
+
+def test_workflow_permission_middleware_filters_by_workflow_axis():
+    from langclaw.config.schema import PermissionsConfig, RoleConfig
+    from langclaw.middleware.permissions import build_workflow_permission_middleware
+
+    cfg = PermissionsConfig(
+        enabled=True,
+        roles={"power": RoleConfig(tools=["*"], workflows=["digest"])},
+    )
+    mw = build_workflow_permission_middleware(cfg)
+
+    tools = [_wf_tool("web_search"), _wf_tool("workflow_digest"), _wf_tool("workflow_secret")]
+    names = _run_model_call(mw, tools, "power")
+    # non-workflow tools untouched; only the permitted workflow remains
+    assert "web_search" in names
+    assert "workflow_digest" in names
+    assert "workflow_secret" not in names
+
+
+def test_tool_permission_filter_passes_workflow_tools_through():
+    """The tool-axis filter must NOT strip workflow_* tools (workflow axis owns them)."""
+    from langclaw.config.schema import PermissionsConfig, RoleConfig
+    from langclaw.middleware.permissions import build_tool_permission_middleware
+
+    # viewer may use only web_search on the tool axis — but workflow_* tools
+    # are governed by the workflow axis, so they must pass through here.
+    cfg = PermissionsConfig(enabled=True, roles={"viewer": RoleConfig(tools=["web_search"])})
+    mw = build_tool_permission_middleware(cfg)
+
+    tools = [_wf_tool("web_search"), _wf_tool("delete_file"), _wf_tool("workflow_digest")]
+    names = _run_model_call(mw, tools, "viewer")
+    assert names == {"web_search", "workflow_digest"}  # delete_file stripped, workflow passed
+
+
+def test_builder_exposes_workflows_to_ptc_when_interpreter_and_workflows_enabled(monkeypatch):
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.agents.builder import create_claw_agent
+    from langclaw.config.schema import InterpreterConfig, LangclawConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
+
+    reg = WorkflowRegistry()
+
+    async def body(ctx, inp):
+        return "ok"
+
+    reg.register(WorkflowSpec(name="digest", fn=body))
+
+    cfg = LangclawConfig()
+    cfg.interpreter = InterpreterConfig(enabled=True)
+    cfg.workflows.enabled = True
+    rt = WorkflowRuntime(cfg.workflows)
+
+    captured = _capture_deep_agent(monkeypatch)
+    create_claw_agent(cfg, model=object(), workflow_registry=reg, workflow_runtime=rt)
+
+    # The interpreter middleware's PTC allowlist must include the workflow tool
+    # so a script can reach it as tools.workflowDigest.
+    mw_by_name = {type(m).__name__: m for m in captured["middleware"]}
+    interp = mw_by_name.get("CodeInterpreterMiddleware")
+    assert interp is not None
+    assert "workflow_digest" in interp._ptc
+
+
+def test_builder_wires_workflow_permission_middleware(monkeypatch):
+    from langclaw.agents.builder import create_claw_agent
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
+
+    reg = WorkflowRegistry()
+
+    async def body(ctx, inp):
+        return "ok"
+
+    reg.register(WorkflowSpec(name="digest", fn=body))
+
+    cfg = LangclawConfig(interpreter={"enabled": False})
+    cfg.workflows.enabled = True
+    cfg.permissions.enabled = True
+    rt = WorkflowRuntime(cfg.workflows)
+
+    captured = _capture_deep_agent(monkeypatch)
+    create_claw_agent(cfg, model=object(), workflow_registry=reg, workflow_runtime=rt)
+    names = [type(m).__name__ for m in captured["middleware"]]
+    assert "_workflow_permission_filter" in names

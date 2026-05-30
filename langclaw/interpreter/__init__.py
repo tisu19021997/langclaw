@@ -174,6 +174,7 @@ def build_interpreter_middleware(
     available_tools: Sequence[Any],
     *,
     role: str | None = None,
+    extra_ptc_tool_names: Iterable[str] = (),
 ) -> AgentMiddleware | None:
     """Build the code-interpreter middleware, or ``None`` when disabled.
 
@@ -219,6 +220,18 @@ def build_interpreter_middleware(
         role=role,
         runtime_tool_names=RUNTIME_INJECTED_TOOLS,
     )
+
+    # Mode 1: registered workflows are exposed to scripts as
+    # ``tools.workflow<Name>``. Their names are pre-gated by the workflow RBAC
+    # axis (build_workflow_permission_middleware), and the interpreter recomputes
+    # its surface from the live ``request.tools`` each call, so a role-stripped
+    # workflow tool is also unreachable from PTC. Union here so the build-time
+    # allowlist advertises them; reject any camelCase collision as usual.
+    extra = [n for n in extra_ptc_tool_names if n]
+    if extra:
+        merged = sorted(set(ptc) | set(extra))
+        _reject_ptc_name_collisions(merged)
+        ptc = merged
 
     logger.info(
         "Code interpreter enabled — PTC allowlist: {} (timeout={}s, max_ptc_calls={})",

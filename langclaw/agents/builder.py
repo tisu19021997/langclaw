@@ -29,6 +29,7 @@ from langclaw.middleware.guardrails import ContentFilterMiddleware, PIIMiddlewar
 from langclaw.middleware.permissions import (
     build_subagent_permission_middleware,
     build_tool_permission_middleware,
+    build_workflow_permission_middleware,
 )
 from langclaw.middleware.rate_limit import RateLimitMiddleware
 from langclaw.utils import to_virtual_path  # for extra_skills conversion
@@ -291,13 +292,19 @@ def create_claw_agent(
     # The default step executor closes over the (final) live toolset, so a
     # workflow's `ctx.tool` / `ctx.subagent` steps reach exactly the tools the
     # agent itself has. Inert unless `config.workflows.enabled`.
-    if (
+    _workflows_active = (
         config.workflows.enabled
         and workflow_registry is not None
         and workflow_runtime is not None
         and len(workflow_registry) > 0
-    ):
-        from langclaw.workflows import build_toolset_executor, make_workflow_tools
+    )
+    _workflow_ptc_names: list[str] = []
+    if _workflows_active:
+        from langclaw.workflows import (
+            build_toolset_executor,
+            make_workflow_tools,
+            resolve_workflow_ptc_names,
+        )
 
         _live_tools = tools
 
@@ -308,6 +315,12 @@ def create_claw_agent(
             workflow_registry,
             workflow_runtime,
             executor_factory=_workflow_executor_factory,
+        )
+        # Mode 1: the bare ``workflow_<name>`` tool names to advertise on the
+        # interpreter's PTC surface (build-time, unnarrowed — the workflow RBAC
+        # axis + live request.tools filtering do per-call narrowing).
+        _workflow_ptc_names = resolve_workflow_ptc_names(
+            workflow_registry, workflows_config=config.workflows
         )
 
     agents_md = workspace_dir / "AGENTS.md"
@@ -358,6 +371,13 @@ def create_claw_agent(
         middleware.append(
             build_subagent_permission_middleware(config.permissions),
         )
+        # Enforce the per-role workflow allowlist on `workflow_<name>` tools
+        # (the third RBAC axis). Runs before the interpreter so a role-stripped
+        # workflow tool is unreachable from PTC too (Mode 1).
+        if _workflows_active:
+            middleware.append(
+                build_workflow_permission_middleware(config.permissions),
+            )
 
     # Code interpreter (opt-in). Placed *after* the permission filter so the
     # PTC surface only ever sees the role-filtered live toolset — per-call RBAC
@@ -365,7 +385,9 @@ def create_claw_agent(
     if config.interpreter.enabled:
         from langclaw.interpreter import build_interpreter_middleware
 
-        interpreter_mw = build_interpreter_middleware(config, tools)
+        interpreter_mw = build_interpreter_middleware(
+            config, tools, extra_ptc_tool_names=_workflow_ptc_names
+        )
         if interpreter_mw is not None:
             middleware.append(interpreter_mw)
 
