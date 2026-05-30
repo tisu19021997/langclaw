@@ -47,6 +47,12 @@ from langclaw.workflows.js_runner import (
     build_workflow_author,
     build_workflow_script_runner,
 )
+from langclaw.workflows.progress import (
+    emit_progress,
+    render_workflow_progress,
+    reset_progress_sink,
+    set_progress_sink,
+)
 from langclaw.workflows.registry import WorkflowRegistry, WorkflowSpec
 from langclaw.workflows.resume import InMemoryStepStore, StepMemoizer
 from langclaw.workflows.runtime import WorkflowRuntime
@@ -69,6 +75,10 @@ __all__ = [
     "build_toolset_executor",
     "build_workflow_author",
     "build_workflow_script_runner",
+    "emit_progress",
     "make_workflow_tools",
+    "render_workflow_progress",
+    "reset_progress_sink",
     "resolve_workflow_ptc_names",
+    "set_progress_sink",
 ]

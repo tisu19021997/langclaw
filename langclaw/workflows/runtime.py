@@ -31,6 +31,7 @@ from langclaw.workflows.authored import (
     ScriptStore,
 )
 from langclaw.workflows.context import StepExecutor, WorkflowContext
+from langclaw.workflows.progress import emit_progress
 from langclaw.workflows.resume import StepMemoizer, StepStore
 
 if TYPE_CHECKING:
@@ -127,7 +128,12 @@ class WorkflowRuntime:
         memoize = None
         if self._step_store is not None:
             memoize = StepMemoizer(self._step_store, run_id).wrap
-        phase_cb = self._phase_cb_factory(run_id) if self._phase_cb_factory else None
+        factory_cb = self._phase_cb_factory(run_id) if self._phase_cb_factory else None
+
+        def phase_cb(name: str) -> None:
+            emit_progress({"kind": "phase", "workflow": spec.name, "run_id": run_id, "phase": name})
+            if factory_cb is not None:
+                factory_cb(name)
 
         ctx = WorkflowContext(
             executor=executor,
@@ -176,6 +182,9 @@ class WorkflowRuntime:
             script, freshly_authored = await resolver.resolve(spec.name, run_id, _author)
             verb = "authored new body" if freshly_authored else "replaying authored body"
             logger.info(f"Workflow {spec.name!r} run {run_id}: {verb} ({len(script)} chars)")
+            emit_progress(
+                {"kind": "authored", "workflow": spec.name, "run_id": run_id, "script": script}
+            )
             # The body is a Mode-2 run's audit artifact — at DEBUG normally, and
             # at WARNING on failure so a broken body is visible without DEBUG.
             logger.debug(f"Workflow {spec.name!r} run {run_id} body:\n{script}")

@@ -1442,3 +1442,103 @@ async def test_script_runner_output_sink_avoids_unmarshalable():
     runner = build_workflow_script_runner([])
     script = "await tools.output({ result: 'done' });\n(async () => 1)();"
     assert await runner(script, None) == "done"
+
+
+# ---------------------------------------------------------------------------
+# 7 — Channel progress projection (phase + authored-script events)
+# ---------------------------------------------------------------------------
+
+
+def test_progress_sink_set_emit_reset():
+    from langclaw.workflows.progress import emit_progress, reset_progress_sink, set_progress_sink
+
+    got: list = []
+    token = set_progress_sink(lambda e: got.append(e))
+    try:
+        emit_progress({"kind": "phase", "phase": "x"})
+    finally:
+        reset_progress_sink(token)
+    assert got == [{"kind": "phase", "phase": "x"}]
+    # after reset there is no sink — emit is a no-op, never raises
+    emit_progress({"kind": "phase", "phase": "y"})
+    assert got == [{"kind": "phase", "phase": "x"}]
+
+
+def test_progress_sink_swallows_errors():
+    from langclaw.workflows.progress import emit_progress, reset_progress_sink, set_progress_sink
+
+    def boom(_e):
+        raise RuntimeError("sink blew up")
+
+    token = set_progress_sink(boom)
+    try:
+        emit_progress({"k": 1})  # must NOT propagate into the workflow
+    finally:
+        reset_progress_sink(token)
+
+
+async def test_runtime_emits_phase_progress():
+    """A python workflow's ctx.phase() calls surface as phase progress events."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.progress import reset_progress_sink, set_progress_sink
+
+    events: list = []
+    token = set_progress_sink(events.append)
+    try:
+
+        async def body(ctx, inp):
+            ctx.phase("gather")
+            ctx.phase("synthesize")
+            return "ok"
+
+        rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+
+        async def executor(req):
+            return None
+
+        await rt.start_run(
+            WorkflowSpec(name="r", fn=body, description="d"), None, run_id="r1", executor=executor
+        )
+    finally:
+        reset_progress_sink(token)
+
+    phases = [(e["workflow"], e["phase"]) for e in events if e["kind"] == "phase"]
+    assert phases == [("r", "gather"), ("r", "synthesize")]
+
+
+async def test_runtime_emits_authored_script_progress():
+    """A Mode-2 run surfaces the authored body as an 'authored' event (for UI)."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.progress import reset_progress_sink, set_progress_sink
+
+    events: list = []
+    token = set_progress_sink(events.append)
+    try:
+        spec = WorkflowSpec(name="r", fn=lambda c, i: None, description="d", mode="llm_authored")
+        rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+
+        async def author(s, i):
+            return "BODY-SCRIPT"
+
+        async def runner(s, i):
+            return "done"
+
+        await rt.start_run(spec, None, run_id="r1", author=author, script_runner=runner)
+    finally:
+        reset_progress_sink(token)
+
+    authored = [e for e in events if e["kind"] == "authored"]
+    assert authored and authored[0]["script"] == "BODY-SCRIPT" and authored[0]["workflow"] == "r"
+
+
+def test_render_workflow_progress():
+    from langclaw.workflows.progress import render_workflow_progress
+
+    assert render_workflow_progress({"kind": "phase", "workflow": "r", "phase": "gather"}) == (
+        "⚙️ r: gather"
+    )
+    out = render_workflow_progress({"kind": "authored", "workflow": "r", "script": "X();"})
+    assert out is not None and "generated script" in out and "X();" in out
+    assert render_workflow_progress({"kind": "other"}) is None
