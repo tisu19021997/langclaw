@@ -1265,7 +1265,7 @@ async def test_author_prompt_carries_contract():
     assert "query" in prompt  # rendered arg name
     assert "Search the web" in prompt  # tool description carried through
     assert "solar" in prompt  # the concrete input
-    assert "JSON.stringify" in prompt  # the output ABI nudge
+    assert "tools.output" in prompt  # the structural output sink
     assert "blind" in prompt.lower()  # the defensive one-shot rule
 
 
@@ -1415,3 +1415,30 @@ async def test_script_runner_rejects_unmarshalable_result():
     # ends on an un-awaited async IIFE → unmarshalable handle
     with pytest.raises(WorkflowStepError, match="(?i)serializ|json.stringify"):
         await runner("(async () => ({ a: 1 }))();", None)
+
+
+async def test_script_runner_output_sink_is_canonical_result():
+    """Calling tools.output({result: ...}) sets the workflow result; the
+    script's final expression is then irrelevant (the structural contract,
+    not a prompt plea)."""
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    runner = build_workflow_script_runner([])
+    script = (
+        "await tools.output({ result: { topic: inp.topic, hits: 2 } });\n"
+        "'this final expression is ignored';"
+    )
+    out = await runner(script, {"topic": "AI"})
+    assert out == {"topic": "AI", "hits": 2}
+
+
+async def test_script_runner_output_sink_avoids_unmarshalable():
+    """Even when the final expression is an un-awaited Promise, calling
+    output() first yields a clean result instead of [unmarshalable value]."""
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    runner = build_workflow_script_runner([])
+    script = "await tools.output({ result: 'done' });\n(async () => 1)();"
+    assert await runner(script, None) == "done"

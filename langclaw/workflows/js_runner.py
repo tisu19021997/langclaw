@@ -48,6 +48,13 @@ _DEFAULT_MEMORY_LIMIT = 64 * 1024 * 1024
 _DEFAULT_TIMEOUT_S = 10.0
 _DEFAULT_MAX_STDOUT = 16 * 1024
 
+#: The structural output sink. The body emits its result via
+#: ``tools.output({ result: <value> })`` instead of relying on the final
+#: expression — so the result can't become ``[unmarshalable value]``, and
+#: validation happens against a captured Python value, not a marshalled blob.
+OUTPUT_SINK_NAME = "output"
+OUTPUT_SINK_ARG = "result"
+
 
 def build_workflow_script_runner(
     tools: Sequence[BaseTool],
@@ -73,6 +80,7 @@ def build_workflow_script_runner(
         ``script_runner`` argument of ``WorkflowRuntime.start_run``.
     """
     # Lazy import from the private REPL module (see module docstring).
+    from langchain_core.tools import StructuredTool
     from langchain_quickjs._repl import _Registry
 
     registry = _Registry(
@@ -87,8 +95,29 @@ def build_workflow_script_runner(
     async def run(script: str, validated_input: Any) -> Any:
         thread_id = f"workflow-eval-{uuid.uuid4().hex}"
         repl = registry.get(thread_id)
+
+        # Per-run output sink: the body calls tools.output({result: ...}) to emit
+        # its result as a captured Python value. This is the canonical contract —
+        # the script's final expression is irrelevant, so the result can never be
+        # the `[unmarshalable value]` sentinel.
+        sink: dict[str, Any] = {"set": False, "value": None}
+
+        async def _capture(result: Any = None) -> str:
+            sink["set"] = True
+            sink["value"] = result
+            return "ok"
+
+        output_tool = StructuredTool.from_function(
+            coroutine=_capture,
+            name=OUTPUT_SINK_NAME,
+            description=(
+                "Emit the workflow's final result. Call once with "
+                f"{{ {OUTPUT_SINK_ARG}: <your result> }}."
+            ),
+        )
+
         try:
-            repl.install_tools(tool_list)
+            repl.install_tools([*tool_list, output_tool])
             payload = json.dumps(_to_jsonable(validated_input))
             code = f"const inp = {payload};\n{script}"
             outcome = await repl.eval_async(code)
@@ -97,14 +126,18 @@ def build_workflow_script_runner(
                     f"Authored workflow script failed: "
                     f"{outcome.error_type}: {outcome.error_message}"
                 )
-            # result_kind="handle" → the script ended on a non-serializable value
-            # (Promise/function/etc.). Don't pass the `[unmarshalable value]`
-            # placeholder through as a result — the agent would treat it as data.
+            # The sink is the canonical result when the body used it.
+            if sink["set"]:
+                return sink["value"]
+            # Fallback: the last-expression value (legacy / simple primitives).
+            # result_kind="handle" means it ended on a non-serializable value —
+            # don't pass the `[unmarshalable value]` placeholder through as data.
             if outcome.result_kind == "handle":
                 raise WorkflowStepError(
-                    "Authored workflow script ended on a non-serializable value "
-                    "(a Promise, function, or similar). End on a concrete value: "
-                    "`JSON.stringify(result)` or a primitive — and `await` any async call."
+                    f"Authored workflow script produced no result: it neither called "
+                    f"tools.{OUTPUT_SINK_NAME}(...) nor ended on a serializable value "
+                    "(it ended on a Promise/function). Emit the result via "
+                    f"tools.{OUTPUT_SINK_NAME}({{ {OUTPUT_SINK_ARG}: <value> }})."
                 )
             return _coerce_result(outcome.result)
         finally:
@@ -169,21 +202,21 @@ def _render_authoring_prompt(
         f"## Task\n{spec.description}\n\n"
         f"## Input\nThe run input is available as the global `inp`:\n{in_value}\n\n"
         f"## Allowed tools\nCall ONLY these (await each):\n{tools_block}\n\n"
-        f"## Required output\nThe program's final expression must produce this "
-        f"shape:\n{out_schema}\n\n"
+        f"## Required output\nEmit the result by calling "
+        f"`await tools.{OUTPUT_SINK_NAME}({{ {OUTPUT_SINK_ARG}: <value> }})` exactly "
+        f"ONCE, where <value> matches this shape:\n{out_schema}\n"
+        "Do NOT rely on the script's final expression for output — only the "
+        f"tools.{OUTPUT_SINK_NAME}(...) call is read.\n\n"
         "## Rules (the sandbox ABI)\n"
         "- Tools live on `tools` in camelCase; await every call.\n"
         "- No filesystem, network, real clock, Date, or Math.random.\n"
-        "- End on a single final expression — NOT a `return` (top-level return "
-        "is a syntax error).\n"
-        "- Do NOT end on a function, an un-awaited Promise, or `someAsyncCall()` — "
-        "`await` it first. Ending on a non-value yields `[unmarshalable value]`.\n"
-        "- For structured output, end on `JSON.stringify(value)`; a bare object "
-        "marshals to a non-JSON string.\n"
+        f"- `await tools.{OUTPUT_SINK_NAME}({{ {OUTPUT_SINK_ARG}: ... }})` is how you "
+        "return — pass a plain JSON value (object/array/string/number), no "
+        "`JSON.stringify` needed.\n"
         "- You are writing this BLIND — you cannot run it or inspect intermediate "
-        "values. Do NOT assume a tool's exact result field names. If a result "
-        "shape is uncertain, keep the WHOLE value (e.g. `JSON.stringify(result)`) "
-        "rather than guessing a field, so no data is silently dropped.\n\n"
+        "values. Do NOT assume a tool's exact result field names; if a result "
+        "shape is uncertain, include the whole value rather than guessing a field, "
+        "so no data is silently dropped.\n\n"
         "Output ONLY the JavaScript body — no prose, no markdown fences."
     )
 

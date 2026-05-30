@@ -155,7 +155,7 @@ async def research(ctx, inp: ResearchBrief) -> str:
     description=(
         "Research `inp.topic` across the angles in `inp.angles`. For each angle, "
         "call web_search with a query combining the topic and the angle, then "
-        "assemble a short markdown brief. End on JSON.stringify(briefString)."
+        "assemble a short markdown brief as the result."
     ),
     timeout_s=60,
 )
