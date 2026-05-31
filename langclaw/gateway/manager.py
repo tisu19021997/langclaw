@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import traceback
+import uuid
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Final
@@ -80,6 +82,9 @@ class GatewayManager:
         ) = None,
         named_agent_specs: dict[str, dict[str, Any]] | None = None,
         default_agent_spec: dict[str, Any] | None = None,
+        workflow_runtime: Any | None = None,
+        workflow_registry: Any | None = None,
+        workflow_run_store: Any | None = None,
     ) -> None:
         self._config = config
         self._bus = bus
@@ -87,6 +92,14 @@ class GatewayManager:
         self._agent = agent
         self._channels = [ch for ch in channels if ch.is_enabled()]
         self._cron_manager = cron_manager
+        # Workflow-as-message-source (origin="workflow"): the runtime + registry
+        # let the gateway run a named workflow directly (bus dispatch / cron),
+        # the run store backs `/workflow runs|status`, and the live-task map backs
+        # `/workflow cancel` for runs the gateway itself started.
+        self._workflow_runtime = workflow_runtime
+        self._workflow_registry = workflow_registry
+        self._workflow_run_store = workflow_run_store
+        self._workflow_runs: dict[str, asyncio.Task] = {}
         self._context_schema = context_schema or LangclawContext
         self._context_defaults = context_defaults or {}
         self._context_factory = context_factory
@@ -132,6 +145,10 @@ class GatewayManager:
         # Register /agent only when named agents exist (no-op otherwise).
         if self._named_agent_specs:
             self._setup_agent_command()
+
+        # Register /workflow only when the workflow primitive is wired.
+        if self._workflow_runtime is not None and self._workflow_registry is not None:
+            self._setup_workflow_command()
 
         # Phase 2 hook point — auto-routing resolver (not yet wired):
         # self._agent_resolver: Callable[[InboundMessage], Awaitable[str | None]] | None = None
@@ -366,6 +383,105 @@ class GatewayManager:
             return ""  # Empty response — agent will reply directly
 
         self._command_router.register("agent", _cmd_agent, "send message to a named agent")
+
+    def _setup_workflow_command(self) -> None:
+        """Register the built-in ``/workflow`` command (closure over the runtime).
+
+        Subcommands:
+          - ``/workflow`` / ``/workflow list`` — registered workflows.
+          - ``/workflow runs`` — recent runs from the journal (needs the run store).
+          - ``/workflow status <run_id>`` — a run's status (journal + live tasks).
+          - ``/workflow run <name> [json]`` — start a run via the bus
+            (``origin="workflow"``), mirroring ``/agent <name> <message>``.
+          - ``/workflow cancel <run_id>`` — cancel a gateway-started live run.
+        """
+        registry = self._workflow_registry
+        run_store = self._workflow_run_store
+        live_runs = self._workflow_runs
+        bus = self._bus
+
+        async def _cmd_workflow(ctx: CommandContext) -> str:
+            sub = ctx.args[0].lower() if ctx.args else "list"
+
+            if sub == "list":
+                specs = list(registry.specs())
+                if not specs:
+                    return "No workflows registered."
+                lines = ["Registered workflows:"]
+                for s in specs:
+                    tag = "" if getattr(s, "mode", "python") == "python" else f" [{s.mode}]"
+                    desc = f" — {s.description}" if s.description else ""
+                    lines.append(f"  {s.name}{tag}{desc}")
+                return "\n".join(lines)
+
+            if sub == "runs":
+                if run_store is None:
+                    return "Run journal not enabled (set workflows.resume_on_startup)."
+                records = await run_store.list_all()
+                if not records:
+                    return "No workflow runs recorded."
+                lines = ["Recent workflow runs:"]
+                for r in records[-20:]:
+                    lines.append(
+                        f"  [{r.get('status', '?')}] {r.get('run_id')} ({r.get('spec_name')})"
+                    )
+                return "\n".join(lines)
+
+            if sub == "status":
+                if len(ctx.args) < 2:
+                    return "Usage: /workflow status <run_id>"
+                run_id = ctx.args[1]
+                live = " (live)" if run_id in live_runs else ""
+                if run_store is not None:
+                    for r in await run_store.list_all():
+                        if r.get("run_id") == run_id:
+                            return f"{run_id}: {r.get('status')}{live}"
+                return f"{run_id}: {'running' + live if live else 'unknown'}"
+
+            if sub == "run":
+                if len(ctx.args) < 2:
+                    return "Usage: /workflow run <name> [json-input]"
+                name = ctx.args[1]
+                if registry.get(name) is None:
+                    return f"Unknown workflow {name!r}."
+                wf_input = " ".join(ctx.args[2:]) if len(ctx.args) > 2 else ""
+                run_id = f"{name}:{uuid.uuid4().hex[:12]}"
+                await bus.publish(
+                    InboundMessage(
+                        channel=ctx.channel,
+                        user_id=ctx.user_id,
+                        context_id=ctx.context_id,
+                        chat_id=ctx.chat_id,
+                        content=f"run workflow {name}",
+                        origin="workflow",
+                        metadata={
+                            "workflow_name": name,
+                            "workflow_input": wf_input,
+                            "run_id": run_id,
+                        },
+                    )
+                )
+                return f"Started workflow {name!r} (run_id: {run_id})."
+
+            if sub == "cancel":
+                if len(ctx.args) < 2:
+                    return "Usage: /workflow cancel <run_id>"
+                run_id = ctx.args[1]
+                task = live_runs.get(run_id)
+                if task is None:
+                    return (
+                        f"No live run {run_id} to cancel "
+                        "(only gateway-started runs are cancelable)."
+                    )
+                task.cancel()
+                return f"Cancelling run {run_id}."
+
+            return (
+                "Usage: /workflow [list | runs | status <run_id> | "
+                "run <name> [json] | cancel <run_id>]"
+            )
+
+        self._command_router.register("workflow", _cmd_workflow, "list/run/inspect workflows")
 
     async def _resolve_agent_name(self, msg: InboundMessage) -> str:
         """Determine which named agent should handle this message.
@@ -717,6 +833,101 @@ class GatewayManager:
 
         return _sink
 
+    @staticmethod
+    def _stringify_workflow_output(value: Any) -> str:
+        """Render a workflow's output as channel-deliverable text."""
+        if isinstance(value, str):
+            return value
+        if hasattr(value, "model_dump"):
+            value = value.model_dump()
+        try:
+            return json.dumps(value, default=str, indent=2)
+        except (TypeError, ValueError):
+            return str(value)
+
+    @staticmethod
+    def _parse_workflow_input(raw: Any) -> Any:
+        """Decode a workflow input from message metadata.
+
+        Cron stamps a JSON string; the `/workflow run` command may pass a dict or
+        a JSON string.  A non-JSON string is passed through verbatim (the spec's
+        input model validates it downstream).
+        """
+        if isinstance(raw, str) and raw.strip():
+            try:
+                return json.loads(raw)
+            except (TypeError, ValueError):
+                return raw
+        return raw
+
+    async def _handle_workflow(self, msg: InboundMessage, channel: BaseChannel) -> None:
+        """Run the workflow named in *msg* metadata and deliver its output.
+
+        Looks up ``metadata["workflow_name"]`` in the registry and runs it via the
+        runtime's registered factories (the default agent's role-filtered
+        toolset).  Phases / Mode-2 authored bodies project to the channel through
+        the same progress sink the agent path uses.  Failures are delivered as a
+        plain message — a broken workflow never crashes the bus worker.
+        """
+        meta = msg.metadata or {}
+        name = meta.get("workflow_name", "")
+        spec = self._workflow_registry.get(name) if self._workflow_registry else None
+        if self._workflow_runtime is None or spec is None:
+            await channel.send(
+                OutboundMessage(
+                    channel=msg.channel,
+                    user_id=msg.user_id,
+                    context_id=msg.context_id,
+                    chat_id=msg.chat_id,
+                    content=f"Unknown workflow {name!r}." if name else "No workflow specified.",
+                    type="ai",
+                )
+            )
+            return
+
+        run_id = meta.get("run_id") or f"{name}:{uuid.uuid4().hex[:12]}"
+        workflow_input = self._parse_workflow_input(meta.get("workflow_input"))
+        logger.info(
+            f"Workflow dispatch | channel={msg.channel} user={msg.user_id} "
+            f"workflow={name} run_id={run_id}"
+        )
+
+        self._workflow_runs[run_id] = asyncio.current_task()  # type: ignore[assignment]
+        progress_token = set_progress_sink(self._make_workflow_progress_sink(msg, channel))
+        try:
+            output = await self._workflow_runtime.run_registered(
+                spec, workflow_input, run_id=run_id
+            )
+            await channel.send(
+                OutboundMessage(
+                    channel=msg.channel,
+                    user_id=msg.user_id,
+                    context_id=msg.context_id,
+                    chat_id=msg.chat_id,
+                    content=self._stringify_workflow_output(output),
+                    type="ai",
+                    metadata={"origin": "workflow", "workflow": name, "run_id": run_id},
+                )
+            )
+        except asyncio.CancelledError:
+            logger.info(f"Workflow run {run_id} cancelled.")
+            raise
+        except Exception as exc:  # noqa: BLE001 — surfaced to channel as text
+            logger.exception(f"Workflow run {run_id} ({name!r}) failed")
+            await channel.send(
+                OutboundMessage(
+                    channel=msg.channel,
+                    user_id=msg.user_id,
+                    context_id=msg.context_id,
+                    chat_id=msg.chat_id,
+                    content=f"Workflow {name!r} failed: {exc}",
+                    type="ai",
+                )
+            )
+        finally:
+            reset_progress_sink(progress_token)
+            self._workflow_runs.pop(run_id, None)
+
     async def _handle(self, msg: InboundMessage) -> None:
         """
         Full message handling pipeline:
@@ -763,6 +974,14 @@ class GatewayManager:
                     metadata=out_meta,
                 )
             )
+            return
+
+        # Workflow-as-message-source: a message with origin="workflow" runs the
+        # named workflow directly (bypassing the LLM) and streams its progress +
+        # final output to the channel. Published by cron-fired workflow jobs or
+        # the `/workflow run` command.
+        if msg.origin == "workflow":
+            await self._handle_workflow(msg, channel)
             return
 
         # Message for main agent — resolve which agent handles this session.

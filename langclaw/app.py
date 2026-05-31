@@ -46,6 +46,7 @@ if TYPE_CHECKING:
     from langclaw.bus.base import BaseMessageBus, InboundMessage
     from langclaw.cron.scheduler import CronManager
     from langclaw.gateway.base import BaseChannel
+    from langclaw.workflows.authored import ScriptStore
     from langclaw.workflows.resume import StepStore
     from langclaw.workflows.run_store import RunStore
 
@@ -117,6 +118,7 @@ class Langclaw:
         # Set at startup when ``workflows.durable_steps`` is on, else None.
         self._step_store: StepStore | None = None
         self._run_store: RunStore | None = None
+        self._script_store: ScriptStore | None = None
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None
@@ -730,6 +732,7 @@ class Langclaw:
                 effective_config.workflows,
                 step_store=self._step_store,
                 run_store=self._run_store,
+                script_store=self._script_store,
             )
         return self._workflow_runtime
 
@@ -748,6 +751,7 @@ class Langclaw:
 
         from pathlib import Path
 
+        from langclaw.workflows.authored import StoreScriptStore
         from langclaw.workflows.run_store import StoreRunStore
         from langclaw.workflows.step_store import StoreStepStore, make_step_store_backend
 
@@ -756,6 +760,9 @@ class Langclaw:
         await stack.enter_async_context(backend)
         store = backend.get_store()
         self._step_store = StoreStepStore(store)
+        # Mode-2 bodies share the same store so llm_authored runs survive a restart
+        # (frozen-body replay on resume).
+        self._script_store = StoreScriptStore(store)
         if wf_cfg.resume_on_startup:
             self._run_store = StoreRunStore(store)
         logger.info("Workflow durable step store enabled ({})", cp_cfg.backend)
@@ -891,6 +898,9 @@ class Langclaw:
                         "bus": bus,
                         "model": None,
                     },
+                    workflow_runtime=self._workflow_runtime,
+                    workflow_registry=self._workflows if len(self._workflows) else None,
+                    workflow_run_store=self._run_store,
                 )
 
                 cron_status = "enabled" if cron_manager else "disabled"

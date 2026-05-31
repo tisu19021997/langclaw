@@ -99,6 +99,8 @@ class InboundMessage:
       - ``"cron"``: Scheduled job.
       - ``"heartbeat"``: Event-driven condition trigger.
       - ``"subagent"``: Output from a subagent.
+      - ``"workflow"``: Run the named workflow in ``metadata["workflow_name"]``
+        directly (bypassing the LLM); the gateway delivers its output.
 
     This field supersedes ``metadata["source"]`` for new code.
     """

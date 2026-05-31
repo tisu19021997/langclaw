@@ -557,11 +557,15 @@ class WorkflowsConfig(BaseModel):
     """Operator-authored Workflow primitive configuration (issue #38).
 
     Opt-in and **off by default**.  When enabled, workflows registered with
-    ``@app.workflow()`` become invocable: each is a typed, multi-step
-    orchestration exposed as a ``workflow_<name>`` tool, RBAC-gated by role.
-    Steps currently run **in-process** against the live, role-filtered toolset
-    (so tool-level RBAC applies); full bus → gateway re-entry per step (inheriting
-    rate limiting, channel context, and checkpointing) is not yet wired.
+    ``@app.workflow()`` become invocable three ways: the LLM calls the
+    ``workflow_<name>`` tool; an operator runs ``/workflow run <name>``; or a
+    message with ``origin="workflow"`` (e.g. a cron-fired job) dispatches one
+    through the gateway.  Each is typed, multi-step, and RBAC-gated by role.
+
+    Steps run **in-process** against the live, role-filtered toolset (so
+    tool-level RBAC applies).  Bus dispatch runs a *whole workflow* as one bus
+    message; full bus → gateway re-entry per *step* (inheriting rate limiting,
+    channel context, and per-step checkpointing) is not yet wired.
 
     Env: ``LANGCLAW__WORKFLOWS__ENABLED=true``
     """

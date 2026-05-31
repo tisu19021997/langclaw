@@ -22,7 +22,10 @@ bus-integration slice).
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from langgraph.store.base import BaseStore
 
 #: An author produces the workflow body as a PTC script string.  Async so the
 #: production implementation can call the model; tests pass a canned coroutine.
@@ -59,6 +62,42 @@ class InMemoryScriptStore:
 
     def __len__(self) -> int:
         return len(self._data)
+
+
+#: LangGraph store namespace for frozen llm_authored bodies. The full namespace
+#: is ``(_SCRIPT_NAMESPACE,)`` and the key is ``"<workflow_name>:<run_id>"``.
+_SCRIPT_NAMESPACE = "workflow_scripts"
+
+
+class StoreScriptStore:
+    """Durable :class:`ScriptStore` over a LangGraph ``BaseStore`` (#46).
+
+    The Mode-2 analogue of
+    :class:`~langclaw.workflows.step_store.StoreStepStore`: where that adapter
+    persists per-step results, this freezes the whole authored body so a resumed
+    run replays the *same* script instead of re-authoring it (which the LLM might
+    do differently).  Each body is stored at namespace ``("workflow_scripts",)``
+    under key ``"<workflow_name>:<run_id>"``, wrapped as ``{"script": <str>}``
+    because ``BaseStore.aput`` requires a dict value.
+    """
+
+    def __init__(self, store: BaseStore) -> None:
+        self._store = store
+
+    @staticmethod
+    def _key(workflow_name: str, run_id: str) -> str:
+        return f"{workflow_name}:{run_id}"
+
+    async def get(self, workflow_name: str, run_id: str) -> tuple[bool, str | None]:
+        item = await self._store.aget((_SCRIPT_NAMESPACE,), self._key(workflow_name, run_id))
+        if item is None:
+            return False, None
+        return True, item.value["script"]
+
+    async def put(self, workflow_name: str, run_id: str, script: str) -> None:
+        await self._store.aput(
+            (_SCRIPT_NAMESPACE,), self._key(workflow_name, run_id), {"script": script}
+        )
 
 
 class AuthoredScriptResolver:

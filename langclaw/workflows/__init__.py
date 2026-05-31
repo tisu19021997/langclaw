@@ -34,6 +34,7 @@ from langclaw.workflows.authored import (
     InMemoryScriptStore,
     ScriptAuthor,
     ScriptStore,
+    StoreScriptStore,
 )
 from langclaw.workflows.bridge import (
     WORKFLOW_TOOL_PREFIX,
@@ -80,6 +81,7 @@ __all__ = [
     "StepStore",
     "StepStoreBackend",
     "StoreRunStore",
+    "StoreScriptStore",
     "StoreStepStore",
     "StepRequest",
     "WorkflowBudgetExceeded",

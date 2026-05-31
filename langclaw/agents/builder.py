@@ -329,8 +329,13 @@ def create_claw_agent(
             author_factory=_workflow_author_factory,
             script_runner_factory=_workflow_script_runner_factory,
         )
-        # Let startup resume rebuild a step executor over this live toolset.
+        # Let non-tool entry points (bus dispatch / cron / startup resume) rebuild
+        # the step executor and Mode-2 callables over this live toolset.
         workflow_runtime.set_resume_executor_factory(_workflow_executor_factory)
+        workflow_runtime.set_authoring_factories(
+            author_factory=_workflow_author_factory,
+            script_runner_factory=_workflow_script_runner_factory,
+        )
         # Mode 1 PTC names (build-time, unnarrowed; per-call RBAC narrows later).
         _workflow_ptc_names = resolve_workflow_ptc_names(
             workflow_registry, workflows_config=config.workflows

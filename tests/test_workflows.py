@@ -1947,3 +1947,140 @@ def test_run_store_satisfies_protocol():
     from langclaw.workflows.run_store import RunStore, StoreRunStore
 
     assert isinstance(StoreRunStore(InMemoryStore()), RunStore)
+
+
+# ---------------------------------------------------------------------------
+# 6 — Workflows as a bus-native message source (#48) + run_registered (#46)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_store_list_all_returns_recent_runs():
+    """list_all surfaces every run (any status), newest-first, for /workflow runs."""
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.workflows.run_store import StoreRunStore
+
+    rs = StoreRunStore(InMemoryStore())
+    await rs.mark_running("r1", "demo", {"q": 1})
+    await rs.mark_completed("r1")
+    await rs.mark_running("r2", "demo", {"q": 2})
+    await rs.mark_failed("r2")
+    await rs.mark_running("r3", "demo", {"q": 3})
+
+    runs = await rs.list_all()
+    statuses = {r["run_id"]: r["status"] for r in runs}
+    assert statuses == {"r1": "completed", "r2": "failed", "r3": "running"}
+
+
+@pytest.mark.asyncio
+async def test_run_registered_python_uses_registered_executor_factory():
+    """run_registered builds the executor from the registered factory (bus dispatch)."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    calls: list[str] = []
+
+    async def body(ctx, inp):
+        return await ctx.tool("greet")
+
+    async def _exec(req):
+        calls.append(req.target)
+        return "hi"
+
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+    rt.set_resume_executor_factory(lambda _rt: _exec)
+
+    spec = WorkflowSpec(name="demo", description="", fn=body)
+    out = await rt.run_registered(spec, None, run_id="rr-1")
+    assert out == "hi"
+    assert calls == ["greet"]
+
+
+@pytest.mark.asyncio
+async def test_run_registered_llm_authored_uses_authoring_factories():
+    """run_registered routes llm_authored specs through the registered author/runner."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    async def _author(spec, inp):
+        return "SCRIPT_BODY"
+
+    async def _runner(script, inp):
+        return {"ran": script}
+
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+    rt.set_authoring_factories(
+        author_factory=lambda _spec: _author,
+        script_runner_factory=lambda _spec: _runner,
+    )
+
+    spec = WorkflowSpec(
+        name="auth", description="author a body", fn=lambda c, i: None, mode="llm_authored"
+    )
+    out = await rt.run_registered(spec, {"x": 1}, run_id="rr-2")
+    assert out == {"ran": "SCRIPT_BODY"}
+
+
+@pytest.mark.asyncio
+async def test_run_registered_without_factory_raises():
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+    spec = WorkflowSpec(name="demo", description="", fn=lambda c, i: None)
+    with pytest.raises(RuntimeError, match="no resume executor factory"):
+        await rt.run_registered(spec, None, run_id="rr-3")
+
+
+@pytest.mark.asyncio
+async def test_resume_incomplete_resumes_llm_authored_with_script_store():
+    """With authoring factories + a script store, a crashed llm_authored run resumes,
+    replaying its frozen body rather than re-authoring (#46)."""
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.authored import StoreScriptStore
+    from langclaw.workflows.run_store import StoreRunStore
+
+    store = InMemoryStore()
+    run_store = StoreRunStore(store)
+    script_store = StoreScriptStore(store)
+
+    author_calls: list[str] = []
+
+    async def _author(spec, inp):
+        author_calls.append(spec.name)
+        return "FROZEN_BODY"
+
+    runs: list[str] = []
+
+    async def _runner(script, inp):
+        runs.append(script)
+        return {"body": script}
+
+    rt = WorkflowRuntime(
+        WorkflowsConfig(enabled=True), run_store=run_store, script_store=script_store
+    )
+    rt.set_authoring_factories(
+        author_factory=lambda _spec: _author,
+        script_runner_factory=lambda _spec: _runner,
+    )
+
+    spec = WorkflowSpec(
+        name="auth", description="author a body", fn=lambda c, i: None, mode="llm_authored"
+    )
+
+    # First run authors + freezes the body.
+    await rt.run_registered(spec, {"in": 1}, run_id="run-A")
+    assert author_calls == ["auth"]
+
+    # Model a crash: mark it running again.
+    await run_store.mark_running("run-A", "auth", {"in": 1})
+
+    resumed = await rt.resume_incomplete(get_spec=lambda n: spec if n == "auth" else None)
+    assert resumed == ["run-A"]
+    # Author NOT called again — frozen body replayed from the script store.
+    assert author_calls == ["auth"]
+    assert runs == ["FROZEN_BODY", "FROZEN_BODY"]
