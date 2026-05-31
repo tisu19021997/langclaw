@@ -194,3 +194,63 @@ async def test_workflow_command_cancel_no_live_run():
     mgr = _make_manager(_make_registry())
     out = await mgr._command_router.dispatch("workflow", _ctx("cancel", "missing:run"))
     assert "No live run" in out
+
+
+# --- RBAC + dedup -----------------------------------------------------------
+
+
+def _make_manager_with_perms(registry, perms):
+    runtime = WorkflowRuntime(WorkflowsConfig(enabled=True))
+
+    async def _exec(req):
+        return None
+
+    runtime.set_resume_executor_factory(lambda _rt: _exec)
+
+    config = MagicMock()
+    config.permissions = perms
+    checkpointer = MagicMock()
+    checkpointer.get.return_value = MagicMock()
+
+    return GatewayManager(
+        config=config,
+        bus=AsyncMock(),
+        checkpointer_backend=checkpointer,
+        agent=MagicMock(),
+        channels=[_FakeChannel()],
+        workflow_runtime=runtime,
+        workflow_registry=registry,
+    )
+
+
+@pytest.mark.asyncio
+async def test_handle_workflow_denied_for_role_without_allowlist():
+    """A bus-dispatched workflow honours the default-deny workflow allowlist."""
+    from langclaw.config.schema import PermissionsConfig, RoleConfig
+
+    perms = PermissionsConfig(
+        enabled=True,
+        default_role="viewer",
+        roles={"viewer": RoleConfig(workflows=[]), "admin": RoleConfig(workflows=["*"])},
+    )
+    mgr = _make_manager_with_perms(_make_registry(), perms)
+    channel = mgr._channel_map["websocket"]
+
+    # viewer (role stamped in metadata) is not allowed any workflow → denied
+    await mgr._handle(_wf_msg("echo", user_role="viewer"))
+    assert any("not permitted" in m.content.lower() for m in channel.sent)
+
+    # admin has "*" → runs and delivers output
+    channel.sent.clear()
+    await mgr._handle(_wf_msg("echo", user_role="admin", workflow_input='{"q": 1}'))
+    assert any('"echo"' in m.content for m in channel.sent)
+
+
+@pytest.mark.asyncio
+async def test_handle_workflow_rejects_duplicate_run_id():
+    mgr = _make_manager(_make_registry())
+    channel = mgr._channel_map["websocket"]
+    mgr._workflow_runs["echo:dup"] = MagicMock()  # pretend a run is live
+
+    await mgr._handle(_wf_msg("echo", run_id="echo:dup"))
+    assert any("already in progress" in m.content for m in channel.sent)

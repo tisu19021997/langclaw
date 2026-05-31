@@ -562,10 +562,17 @@ class WorkflowsConfig(BaseModel):
     message with ``origin="workflow"`` (e.g. a cron-fired job) dispatches one
     through the gateway.  Each is typed, multi-step, and RBAC-gated by role.
 
-    Steps run **in-process** against the live, role-filtered toolset (so
-    tool-level RBAC applies).  Bus dispatch runs a *whole workflow* as one bus
+    RBAC is enforced at the **invocation** boundary: the ``workflow_<name>`` tool
+    gate, the ``/workflow`` command, cron dispatch, and bus dispatch all consult
+    the role's default-deny workflow allowlist.  A workflow's **steps**, however,
+    run **in-process** by calling ``tool.ainvoke`` directly — they bypass the
+    graph, so the per-request ``ToolPermissionMiddleware`` does not filter a
+    step's toolset.  A workflow can therefore reach any tool in the default
+    agent's toolset; restrict reachable tools via the workflow's ``uses_tools``,
+    not per-role tool RBAC.  Bus dispatch runs a *whole workflow* as one bus
     message; full bus → gateway re-entry per *step* (inheriting rate limiting,
-    channel context, and per-step checkpointing) is not yet wired.
+    channel context, per-step checkpointing, and step-level RBAC) is not yet
+    wired.
 
     Env: ``LANGCLAW__WORKFLOWS__ENABLED=true``
     """

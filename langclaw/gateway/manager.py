@@ -100,6 +100,9 @@ class GatewayManager:
         self._workflow_registry = workflow_registry
         self._workflow_run_store = workflow_run_store
         self._workflow_runs: dict[str, asyncio.Task] = {}
+        # Strong refs to fire-and-forget progress sends so the event loop does
+        # not garbage-collect them mid-flight (only holds a weak ref otherwise).
+        self._background_tasks: set[asyncio.Task] = set()
         self._context_schema = context_schema or LangclawContext
         self._context_defaults = context_defaults or {}
         self._context_factory = context_factory
@@ -420,8 +423,11 @@ class GatewayManager:
                 records = await run_store.list_all()
                 if not records:
                     return "No workflow runs recorded."
-                lines = ["Recent workflow runs:"]
-                for r in records[-20:]:
+                # asearch ordering is backend-dependent, so this is a sample of up
+                # to 20 runs, not guaranteed to be the newest 20.
+                shown = records[-20:]
+                lines = [f"Workflow runs ({len(shown)} of {len(records)}):"]
+                for r in shown:
                     lines.append(
                         f"  [{r.get('status', '?')}] {r.get('run_id')} ({r.get('spec_name')})"
                     )
@@ -829,7 +835,9 @@ class GatewayManager:
                     "workflow": event.get("workflow", ""),
                 },
             )
-            asyncio.create_task(channel.send(out))
+            task = asyncio.create_task(channel.send(out))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
         return _sink
 
@@ -863,11 +871,17 @@ class GatewayManager:
     async def _handle_workflow(self, msg: InboundMessage, channel: BaseChannel) -> None:
         """Run the workflow named in *msg* metadata and deliver its output.
 
-        Looks up ``metadata["workflow_name"]`` in the registry and runs it via the
-        runtime's registered factories (the default agent's role-filtered
-        toolset).  Phases / Mode-2 authored bodies project to the channel through
+        Looks up ``metadata["workflow_name"]`` in the registry, enforces the
+        workflow-axis RBAC allowlist, then runs it via the runtime's registered
+        factories.  Phases / Mode-2 authored bodies project to the channel through
         the same progress sink the agent path uses.  Failures are delivered as a
         plain message — a broken workflow never crashes the bus worker.
+
+        RBAC scope: this gates *which* workflow a role may invoke (parity with the
+        ``workflow_<name>`` tool gate).  The step executor itself runs against the
+        default agent's full toolset — the per-request ``ToolPermissionMiddleware``
+        does not apply to a step's direct ``tool.ainvoke`` (pre-existing for the
+        tool bridge too; see ``WorkflowsConfig``).
         """
         meta = msg.metadata or {}
         name = meta.get("workflow_name", "")
@@ -885,7 +899,41 @@ class GatewayManager:
             )
             return
 
+        # Workflow-axis RBAC: the bus / cron / `/workflow run` entry points honour
+        # the same default-deny allowlist the `workflow_<name>` tool gate applies
+        # on the agent path (otherwise dispatching via the bus would bypass it).
+        perms = self._config.permissions
+        if getattr(perms, "enabled", False):
+            from langclaw.middleware.permissions import allowed_workflow_names
+
+            role = self._resolve_user_role(msg) or perms.default_role
+            permitted = allowed_workflow_names(perms, role, self._workflow_registry.names())
+            if name not in permitted:
+                await channel.send(
+                    OutboundMessage(
+                        channel=msg.channel,
+                        user_id=msg.user_id,
+                        context_id=msg.context_id,
+                        chat_id=msg.chat_id,
+                        content=f"Workflow {name!r} is not permitted for your role.",
+                        type="ai",
+                    )
+                )
+                return
+
         run_id = meta.get("run_id") or f"{name}:{uuid.uuid4().hex[:12]}"
+        if run_id in self._workflow_runs:
+            await channel.send(
+                OutboundMessage(
+                    channel=msg.channel,
+                    user_id=msg.user_id,
+                    context_id=msg.context_id,
+                    chat_id=msg.chat_id,
+                    content=f"Workflow run {run_id!r} is already in progress.",
+                    type="ai",
+                )
+            )
+            return
         workflow_input = self._parse_workflow_input(meta.get("workflow_input"))
         logger.info(
             f"Workflow dispatch | channel={msg.channel} user={msg.user_id} "
