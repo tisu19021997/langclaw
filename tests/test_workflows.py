@@ -1914,3 +1914,36 @@ def test_workflows_config_resume_on_startup_flag():
 
     assert WorkflowsConfig().resume_on_startup is False
     assert WorkflowsConfig(resume_on_startup=True).resume_on_startup is True
+
+
+@pytest.mark.asyncio
+async def test_runtime_rejects_non_serializable_input_for_journal():
+    """A non-JSON input fails clearly at journaling, not deep inside the store."""
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.run_store import StoreRunStore
+
+    async def body(ctx, inp):
+        return "ok"
+
+    async def _exec(req):
+        return "ok"
+
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True), run_store=StoreRunStore(InMemoryStore()))
+    with pytest.raises(TypeError, match="not JSON-serializable"):
+        await rt.start_run(
+            WorkflowSpec(name="d", description="", fn=body),
+            {"bad": {1, 2, 3}},  # a set is not JSON-serializable
+            run_id="x",
+            executor=_exec,
+        )
+
+
+def test_run_store_satisfies_protocol():
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.workflows.run_store import RunStore, StoreRunStore
+
+    assert isinstance(StoreRunStore(InMemoryStore()), RunStore)

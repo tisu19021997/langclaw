@@ -19,13 +19,28 @@ the crash case :meth:`list_incomplete` surfaces for replay.  A clean failure is
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from langgraph.store.base import BaseStore
 
 _NAMESPACE = ("workflow_runs",)
 _PAGE = 100
+
+
+@runtime_checkable
+class RunStore(Protocol):
+    """Persistence seam for the workflow run journal (resume on startup)."""
+
+    async def mark_running(self, run_id: str, spec_name: str, run_input: Any) -> None: ...
+
+    async def mark_completed(self, run_id: str) -> None: ...
+
+    async def mark_failed(self, run_id: str) -> None: ...
+
+    async def list_incomplete(self) -> list[dict[str, Any]]:
+        """Return every run still in ``"running"`` (crashed mid-flight)."""
+        ...
 
 
 class StoreRunStore:

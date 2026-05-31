@@ -609,7 +609,16 @@ class WorkflowsConfig(BaseModel):
     - **No step-result invalidation.**  Resume matches cached steps by a
       deterministic ``step_id`` (``<phase>#<seq>``).  Editing a workflow body
       between crash and restart can shift those IDs and replay stale results — bump
-      the workflow name or clear the store after changing a body you may resume."""
+      the workflow name or clear the store after changing a body you may resume.
+    - **Resumes under the default agent's permissions.**  The resume step executor
+      is built from the default agent's role-filtered toolset, not the original
+      invoker's role/named-agent context — a resumed run may see a different
+      toolset than the run that crashed.
+    - **Blocking at startup.**  Incomplete runs are replayed sequentially before
+      the gateway begins serving traffic, so a slow or hanging resumed run delays
+      startup.
+    - **One attempt.**  A run that raises again during resume is marked ``failed``
+      and not retried — even if the cause was transient."""
 
 
 class ToolsConfig(BaseModel):

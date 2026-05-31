@@ -20,6 +20,7 @@ fake ``async def (StepRequest) -> result``.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -33,6 +34,7 @@ from langclaw.workflows.authored import (
 from langclaw.workflows.context import StepExecutor, WorkflowContext
 from langclaw.workflows.progress import emit_progress
 from langclaw.workflows.resume import StepMemoizer, StepStore
+from langclaw.workflows.run_store import RunStore
 
 if TYPE_CHECKING:
     from langclaw.config.schema import WorkflowsConfig
@@ -45,9 +47,22 @@ ScriptRunnerFn = Callable[[str, Any], Awaitable[Any]]
 
 
 def _serialize_input(run_input: Any) -> Any:
-    """Make the run input JSON-storable for the run journal (replayed verbatim)."""
+    """Make the run input JSON-storable for the run journal (replayed verbatim).
+
+    Pydantic models are dumped; everything else must already be JSON-serializable.
+    A non-serializable input fails here with a clear message rather than an opaque
+    error deep inside the store's ``aput``.
+    """
     if hasattr(run_input, "model_dump"):
         return run_input.model_dump()
+    try:
+        json.dumps(run_input)
+    except (TypeError, ValueError) as exc:
+        raise TypeError(
+            "Workflow run input is not JSON-serializable and cannot be journaled "
+            f"for resume: {type(run_input).__name__}. Pass a dict, Pydantic model, "
+            "or other JSON-compatible value."
+        ) from exc
     return run_input
 
 
@@ -68,7 +83,7 @@ class WorkflowRuntime:
         *,
         step_store: StepStore | None = None,
         script_store: ScriptStore | None = None,
-        run_store: Any | None = None,
+        run_store: RunStore | None = None,
         phase_cb_factory: Callable[[str], Callable[[str], None]] | None = None,
     ) -> None:
         self._config = config

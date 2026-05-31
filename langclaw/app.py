@@ -46,6 +46,8 @@ if TYPE_CHECKING:
     from langclaw.bus.base import BaseMessageBus, InboundMessage
     from langclaw.cron.scheduler import CronManager
     from langclaw.gateway.base import BaseChannel
+    from langclaw.workflows.resume import StepStore
+    from langclaw.workflows.run_store import RunStore
 
 
 class Langclaw:
@@ -113,8 +115,8 @@ class Langclaw:
         self._workflows = WorkflowRegistry()
         self._workflow_runtime: WorkflowRuntime | None = None
         # Set at startup when ``workflows.durable_steps`` is on, else None.
-        self._step_store: Any = None
-        self._run_store: Any = None
+        self._step_store: StepStore | None = None
+        self._run_store: RunStore | None = None
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None

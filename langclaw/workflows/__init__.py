@@ -59,7 +59,7 @@ from langclaw.workflows.progress import (
 )
 from langclaw.workflows.registry import WorkflowRegistry, WorkflowSpec
 from langclaw.workflows.resume import InMemoryStepStore, StepMemoizer, StepStore
-from langclaw.workflows.run_store import StoreRunStore
+from langclaw.workflows.run_store import RunStore, StoreRunStore
 from langclaw.workflows.runtime import WorkflowRuntime
 from langclaw.workflows.step_store import (
     MemoryStepStoreBackend,
@@ -76,6 +76,7 @@ __all__ = [
     "ScriptAuthor",
     "ScriptStore",
     "StepMemoizer",
+    "RunStore",
     "StepStore",
     "StepStoreBackend",
     "StoreRunStore",
