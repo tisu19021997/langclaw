@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any, Literal
 
 from loguru import logger
@@ -730,6 +731,46 @@ class Langclaw:
             )
         return self._workflow_runtime
 
+    async def _open_workflow_stores(self, stack: AsyncExitStack, cp_cfg: Any, wf_cfg: Any) -> None:
+        """Open the opt-in durable step store + run journal, bound to *stack*.
+
+        Sets ``self._step_store`` (``durable_steps``) and ``self._run_store``
+        (``resume_on_startup``).  Both share one ``BaseStore`` — a sibling SQLite
+        file (avoids write-lock contention with the checkpointer) or the Postgres
+        DSN.  No-op when workflows / ``durable_steps`` are off.
+        """
+        if not (wf_cfg.enabled and wf_cfg.durable_steps):
+            if wf_cfg.enabled and wf_cfg.resume_on_startup:
+                logger.warning("workflows.resume_on_startup needs durable_steps — skipping.")
+            return
+
+        from pathlib import Path
+
+        from langclaw.workflows.run_store import StoreRunStore
+        from langclaw.workflows.step_store import StoreStepStore, make_step_store_backend
+
+        steps_db = str(Path(cp_cfg.sqlite.db_path).expanduser().with_suffix(".steps.db"))
+        backend = make_step_store_backend(cp_cfg.backend, db_path=steps_db, dsn=cp_cfg.postgres.dsn)
+        await stack.enter_async_context(backend)
+        store = backend.get_store()
+        self._step_store = StoreStepStore(store)
+        if wf_cfg.resume_on_startup:
+            self._run_store = StoreRunStore(store)
+        logger.info("Workflow durable step store enabled ({})", cp_cfg.backend)
+
+    async def _resume_incomplete_workflows(self) -> None:
+        """Re-run workflow runs left incomplete by a prior process (crash recovery).
+
+        Must run *after* the agent is built — that's when the runtime's resume
+        executor factory is registered.  No-op unless ``resume_on_startup`` opened
+        a run journal.
+        """
+        if self._run_store is None or self._workflow_runtime is None:
+            return
+        resumed = await self._workflow_runtime.resume_incomplete(get_spec=self._workflows.get)
+        if resumed:
+            logger.info(f"Resumed {len(resumed)} incomplete workflow run(s).")
+
     # ------------------------------------------------------------------
     # Gateway (high-level API)
     # ------------------------------------------------------------------
@@ -792,20 +833,6 @@ class Langclaw:
             dsn=cp_cfg.postgres.dsn,
         )
 
-        # Opt-in durable step store: a sibling SQLite file (avoids write-lock
-        # contention with the checkpointer) or the same Postgres DSN.
-        wf_cfg = cfg.workflows
-        step_store_backend = None
-        if wf_cfg.enabled and wf_cfg.durable_steps:
-            from pathlib import Path
-
-            from langclaw.workflows.step_store import make_step_store_backend
-
-            steps_db = str(Path(cp_cfg.sqlite.db_path).expanduser().with_suffix(".steps.db"))
-            step_store_backend = make_step_store_backend(
-                cp_cfg.backend, db_path=steps_db, dsn=cp_cfg.postgres.dsn
-            )
-
         channels = self._build_all_channels()
         if not channels:
             logger.error(
@@ -818,25 +845,10 @@ class Langclaw:
             await hook()
 
         try:
-            from contextlib import AsyncExitStack
-
             async with AsyncExitStack() as stack:
                 await stack.enter_async_context(bus)
                 await stack.enter_async_context(checkpointer_backend)
-                if step_store_backend is not None:
-                    from langclaw.workflows.run_store import StoreRunStore
-                    from langclaw.workflows.step_store import StoreStepStore
-
-                    await stack.enter_async_context(step_store_backend)
-                    store = step_store_backend.get_store()
-                    self._step_store = StoreStepStore(store)
-                    if wf_cfg.resume_on_startup:
-                        self._run_store = StoreRunStore(store)
-                    logger.info("Workflow durable step store enabled ({})", cp_cfg.backend)
-                elif wf_cfg.enabled and wf_cfg.resume_on_startup:
-                    logger.warning(
-                        "workflows.resume_on_startup needs workflows.durable_steps — skipping."
-                    )
+                await self._open_workflow_stores(stack, cp_cfg, cfg.workflows)
 
                 cron_manager = None
                 if cfg.cron.enabled:
@@ -854,14 +866,8 @@ class Langclaw:
                     context_schema=self._context_schema,
                 )
 
-                # Crash recovery: re-run workflow runs left incomplete by a prior
-                # process. The agent build above registered the resume executor.
-                if self._run_store is not None and self._workflow_runtime is not None:
-                    resumed = await self._workflow_runtime.resume_incomplete(
-                        get_spec=self._workflows.get
-                    )
-                    if resumed:
-                        logger.info(f"Resumed {len(resumed)} incomplete workflow run(s).")
+                # Crash recovery (after the agent build registers the executor).
+                await self._resume_incomplete_workflows()
 
                 manager = GatewayManager(
                     config=self._build_effective_config(),
