@@ -113,6 +113,7 @@ class Langclaw:
         self._workflow_runtime: WorkflowRuntime | None = None
         # Set at startup when ``workflows.durable_steps`` is on, else None.
         self._step_store: Any = None
+        self._run_store: Any = None
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None
@@ -723,7 +724,9 @@ class Langclaw:
             return None
         if self._workflow_runtime is None:
             self._workflow_runtime = WorkflowRuntime(
-                effective_config.workflows, step_store=self._step_store
+                effective_config.workflows,
+                step_store=self._step_store,
+                run_store=self._run_store,
             )
         return self._workflow_runtime
 
@@ -821,11 +824,19 @@ class Langclaw:
                 await stack.enter_async_context(bus)
                 await stack.enter_async_context(checkpointer_backend)
                 if step_store_backend is not None:
+                    from langclaw.workflows.run_store import StoreRunStore
                     from langclaw.workflows.step_store import StoreStepStore
 
                     await stack.enter_async_context(step_store_backend)
-                    self._step_store = StoreStepStore(step_store_backend.get_store())
+                    store = step_store_backend.get_store()
+                    self._step_store = StoreStepStore(store)
+                    if wf_cfg.resume_on_startup:
+                        self._run_store = StoreRunStore(store)
                     logger.info("Workflow durable step store enabled ({})", cp_cfg.backend)
+                elif wf_cfg.enabled and wf_cfg.resume_on_startup:
+                    logger.warning(
+                        "workflows.resume_on_startup needs workflows.durable_steps — skipping."
+                    )
 
                 cron_manager = None
                 if cfg.cron.enabled:
@@ -842,6 +853,15 @@ class Langclaw:
                     bus=bus,
                     context_schema=self._context_schema,
                 )
+
+                # Crash recovery: re-run workflow runs left incomplete by a prior
+                # process. The agent build above registered the resume executor.
+                if self._run_store is not None and self._workflow_runtime is not None:
+                    resumed = await self._workflow_runtime.resume_incomplete(
+                        get_spec=self._workflows.get
+                    )
+                    if resumed:
+                        logger.info(f"Resumed {len(resumed)} incomplete workflow run(s).")
 
                 manager = GatewayManager(
                     config=self._build_effective_config(),

@@ -1782,3 +1782,135 @@ def test_workflows_config_durable_steps_flag():
 
     assert WorkflowsConfig().durable_steps is False
     assert WorkflowsConfig(durable_steps=True).durable_steps is True
+
+
+# ---------------------------------------------------------------------------
+# 9 — Run journal + resume trigger
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_store_records_lifecycle_and_lists_incomplete():
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.workflows.run_store import StoreRunStore
+
+    rs = StoreRunStore(InMemoryStore())
+    await rs.mark_running("r1", "demo", {"q": 1})
+    await rs.mark_running("r2", "demo", {"q": 2})
+    await rs.mark_completed("r2")
+    await rs.mark_running("r3", "demo", {"q": 3})
+    await rs.mark_failed("r3")
+
+    incomplete = await rs.list_incomplete()
+    ids = {r["run_id"] for r in incomplete}
+    assert ids == {"r1"}  # completed + failed are excluded
+    rec = next(r for r in incomplete if r["run_id"] == "r1")
+    assert rec["spec_name"] == "demo" and rec["input"] == {"q": 1}
+
+
+@pytest.mark.asyncio
+async def test_runtime_marks_run_completed():
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.run_store import StoreRunStore
+
+    async def body(ctx, inp):
+        return await ctx.tool("t")
+
+    async def _exec(req):
+        return "ok"
+
+    rs = StoreRunStore(InMemoryStore())
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True), run_store=rs)
+    await rt.start_run(
+        WorkflowSpec(name="d", description="", fn=body), None, run_id="x", executor=_exec
+    )
+
+    assert await rs.list_incomplete() == []  # marked completed, not incomplete
+
+
+@pytest.mark.asyncio
+async def test_runtime_marks_run_failed_on_exception():
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.run_store import StoreRunStore
+
+    async def body(ctx, inp):
+        raise RuntimeError("boom")
+
+    async def _exec(req):
+        return "ok"
+
+    rs = StoreRunStore(InMemoryStore())
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True), run_store=rs)
+    with pytest.raises(RuntimeError):
+        await rt.start_run(
+            WorkflowSpec(name="d", description="", fn=body), None, run_id="x", executor=_exec
+        )
+
+    # a deterministic failure is marked failed, NOT left as resumable
+    assert await rs.list_incomplete() == []
+
+
+@pytest.mark.asyncio
+async def test_resume_incomplete_reruns_only_unfinished_tail():
+    """A crashed run (step-1 done, never completed) resumes: step-1 replays, step-2 runs."""
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.run_store import StoreRunStore
+    from langclaw.workflows.step_store import StoreStepStore
+
+    store = InMemoryStore()
+    step_store = StoreStepStore(store)
+    run_store = StoreRunStore(store)
+
+    executed: list[str] = []
+    fail = {"step-2": True}
+
+    async def body(ctx, inp):
+        a = await ctx.tool("step-1")
+        b = await ctx.tool("step-2")
+        return f"{a}+{b}"
+
+    async def _exec(req):
+        if req.target == "step-2" and fail["step-2"]:
+            raise RuntimeError("crash")
+        executed.append(req.target)
+        return req.target.upper()
+
+    spec = WorkflowSpec(name="demo", description="", fn=body)
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True), step_store=step_store, run_store=run_store)
+
+    # Attempt 1 executes step-1 (persisted) then dies in step-2.
+    try:
+        await rt.start_run(spec, {"in": 1}, run_id="run-1", executor=_exec)
+    except RuntimeError:
+        pass
+
+    # A real process kill leaves status="running"; the clean exception above
+    # marked it failed, so re-set running to model the crash.
+    await run_store.mark_running("run-1", "demo", {"in": 1})
+
+    fail["step-2"] = False  # the transient cause is gone on restart
+    resumed = await rt.resume_incomplete(
+        get_spec=lambda name: spec if name == "demo" else None,
+        make_executor=lambda _spec: _exec,
+    )
+
+    assert resumed == ["run-1"]
+    assert executed == ["step-1", "step-2"]  # step-1 once (1st attempt), step-2 once (resume)
+    assert await run_store.list_incomplete() == []  # completed after resume
+
+
+def test_workflows_config_resume_on_startup_flag():
+    from langclaw.config.schema import WorkflowsConfig
+
+    assert WorkflowsConfig().resume_on_startup is False
+    assert WorkflowsConfig(resume_on_startup=True).resume_on_startup is True
