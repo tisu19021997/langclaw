@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from contextlib import AsyncExitStack
 from typing import TYPE_CHECKING, Any, Literal
 
 from loguru import logger
@@ -45,6 +46,8 @@ if TYPE_CHECKING:
     from langclaw.bus.base import BaseMessageBus, InboundMessage
     from langclaw.cron.scheduler import CronManager
     from langclaw.gateway.base import BaseChannel
+    from langclaw.workflows.resume import StepStore
+    from langclaw.workflows.run_store import RunStore
 
 
 class Langclaw:
@@ -111,6 +114,9 @@ class Langclaw:
         self._named_agents: dict[str, dict[str, Any]] = {}
         self._workflows = WorkflowRegistry()
         self._workflow_runtime: WorkflowRuntime | None = None
+        # Set at startup when ``workflows.durable_steps`` is on, else None.
+        self._step_store: StepStore | None = None
+        self._run_store: RunStore | None = None
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None
@@ -720,8 +726,52 @@ class Langclaw:
         if not effective_config.workflows.enabled or not len(self._workflows):
             return None
         if self._workflow_runtime is None:
-            self._workflow_runtime = WorkflowRuntime(effective_config.workflows)
+            self._workflow_runtime = WorkflowRuntime(
+                effective_config.workflows,
+                step_store=self._step_store,
+                run_store=self._run_store,
+            )
         return self._workflow_runtime
+
+    async def _open_workflow_stores(self, stack: AsyncExitStack, cp_cfg: Any, wf_cfg: Any) -> None:
+        """Open the opt-in durable step store + run journal, bound to *stack*.
+
+        Sets ``self._step_store`` (``durable_steps``) and ``self._run_store``
+        (``resume_on_startup``).  Both share one ``BaseStore`` — a sibling SQLite
+        file (avoids write-lock contention with the checkpointer) or the Postgres
+        DSN.  No-op when workflows / ``durable_steps`` are off.
+        """
+        if not (wf_cfg.enabled and wf_cfg.durable_steps):
+            if wf_cfg.enabled and wf_cfg.resume_on_startup:
+                logger.warning("workflows.resume_on_startup needs durable_steps — skipping.")
+            return
+
+        from pathlib import Path
+
+        from langclaw.workflows.run_store import StoreRunStore
+        from langclaw.workflows.step_store import StoreStepStore, make_step_store_backend
+
+        steps_db = str(Path(cp_cfg.sqlite.db_path).expanduser().with_suffix(".steps.db"))
+        backend = make_step_store_backend(cp_cfg.backend, db_path=steps_db, dsn=cp_cfg.postgres.dsn)
+        await stack.enter_async_context(backend)
+        store = backend.get_store()
+        self._step_store = StoreStepStore(store)
+        if wf_cfg.resume_on_startup:
+            self._run_store = StoreRunStore(store)
+        logger.info("Workflow durable step store enabled ({})", cp_cfg.backend)
+
+    async def _resume_incomplete_workflows(self) -> None:
+        """Re-run workflow runs left incomplete by a prior process (crash recovery).
+
+        Must run *after* the agent is built — that's when the runtime's resume
+        executor factory is registered.  No-op unless ``resume_on_startup`` opened
+        a run journal.
+        """
+        if self._run_store is None or self._workflow_runtime is None:
+            return
+        resumed = await self._workflow_runtime.resume_incomplete(get_spec=self._workflows.get)
+        if resumed:
+            logger.info(f"Resumed {len(resumed)} incomplete workflow run(s).")
 
     # ------------------------------------------------------------------
     # Gateway (high-level API)
@@ -797,7 +847,11 @@ class Langclaw:
             await hook()
 
         try:
-            async with bus, checkpointer_backend:
+            async with AsyncExitStack() as stack:
+                await stack.enter_async_context(bus)
+                await stack.enter_async_context(checkpointer_backend)
+                await self._open_workflow_stores(stack, cp_cfg, cfg.workflows)
+
                 cron_manager = None
                 if cfg.cron.enabled:
                     from langclaw.cron import make_cron_manager
@@ -813,6 +867,9 @@ class Langclaw:
                     bus=bus,
                     context_schema=self._context_schema,
                 )
+
+                # Crash recovery (after the agent build registers the executor).
+                await self._resume_incomplete_workflows()
 
                 manager = GatewayManager(
                     config=self._build_effective_config(),

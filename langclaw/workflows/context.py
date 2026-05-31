@@ -22,6 +22,7 @@ from typing import Any
 
 StepExecutor = Callable[["StepRequest"], Awaitable[Any]]
 PhaseCallback = Callable[[str], None]
+LogCallback = Callable[[str], None]
 
 
 class WorkflowStepError(RuntimeError):
@@ -64,6 +65,8 @@ class WorkflowContext:
                       persists it (durable resume).  When ``None``, every step
                       executes live.
         phase_cb:     Optional callback invoked on each :meth:`phase` change.
+        log_cb:       Optional callback invoked on each :meth:`log` line — a
+                      free-text progress narrator (e.g. projected to a channel).
         max_steps:    Step-count backstop for the whole run.
         semaphore:    Shared concurrency limiter for ``parallel`` fan-out.
         _phase / _prefix / _counter: internal deterministic-ID state (also used
@@ -77,6 +80,7 @@ class WorkflowContext:
         memoize: Callable[[StepRequest, Callable[[], Awaitable[Any]]], Awaitable[Any]]
         | None = None,
         phase_cb: PhaseCallback | None = None,
+        log_cb: LogCallback | None = None,
         max_steps: int = 1000,
         semaphore: asyncio.Semaphore | None = None,
         _phase: str = "default",
@@ -86,6 +90,7 @@ class WorkflowContext:
         self._executor = executor
         self._memoize = memoize
         self._phase_cb = phase_cb
+        self._log_cb = log_cb
         self._max_steps = max_steps
         self._semaphore = semaphore or asyncio.Semaphore(8)
         self._phase = _phase
@@ -108,6 +113,17 @@ class WorkflowContext:
     def current_phase(self) -> str:
         return self._phase
 
+    def log(self, message: str) -> None:
+        """Emit a free-text progress line (e.g. ``"3/10 sources fetched"``).
+
+        Routed to the injected ``log_cb`` (typically projected to the invoking
+        channel as a progress event).  A no-op when no callback is installed,
+        so a workflow body can narrate freely without caring whether anyone is
+        listening.
+        """
+        if self._log_cb is not None:
+            self._log_cb(message)
+
     # -- steps --------------------------------------------------------------
 
     async def agent(self, name: str, prompt: str, *, schema: type | None = None) -> Any:
@@ -127,13 +143,23 @@ class WorkflowContext:
         return await self._run_step("tool", name, kwargs)
 
     async def parallel(
-        self, thunks: list[Callable[[WorkflowContext], Awaitable[Any]]]
+        self,
+        thunks: list[Callable[[WorkflowContext], Awaitable[Any]]],
+        *,
+        return_exceptions: bool = False,
     ) -> list[Any]:
         """Run *thunks* concurrently, bounded by the run's concurrency budget.
 
         Each thunk receives its own child context whose step IDs are prefixed by
         the branch index, so IDs stay deterministic across re-runs (required for
         durable resume).  Returns results in input order.
+
+        By default this is **fail-fast**: if any branch raises, the exception
+        propagates out of the batch (matching ``asyncio.gather``).  Pass
+        ``return_exceptions=True`` to instead collect each failure *in place* —
+        a branch that raises yields its exception object in the results list
+        while its siblings still complete.  Filter survivors with
+        ``[r for r in results if not isinstance(r, Exception)]``.
         """
         base = self._next_id()  # consume one slot to anchor the batch deterministically
 
@@ -144,6 +170,7 @@ class WorkflowContext:
                 executor=self._executor,
                 memoize=self._memoize,
                 phase_cb=self._phase_cb,
+                log_cb=self._log_cb,
                 max_steps=self._max_steps,
                 semaphore=self._semaphore,
                 _phase=self._phase,
@@ -153,7 +180,10 @@ class WorkflowContext:
             async with self._semaphore:
                 return await thunk(child)
 
-        return await asyncio.gather(*(_run_branch(i, t) for i, t in enumerate(thunks)))
+        return await asyncio.gather(
+            *(_run_branch(i, t) for i, t in enumerate(thunks)),
+            return_exceptions=return_exceptions,
+        )
 
     # -- internals ----------------------------------------------------------
 

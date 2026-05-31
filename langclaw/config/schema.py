@@ -557,10 +557,11 @@ class WorkflowsConfig(BaseModel):
     """Operator-authored Workflow primitive configuration (issue #38).
 
     Opt-in and **off by default**.  When enabled, workflows registered with
-    ``@app.workflow()`` become invocable: each is a durable, typed, multi-step
-    orchestration whose steps round-trip through the same bus → gateway pipeline
-    as ordinary messages, so RBAC, rate limiting, channel context, and
-    checkpointing are inherited rather than reimplemented.
+    ``@app.workflow()`` become invocable: each is a typed, multi-step
+    orchestration exposed as a ``workflow_<name>`` tool, RBAC-gated by role.
+    Steps currently run **in-process** against the live, role-filtered toolset
+    (so tool-level RBAC applies); full bus → gateway re-entry per step (inheriting
+    rate limiting, channel context, and checkpointing) is not yet wired.
 
     Env: ``LANGCLAW__WORKFLOWS__ENABLED=true``
     """
@@ -581,9 +582,43 @@ class WorkflowsConfig(BaseModel):
     """Maximum nesting depth — how many levels a workflow may invoke other
     workflows.  Bounds recursive fan-out."""
 
+    durable_steps: bool = False
+    """When ``True``, completed workflow step results are persisted to a
+    LangGraph ``BaseStore`` (a sibling SQLite file or the Postgres DSN, matching
+    the checkpointer backend) instead of an in-process dict, so they survive a
+    process restart.  Off by default.
+
+    NOTE: this only *persists* step results — it does not re-run anything on its
+    own.  Set ``resume_on_startup`` for that.  The store currently has no TTL or
+    pruning, so it grows unbounded; keep an eye on it for long-lived deployments."""
+
     resume_on_startup: bool = False
-    """When ``True``, incomplete runs persisted in the checkpointer are resumed
-    on process startup (replaying completed steps).  Off by default."""
+    """When ``True``, workflow runs left incomplete by a previous process (a crash
+    / kill) are re-run on startup from the run journal: completed steps replay
+    from the durable step store and only the unfinished tail executes.  Off by
+    default.  Requires ``durable_steps`` (the step store + run journal share one
+    ``BaseStore``); without it, enabling this logs a warning and does nothing.
+
+    Caveats developers should know before relying on it:
+
+    - **Python-mode workflows only.**  Runs whose spec is no longer registered, or
+      whose ``mode`` is ``llm_authored``, are skipped (logged), not resumed.
+    - **Crash vs. clean failure.**  A killed process leaves a run ``running`` and
+      so resumable; a workflow that raised a normal exception is marked ``failed``
+      and is *not* retried (avoids looping on a deterministic bug).
+    - **No step-result invalidation.**  Resume matches cached steps by a
+      deterministic ``step_id`` (``<phase>#<seq>``).  Editing a workflow body
+      between crash and restart can shift those IDs and replay stale results — bump
+      the workflow name or clear the store after changing a body you may resume.
+    - **Resumes under the default agent's permissions.**  The resume step executor
+      is built from the default agent's role-filtered toolset, not the original
+      invoker's role/named-agent context — a resumed run may see a different
+      toolset than the run that crashed.
+    - **Blocking at startup.**  Incomplete runs are replayed sequentially before
+      the gateway begins serving traffic, so a slow or hanging resumed run delays
+      startup.
+    - **One attempt.**  A run that raises again during resume is marked ``failed``
+      and not retried — even if the cause was transient."""
 
 
 class ToolsConfig(BaseModel):

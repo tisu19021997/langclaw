@@ -4,14 +4,22 @@ Durable resume — per-step memoization (issue #38, Phase 1).
 A workflow run is identified by ``run_id``; each step within it has a
 deterministic ``step_id`` (see :mod:`langclaw.workflows.context`).  The
 :class:`StepMemoizer` persists each completed step's result keyed by
-``(run_id, step_id)``.  On resume the body re-executes from the top, but every
-already-completed step returns its cached result instantly instead of re-running
-the underlying agent/tool — so a process restart costs only the unfinished tail.
+``(run_id, step_id)``.  When a run *re-executes* under the same ``run_id`` the
+body runs from the top, but every already-completed step returns its cached
+result instead of re-running the underlying agent/tool — so a re-run costs only
+the unfinished tail.
 
-The persistence backend is abstracted behind :class:`StepStore`.  An
-in-memory implementation ships here for tests; the production wiring stores
-results via the existing checkpointer under ``thread_id = workflow:{name}:{run_id}``
-(deferred to the bus-integration slice).
+The persistence backend is abstracted behind the :class:`StepStore` protocol.
+:class:`InMemoryStepStore` (here) is process-local; the durable implementation
+is :class:`langclaw.workflows.step_store.StoreStepStore`, which adapts a
+LangGraph ``BaseStore`` (SQLite/Postgres) — *not* the checkpointer, which stores
+graph channel-state and is the wrong shape for arbitrary KV.
+
+SCOPE: this is the resume *mechanism*.  Persisting across a real process restart
+requires the durable store (opt-in via ``workflows.durable_steps``), and a
+*trigger* that re-invokes a run with a prior ``run_id`` (resume command / startup
+replay) — not yet wired.  Today ``run_id`` is freshly minted per call, so nothing
+re-runs automatically yet.
 """
 
 from __future__ import annotations

@@ -17,8 +17,12 @@ Deep, isolation-testable modules:
   deterministic step IDs for durable resume.
 - :mod:`runtime`   — ``WorkflowRuntime``: run lifecycle, per-run concurrency +
   step-count budget, global ``max_concurrent_runs`` ceiling.
-- :mod:`resume`    — ``StepMemoizer``: persist per-step results so a restart
-  replays completed steps instead of re-running them.
+- :mod:`resume`    — ``StepMemoizer`` + the ``StepStore`` protocol: memoize
+  per-step results so a re-run replays completed steps instead of re-running
+  them.  (The resume *trigger* — re-invoking a prior ``run_id`` — is not yet wired.)
+- :mod:`step_store` — ``StoreStepStore`` + ``make_step_store_backend``: the
+  durable ``StepStore`` over a LangGraph ``BaseStore`` (SQLite/Postgres), opt-in
+  via ``workflows.durable_steps``.
 - :mod:`authored`  — ``AuthoredScriptResolver``: Mode 2 (``llm_authored``) —
   freeze the LLM-authored body so a run replays the same script on resume.
 """
@@ -54,16 +58,29 @@ from langclaw.workflows.progress import (
     set_progress_sink,
 )
 from langclaw.workflows.registry import WorkflowRegistry, WorkflowSpec
-from langclaw.workflows.resume import InMemoryStepStore, StepMemoizer
+from langclaw.workflows.resume import InMemoryStepStore, StepMemoizer, StepStore
+from langclaw.workflows.run_store import RunStore, StoreRunStore
 from langclaw.workflows.runtime import WorkflowRuntime
+from langclaw.workflows.step_store import (
+    MemoryStepStoreBackend,
+    StepStoreBackend,
+    StoreStepStore,
+    make_step_store_backend,
+)
 
 __all__ = [
     "AuthoredScriptResolver",
     "InMemoryScriptStore",
     "InMemoryStepStore",
+    "MemoryStepStoreBackend",
     "ScriptAuthor",
     "ScriptStore",
     "StepMemoizer",
+    "RunStore",
+    "StepStore",
+    "StepStoreBackend",
+    "StoreRunStore",
+    "StoreStepStore",
     "StepRequest",
     "WorkflowBudgetExceeded",
     "WorkflowContext",
@@ -76,6 +93,7 @@ __all__ = [
     "build_workflow_author",
     "build_workflow_script_runner",
     "emit_progress",
+    "make_step_store_backend",
     "make_workflow_tools",
     "render_workflow_progress",
     "reset_progress_sink",

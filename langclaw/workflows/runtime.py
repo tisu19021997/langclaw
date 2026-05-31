@@ -20,6 +20,7 @@ fake ``async def (StepRequest) -> result``.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -33,6 +34,7 @@ from langclaw.workflows.authored import (
 from langclaw.workflows.context import StepExecutor, WorkflowContext
 from langclaw.workflows.progress import emit_progress
 from langclaw.workflows.resume import StepMemoizer, StepStore
+from langclaw.workflows.run_store import RunStore
 
 if TYPE_CHECKING:
     from langclaw.config.schema import WorkflowsConfig
@@ -42,6 +44,26 @@ if TYPE_CHECKING:
 ScriptAuthorFn = Callable[["WorkflowSpec", Any], Awaitable[str]]
 #: A script runner executes a resolved body against the validated input.
 ScriptRunnerFn = Callable[[str, Any], Awaitable[Any]]
+
+
+def _serialize_input(run_input: Any) -> Any:
+    """Make the run input JSON-storable for the run journal (replayed verbatim).
+
+    Pydantic models are dumped; everything else must already be JSON-serializable.
+    A non-serializable input fails here with a clear message rather than an opaque
+    error deep inside the store's ``aput``.
+    """
+    if hasattr(run_input, "model_dump"):
+        return run_input.model_dump()
+    try:
+        json.dumps(run_input)
+    except (TypeError, ValueError) as exc:
+        raise TypeError(
+            "Workflow run input is not JSON-serializable and cannot be journaled "
+            f"for resume: {type(run_input).__name__}. Pass a dict, Pydantic model, "
+            "or other JSON-compatible value."
+        ) from exc
+    return run_input
 
 
 class WorkflowRuntime:
@@ -61,13 +83,22 @@ class WorkflowRuntime:
         *,
         step_store: StepStore | None = None,
         script_store: ScriptStore | None = None,
+        run_store: RunStore | None = None,
         phase_cb_factory: Callable[[str], Callable[[str], None]] | None = None,
     ) -> None:
         self._config = config
         self._step_store = step_store
         self._script_store = script_store
+        self._run_store = run_store
         self._phase_cb_factory = phase_cb_factory
         self._run_gate = asyncio.Semaphore(max(1, config.max_concurrent_runs))
+        # Set by the agent builder so startup resume can rebuild a step executor
+        # over the (default agent's) live toolset.
+        self._resume_executor_factory: Callable[[Any], Any] | None = None
+
+    def set_resume_executor_factory(self, factory: Callable[[Any], Any]) -> None:
+        """Register the executor factory used to build a resume-time step executor."""
+        self._resume_executor_factory = factory
 
     async def start_run(
         self,
@@ -106,11 +137,66 @@ class WorkflowRuntime:
                         (gateway/tool bridge) converts it to a channel-safe error.
         """
         validated_input = spec.validate_input(run_input)
-        if spec.mode == "llm_authored":
-            return await self._run_authored(
-                spec, validated_input, run_id=run_id, author=author, script_runner=script_runner
-            )
-        return await self._run_python(spec, validated_input, run_id=run_id, executor=executor)
+        if self._run_store is not None:
+            await self._run_store.mark_running(run_id, spec.name, _serialize_input(run_input))
+        try:
+            if spec.mode == "llm_authored":
+                output = await self._run_authored(
+                    spec, validated_input, run_id=run_id, author=author, script_runner=script_runner
+                )
+            else:
+                output = await self._run_python(
+                    spec, validated_input, run_id=run_id, executor=executor
+                )
+        except Exception:
+            if self._run_store is not None:
+                await self._run_store.mark_failed(run_id)
+            raise
+        if self._run_store is not None:
+            await self._run_store.mark_completed(run_id)
+        return output
+
+    async def resume_incomplete(
+        self,
+        *,
+        get_spec: Callable[[str], WorkflowSpec | None],
+        make_executor: Callable[[WorkflowSpec], Any] | None = None,
+    ) -> list[str]:
+        """Re-run every run left ``"running"`` in the run store (crash recovery).
+
+        Each incomplete run is re-invoked with its stored input and original
+        ``run_id``, so already-completed steps replay from the step store and only
+        the unfinished tail executes.  Returns the resumed ``run_id``s.
+
+        Python-mode only: a run whose spec is no longer registered, or whose spec
+        is ``llm_authored``, is skipped (logged).  *make_executor* may be sync or
+        async and is called per spec to build the step executor; when omitted, the
+        factory registered via :meth:`set_resume_executor_factory` is used.
+        """
+        if self._run_store is None:
+            return []
+        if make_executor is None:
+            if self._resume_executor_factory is None:
+                logger.warning("Cannot resume workflows: no resume executor factory registered.")
+                return []
+            factory = self._resume_executor_factory
+            make_executor = lambda _spec: factory(None)  # noqa: E731
+        resumed: list[str] = []
+        for record in await self._run_store.list_incomplete():
+            run_id = record["run_id"]
+            spec = get_spec(record["spec_name"])
+            if spec is None:
+                logger.warning(f"Cannot resume {run_id}: workflow {record['spec_name']!r} gone.")
+                continue
+            if spec.mode == "llm_authored":
+                logger.warning(f"Cannot resume {run_id}: llm_authored resume is not supported.")
+                continue
+            maybe = make_executor(spec)
+            executor = await maybe if isinstance(maybe, Awaitable) else maybe
+            logger.info(f"Resuming incomplete workflow run {run_id} ({spec.name!r})")
+            await self.start_run(spec, record["input"], run_id=run_id, executor=executor)
+            resumed.append(run_id)
+        return resumed
 
     async def _run_python(
         self,
@@ -135,10 +221,16 @@ class WorkflowRuntime:
             if factory_cb is not None:
                 factory_cb(name)
 
+        def log_cb(message: str) -> None:
+            emit_progress(
+                {"kind": "log", "workflow": spec.name, "run_id": run_id, "message": message}
+            )
+
         ctx = WorkflowContext(
             executor=executor,
             memoize=memoize,
             phase_cb=phase_cb,
+            log_cb=log_cb,
             max_steps=max_steps,
             semaphore=semaphore,
         )
