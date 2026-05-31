@@ -1542,3 +1542,243 @@ def test_render_workflow_progress():
     out = render_workflow_progress({"kind": "authored", "workflow": "r", "script": "X();"})
     assert out is not None and "generated script" in out and "X();" in out
     assert render_workflow_progress({"kind": "other"}) is None
+
+
+# ---------------------------------------------------------------------------
+# 6 — ctx.parallel failure isolation (Tier 1a)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_parallel_fail_fast_by_default():
+    """One failing branch propagates out of the whole batch (default)."""
+    from langclaw.workflows import WorkflowContext
+
+    async def _exec(request):
+        if request.target == "boom":
+            raise RuntimeError("kaboom")
+        return f"ok:{request.target}"
+
+    ctx = WorkflowContext(executor=_exec)
+    ctx.phase("fanout")
+
+    async def good(c):
+        return await c.tool("fine")
+
+    async def bad(c):
+        return await c.tool("boom")
+
+    with pytest.raises(RuntimeError):
+        await ctx.parallel([good, bad, good])
+
+
+@pytest.mark.asyncio
+async def test_parallel_isolates_failures_when_requested():
+    """return_exceptions=True: a bad branch yields the exception, others survive."""
+    from langclaw.workflows import WorkflowContext
+
+    async def _exec(request):
+        if request.target == "boom":
+            raise RuntimeError("kaboom")
+        return f"ok:{request.target}"
+
+    ctx = WorkflowContext(executor=_exec)
+    ctx.phase("fanout")
+
+    async def good(c):
+        return await c.tool("fine")
+
+    async def bad(c):
+        return await c.tool("boom")
+
+    results = await ctx.parallel([good, bad, good], return_exceptions=True)
+    assert results[0] == "ok:fine"
+    assert isinstance(results[1], RuntimeError)
+    assert results[2] == "ok:fine"
+    # the survivors are filterable the obvious way
+    survivors = [r for r in results if not isinstance(r, Exception)]
+    assert survivors == ["ok:fine", "ok:fine"]
+
+
+# ---------------------------------------------------------------------------
+# 7 — ctx.log narrator (Tier 1c)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ctx_log_invokes_log_callback():
+    """ctx.log forwards a free-text line to the injected log callback."""
+    from langclaw.workflows import WorkflowContext
+
+    async def _exec(request):
+        return "ok"
+
+    lines: list[str] = []
+    ctx = WorkflowContext(executor=_exec, log_cb=lines.append)
+    ctx.log("3/10 sources fetched")
+    assert lines == ["3/10 sources fetched"]
+
+
+@pytest.mark.asyncio
+async def test_ctx_log_propagates_into_parallel_branches():
+    """Child contexts spawned by parallel share the parent log callback."""
+    from langclaw.workflows import WorkflowContext
+
+    async def _exec(request):
+        return "ok"
+
+    lines: list[str] = []
+    ctx = WorkflowContext(executor=_exec, log_cb=lines.append)
+
+    async def branch(c):
+        c.log("branch ran")
+        return await c.tool("t")
+
+    await ctx.parallel([branch, branch])
+    assert lines == ["branch ran", "branch ran"]
+
+
+@pytest.mark.asyncio
+async def test_ctx_log_no_callback_is_noop():
+    from langclaw.workflows import WorkflowContext
+
+    async def _exec(request):
+        return "ok"
+
+    ctx = WorkflowContext(executor=_exec)
+    ctx.log("nobody listening")  # must not raise
+
+
+@pytest.mark.asyncio
+async def test_runtime_emits_log_progress_event():
+    """The runtime wires ctx.log to a 'log' progress event (workflow + run_id)."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.progress import reset_progress_sink, set_progress_sink
+
+    async def body(ctx, inp):
+        ctx.log("halfway")
+        return "done"
+
+    spec = WorkflowSpec(name="logger", description="", fn=body)
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+
+    async def _exec(request):
+        return "x"
+
+    events: list[dict] = []
+    token = set_progress_sink(events.append)
+    try:
+        await rt.start_run(spec, None, run_id="run-log-1", executor=_exec)
+    finally:
+        reset_progress_sink(token)
+
+    logs = [e for e in events if e["kind"] == "log"]
+    assert logs and logs[0]["message"] == "halfway"
+    assert logs[0]["workflow"] == "logger" and logs[0]["run_id"] == "run-log-1"
+
+
+def test_render_log_progress():
+    from langclaw.workflows.progress import render_workflow_progress
+
+    out = render_workflow_progress({"kind": "log", "workflow": "r", "message": "step 2 done"})
+    assert out is not None and "step 2 done" in out
+
+
+# ---------------------------------------------------------------------------
+# 8 — Store-backed durable StepStore (#5)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_store_step_store_round_trips_via_basestore():
+    """StoreStepStore satisfies the StepStore protocol over a langgraph BaseStore."""
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.workflows.resume import StepStore
+    from langclaw.workflows.step_store import StoreStepStore
+
+    ss = StoreStepStore(InMemoryStore())
+    assert isinstance(ss, StepStore)  # structural / runtime_checkable
+
+    hit, _ = await ss.get("run1", "step#0")
+    assert hit is False
+
+    await ss.put("run1", "step#0", {"answer": 42})
+    hit, value = await ss.get("run1", "step#0")
+    assert hit is True and value == {"answer": 42}
+
+
+@pytest.mark.asyncio
+async def test_store_step_store_namespaces_by_run():
+    """Distinct run_ids never share cached step results."""
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.workflows.step_store import StoreStepStore
+
+    ss = StoreStepStore(InMemoryStore())
+    await ss.put("runA", "s#0", "A-result")
+    await ss.put("runB", "s#0", "B-result")
+
+    assert (await ss.get("runA", "s#0")) == (True, "A-result")
+    assert (await ss.get("runB", "s#0")) == (True, "B-result")
+
+
+@pytest.mark.asyncio
+async def test_store_step_store_drives_resume_replay():
+    """Wired as the runtime's step_store, completed steps replay (no re-run)."""
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.step_store import StoreStepStore
+
+    calls: list[str] = []
+
+    async def body(ctx, inp):
+        a = await ctx.tool("t1")
+        b = await ctx.tool("t2")
+        return f"{a}+{b}"
+
+    spec = WorkflowSpec(name="resumable", description="", fn=body)
+
+    async def _exec(request):
+        calls.append(request.target)
+        return request.target.upper()
+
+    store = StoreStepStore(InMemoryStore())
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True), step_store=store)
+
+    out1 = await rt.start_run(spec, None, run_id="dup", executor=_exec)
+    out2 = await rt.start_run(spec, None, run_id="dup", executor=_exec)
+
+    assert out1 == out2 == "T1+T2"
+    # second run replayed both steps from the store — executor not called again
+    assert calls == ["t1", "t2"]
+
+
+@pytest.mark.asyncio
+async def test_make_step_store_backend_sqlite(tmp_path):
+    """The factory yields a lifecycle-managed sqlite-backed StepStore."""
+    from langclaw.workflows.step_store import StoreStepStore, make_step_store_backend
+
+    db = tmp_path / "steps.db"
+    backend = make_step_store_backend("sqlite", db_path=str(db))
+    async with backend:
+        ss = StoreStepStore(backend.get_store())
+        await ss.put("r", "s#0", {"v": 1})
+        assert (await ss.get("r", "s#0")) == (True, {"v": 1})
+
+
+def test_make_step_store_backend_rejects_unknown():
+    from langclaw.workflows.step_store import make_step_store_backend
+
+    with pytest.raises(ValueError):
+        make_step_store_backend("redis")
+
+
+def test_workflows_config_durable_steps_flag():
+    from langclaw.config.schema import WorkflowsConfig
+
+    assert WorkflowsConfig().durable_steps is False
+    assert WorkflowsConfig(durable_steps=True).durable_steps is True

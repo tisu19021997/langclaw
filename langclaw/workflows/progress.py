@@ -17,6 +17,7 @@ returns immediately. With no sink installed, :func:`emit_progress` is a no-op.
 
 Event shape (a plain dict):
     {"kind": "phase",    "workflow": str, "run_id": str, "phase": str}
+    {"kind": "log",      "workflow": str, "run_id": str, "message": str}
     {"kind": "authored", "workflow": str, "run_id": str, "script": str}
 """
 
@@ -65,6 +66,8 @@ def render_workflow_progress(event: dict[str, Any]) -> str | None:
     workflow = event.get("workflow", "workflow")
     if kind == "phase":
         return f"⚙️ {workflow}: {event.get('phase', '')}"
+    if kind == "log":
+        return f"   {workflow}: {event.get('message', '')}"
     if kind == "authored":
         return f"📝 {workflow} — generated script:\n{event.get('script', '')}"
     return None

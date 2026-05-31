@@ -111,6 +111,8 @@ class Langclaw:
         self._named_agents: dict[str, dict[str, Any]] = {}
         self._workflows = WorkflowRegistry()
         self._workflow_runtime: WorkflowRuntime | None = None
+        # Set at startup when ``workflows.durable_steps`` is on, else None.
+        self._step_store: Any = None
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None
@@ -720,7 +722,9 @@ class Langclaw:
         if not effective_config.workflows.enabled or not len(self._workflows):
             return None
         if self._workflow_runtime is None:
-            self._workflow_runtime = WorkflowRuntime(effective_config.workflows)
+            self._workflow_runtime = WorkflowRuntime(
+                effective_config.workflows, step_store=self._step_store
+            )
         return self._workflow_runtime
 
     # ------------------------------------------------------------------
@@ -785,6 +789,20 @@ class Langclaw:
             dsn=cp_cfg.postgres.dsn,
         )
 
+        # Opt-in durable step store: a sibling SQLite file (avoids write-lock
+        # contention with the checkpointer) or the same Postgres DSN.
+        wf_cfg = cfg.workflows
+        step_store_backend = None
+        if wf_cfg.enabled and wf_cfg.durable_steps:
+            from pathlib import Path
+
+            from langclaw.workflows.step_store import make_step_store_backend
+
+            steps_db = str(Path(cp_cfg.sqlite.db_path).expanduser().with_suffix(".steps.db"))
+            step_store_backend = make_step_store_backend(
+                cp_cfg.backend, db_path=steps_db, dsn=cp_cfg.postgres.dsn
+            )
+
         channels = self._build_all_channels()
         if not channels:
             logger.error(
@@ -797,7 +815,18 @@ class Langclaw:
             await hook()
 
         try:
-            async with bus, checkpointer_backend:
+            from contextlib import AsyncExitStack
+
+            async with AsyncExitStack() as stack:
+                await stack.enter_async_context(bus)
+                await stack.enter_async_context(checkpointer_backend)
+                if step_store_backend is not None:
+                    from langclaw.workflows.step_store import StoreStepStore
+
+                    await stack.enter_async_context(step_store_backend)
+                    self._step_store = StoreStepStore(step_store_backend.get_store())
+                    logger.info("Workflow durable step store enabled ({})", cp_cfg.backend)
+
                 cron_manager = None
                 if cfg.cron.enabled:
                     from langclaw.cron import make_cron_manager

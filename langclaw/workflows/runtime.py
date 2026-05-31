@@ -135,10 +135,16 @@ class WorkflowRuntime:
             if factory_cb is not None:
                 factory_cb(name)
 
+        def log_cb(message: str) -> None:
+            emit_progress(
+                {"kind": "log", "workflow": spec.name, "run_id": run_id, "message": message}
+            )
+
         ctx = WorkflowContext(
             executor=executor,
             memoize=memoize,
             phase_cb=phase_cb,
+            log_cb=log_cb,
             max_steps=max_steps,
             semaphore=semaphore,
         )

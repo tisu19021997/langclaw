@@ -557,10 +557,11 @@ class WorkflowsConfig(BaseModel):
     """Operator-authored Workflow primitive configuration (issue #38).
 
     Opt-in and **off by default**.  When enabled, workflows registered with
-    ``@app.workflow()`` become invocable: each is a durable, typed, multi-step
-    orchestration whose steps round-trip through the same bus → gateway pipeline
-    as ordinary messages, so RBAC, rate limiting, channel context, and
-    checkpointing are inherited rather than reimplemented.
+    ``@app.workflow()`` become invocable: each is a typed, multi-step
+    orchestration exposed as a ``workflow_<name>`` tool, RBAC-gated by role.
+    Steps currently run **in-process** against the live, role-filtered toolset
+    (so tool-level RBAC applies); full bus → gateway re-entry per step (inheriting
+    rate limiting, channel context, and checkpointing) is not yet wired.
 
     Env: ``LANGCLAW__WORKFLOWS__ENABLED=true``
     """
@@ -581,9 +582,18 @@ class WorkflowsConfig(BaseModel):
     """Maximum nesting depth — how many levels a workflow may invoke other
     workflows.  Bounds recursive fan-out."""
 
+    durable_steps: bool = False
+    """When ``True``, completed workflow step results are persisted to a
+    LangGraph ``BaseStore`` (a sibling SQLite file or the Postgres DSN, matching
+    the checkpointer backend) instead of an in-process dict, so they survive a
+    process restart.  Off by default.  NOTE: this persists step results; it does
+    **not** by itself re-run anything — the resume *trigger* (a resume command /
+    startup replay) is not yet wired."""
+
     resume_on_startup: bool = False
     """When ``True``, incomplete runs persisted in the checkpointer are resumed
-    on process startup (replaying completed steps).  Off by default."""
+    on process startup (replaying completed steps).  Off by default — not yet
+    wired."""
 
 
 class ToolsConfig(BaseModel):
