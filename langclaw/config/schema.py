@@ -586,14 +586,30 @@ class WorkflowsConfig(BaseModel):
     """When ``True``, completed workflow step results are persisted to a
     LangGraph ``BaseStore`` (a sibling SQLite file or the Postgres DSN, matching
     the checkpointer backend) instead of an in-process dict, so they survive a
-    process restart.  Off by default.  NOTE: this persists step results; it does
-    **not** by itself re-run anything — the resume *trigger* (a resume command /
-    startup replay) is not yet wired."""
+    process restart.  Off by default.
+
+    NOTE: this only *persists* step results — it does not re-run anything on its
+    own.  Set ``resume_on_startup`` for that.  The store currently has no TTL or
+    pruning, so it grows unbounded; keep an eye on it for long-lived deployments."""
 
     resume_on_startup: bool = False
-    """When ``True``, incomplete runs persisted in the checkpointer are resumed
-    on process startup (replaying completed steps).  Off by default — not yet
-    wired."""
+    """When ``True``, workflow runs left incomplete by a previous process (a crash
+    / kill) are re-run on startup from the run journal: completed steps replay
+    from the durable step store and only the unfinished tail executes.  Off by
+    default.  Requires ``durable_steps`` (the step store + run journal share one
+    ``BaseStore``); without it, enabling this logs a warning and does nothing.
+
+    Caveats developers should know before relying on it:
+
+    - **Python-mode workflows only.**  Runs whose spec is no longer registered, or
+      whose ``mode`` is ``llm_authored``, are skipped (logged), not resumed.
+    - **Crash vs. clean failure.**  A killed process leaves a run ``running`` and
+      so resumable; a workflow that raised a normal exception is marked ``failed``
+      and is *not* retried (avoids looping on a deterministic bug).
+    - **No step-result invalidation.**  Resume matches cached steps by a
+      deterministic ``step_id`` (``<phase>#<seq>``).  Editing a workflow body
+      between crash and restart can shift those IDs and replay stale results — bump
+      the workflow name or clear the store after changing a body you may resume."""
 
 
 class ToolsConfig(BaseModel):
