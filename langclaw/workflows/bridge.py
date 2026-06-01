@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from langclaw.naming import WORKFLOW_TOOL_PREFIX, workflow_tool_name
 from langclaw.workflows.context import StepExecutor, StepRequest, WorkflowStepError
 
 if TYPE_CHECKING:
@@ -46,10 +47,9 @@ ExecutorFactory = Callable[[Any], Awaitable[StepExecutor]]
 AuthorFactory = Callable[["WorkflowSpec"], "ScriptAuthorFn"]
 ScriptRunnerFactory = Callable[["WorkflowSpec"], "ScriptRunnerFn"]
 
-#: Prefix every workflow tool/PTC symbol carries. The agent invokes a workflow
-#: as the tool ``workflow_<name>`` and, inside an ``eval`` script (Mode 1),
-#: reaches it as ``tools.workflow<Name>`` (camelCased by the PTC layer).
-WORKFLOW_TOOL_PREFIX = "workflow_"
+# The ``workflow_<name>`` tool/PTC prefix is owned by ``langclaw.naming`` (the
+# single source of truth shared with the reservation guard and the permission
+# middleware). Re-exported here for back-compat with existing imports.
 
 
 def resolve_workflow_ptc_names(
@@ -241,7 +241,7 @@ def _make_one_workflow_tool(
 
     return structured_tool_cls.from_function(
         coroutine=_run,
-        name=f"workflow_{spec.name}",
+        name=workflow_tool_name(spec.name),
         description=description,
         args_schema=_WorkflowToolArgs,
     )

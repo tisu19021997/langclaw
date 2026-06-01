@@ -219,6 +219,13 @@ body (Mode 1) or an LLM-authored-once-then-frozen body (Mode 2, `llm_authored`).
   workflow allowlist; step execution itself bypasses tool middleware (see the
   diagram above), so `uses_tools` — not per-role tool RBAC — bounds a workflow's
   reach.
+- **Reserved namespace.** A workflow generates a `workflow_<name>` tool and the
+  `/workflow` command into namespaces shared with `@app.tool` / `@app.command`.
+  `langclaw/naming.py` is the single source of truth for the reserved prefix and
+  command names; `@app.tool`/`@app.command` reject a name that would collide, so
+  a developer registration can never silently shadow (or be shadowed by) a
+  generated workflow tool. Adding a future name-minting primitive is one entry in
+  that module.
 
 ### Code Interpreter (RLM) — Trust Boundary
 

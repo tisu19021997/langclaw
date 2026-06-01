@@ -35,6 +35,7 @@ from langclaw.config.schema import (
 )
 from langclaw.context import LangclawContext
 from langclaw.gateway.commands import CommandContext
+from langclaw.naming import check_command_name_allowed, check_tool_name_allowed
 from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
 
 if TYPE_CHECKING:
@@ -165,6 +166,7 @@ class Langclaw:
             from langchain_core.tools import tool as lc_tool
 
             t = fn if isinstance(fn, _BaseTool) else lc_tool(fn)
+            check_tool_name_allowed(t.name)
             self._extra_tools.append(t)
 
             if roles:
@@ -177,6 +179,7 @@ class Langclaw:
 
     def register_tool(self, tool: Any, roles: list[str] | None = None) -> None:
         """Register an existing ``BaseTool`` instance."""
+        check_tool_name_allowed(tool.name)
         self._extra_tools.append(tool)
 
         if roles:
@@ -185,6 +188,8 @@ class Langclaw:
 
     def register_tools(self, tools: list[Any], roles: list[str] | None = None) -> None:
         """Register multiple ``BaseTool`` instances at once."""
+        for tool in tools:
+            check_tool_name_allowed(tool.name)
         self._extra_tools.extend(tools)
 
         if roles:
@@ -226,6 +231,8 @@ class Langclaw:
             async def ping(ctx: CommandContext) -> str:
                 return "Pong!"
         """
+
+        check_command_name_allowed(name)
 
         def decorator(
             fn: Callable[[CommandContext], Awaitable[str]],
