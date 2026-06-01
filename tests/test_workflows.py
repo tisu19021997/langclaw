@@ -2084,3 +2084,36 @@ async def test_resume_incomplete_resumes_llm_authored_with_script_store():
     # Author NOT called again — frozen body replayed from the script store.
     assert author_calls == ["auth"]
     assert runs == ["FROZEN_BODY", "FROZEN_BODY"]
+
+
+# ---------------------------------------------------------------------------
+# 7 — workflow_system_prompt (capability awareness for the agent)
+# ---------------------------------------------------------------------------
+
+
+def test_workflow_system_prompt_empty_registry_is_blank():
+    from langclaw.workflows import WorkflowRegistry, workflow_system_prompt
+
+    assert workflow_system_prompt(WorkflowRegistry()) == ""
+
+
+def test_workflow_system_prompt_lists_registered_workflows():
+    from langclaw.workflows import WorkflowRegistry, WorkflowSpec, workflow_system_prompt
+
+    reg = WorkflowRegistry()
+    reg.register(WorkflowSpec(name="report", description="build a daily report", fn=lambda c, i: i))
+    reg.register(
+        WorkflowSpec(
+            name="research", description="deep research", fn=lambda c, i: i, mode="llm_authored"
+        )
+    )
+
+    prompt = workflow_system_prompt(reg)
+    assert "<workflows>" in prompt and "</workflows>" in prompt
+    # tool names (not bare names) so the model calls the right tool
+    assert "workflow_report" in prompt
+    assert "workflow_research" in prompt
+    assert "build a daily report" in prompt
+    assert "[llm_authored]" in prompt  # non-python mode is flagged
+    # honest contract: run, don't author
+    assert "cannot create" in prompt.lower()

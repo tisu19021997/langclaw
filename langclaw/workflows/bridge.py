@@ -247,6 +247,41 @@ def _make_one_workflow_tool(
     )
 
 
+def workflow_system_prompt(registry: WorkflowRegistry) -> str:
+    """System-prompt nudge that makes registered workflows discoverable to the agent.
+
+    The workflow-axis analogue of
+    :func:`langclaw.interpreter.interpreter_system_prompt`'s ``<code_interpreter>``
+    block: without it the ``workflow_<name>`` tools are present but unexplained, so
+    the model rarely reaches for them. This lists each registered workflow (tool
+    name + mode + description) and states the contract — run, don't author.
+
+    Returns ``""`` when nothing is registered, so the builder appends nothing.
+    """
+    specs = registry.specs()
+    if not specs:
+        return ""
+    lines = []
+    for s in specs:
+        mode = "" if getattr(s, "mode", "python") == "python" else f" [{s.mode}]"
+        desc = f" — {s.description}" if s.description else ""
+        lines.append(f"  - {workflow_tool_name(s.name)}{mode}{desc}")
+    listing = "\n".join(lines)
+    return (
+        "<workflows>\n"
+        "Workflows are pre-built, durable, multi-step orchestrations the operator "
+        "registered. When a request matches one, run it by calling its "
+        "`workflow_<name>` tool instead of improvising the same steps yourself — a "
+        "workflow is typed, budgeted, and resumable, so it is more reliable than an "
+        "ad-hoc sequence. You can run the workflows below but cannot create or modify "
+        "them (that is done in code by the developer). For ad-hoc control flow that no "
+        "workflow covers, use the `eval` interpreter if available.\n"
+        "Available workflows:\n"
+        f"{listing}\n"
+        "</workflows>"
+    )
+
+
 def _stringify(value: Any) -> str:
     if isinstance(value, str):
         return value

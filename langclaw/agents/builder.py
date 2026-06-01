@@ -355,6 +355,15 @@ def create_claw_agent(
 
         system_prompt = f"{system_prompt}\n\n{interpreter_system_prompt(config, tools)}"
 
+    # Make registered workflows discoverable to the model (mirrors the interpreter
+    # nudge). Only when workflows are active, so an agent without them sees nothing.
+    if _workflows_active:
+        from langclaw.workflows import workflow_system_prompt
+
+        nudge = workflow_system_prompt(workflow_registry)
+        if nudge:
+            system_prompt = f"{system_prompt}\n\n{nudge}"
+
     if display_name:
         system_prompt = f"Your name is {display_name}.\n\n{system_prompt}"
 

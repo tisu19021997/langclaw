@@ -41,6 +41,7 @@ from langclaw.workflows.bridge import (
     build_toolset_executor,
     make_workflow_tools,
     resolve_workflow_ptc_names,
+    workflow_system_prompt,
 )
 from langclaw.workflows.context import (
     StepRequest,
@@ -101,4 +102,5 @@ __all__ = [
     "reset_progress_sink",
     "resolve_workflow_ptc_names",
     "set_progress_sink",
+    "workflow_system_prompt",
 ]
