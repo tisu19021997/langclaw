@@ -203,7 +203,7 @@ body (Mode 1) or an LLM-authored-once-then-frozen body (Mode 2, `llm_authored`).
   tool lacks. The `WorkflowRuntime` owns run lifecycle, the global
   `max_concurrent_runs` ceiling, per-run step budget, and timeout.
 - **One runtime, many entry points.** The agent reaches a workflow as the
-  `workflow_<name>` tool; operators via `/workflow run`; schedules via cron; and
+  `workflow_<name>` tool; operators via `/workflows run`; schedules via cron; and
   crashed runs via startup resume. The non-tool entries call `run_registered`,
   which rebuilds the step executor and Mode-2 callables from factories the agent
   builder registered — so a run started off the bus still executes against the
