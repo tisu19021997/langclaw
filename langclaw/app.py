@@ -100,11 +100,20 @@ class Langclaw:
         system_prompt: str | None = None,
         context_schema: type[LangclawContext] | None = None,
         enable_interpreter: bool = False,
+        backend: Any | None = None,
     ) -> None:
         self._config = config or load_config()
         self._system_prompt = system_prompt
         self._context_schema = context_schema
         self._enable_interpreter = enable_interpreter
+        # Optional explicit deepagents backend (instance or runtime factory)
+        # applied to every agent. ``None`` (default) builds the config-selected
+        # backend per agent, correctly re-rooted at each agent's workspace. Pass
+        # an instance only for the advanced backends config can't express
+        # (StoreBackend with a custom store/namespace, CompositeBackend, a
+        # sandbox); note a shared instance is *not* re-rooted per named agent —
+        # pass a ``Callable[[ToolRuntime], BackendProtocol]`` if you need that.
+        self._backend = backend
         self._extra_tools: list[Any] = []
         self._extra_channels: list[BaseChannel] = []
         self._extra_middleware: list[Any] = []
@@ -718,6 +727,7 @@ class Langclaw:
             system_prompt=self._system_prompt,
             bus=bus,
             model=model,
+            backend=self._backend,
             context_schema=context_schema,
             display_name=effective_config.agents.display_name or None,
             workflow_registry=self._workflows if len(self._workflows) else None,
@@ -897,6 +907,7 @@ class Langclaw:
                     context_defaults=self._context_defaults,
                     context_factory=self._context_factory,
                     named_agent_specs=self._named_agents or None,
+                    agent_backend=self._backend,
                     default_agent_spec={
                         "extra_tools": self._extra_tools or None,
                         "extra_middleware": self._extra_middleware or None,

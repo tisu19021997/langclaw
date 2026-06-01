@@ -23,7 +23,7 @@ FastAPI gave web developers a declarative, decorator-driven way to build APIs. L
 3. **Declarative RBAC**: `app.role("analyst", tools=["*"])` — one line to define who can use what. Permissions are enforced as middleware before the LLM sees anything.
 4. **Subagent delegation**: Register specialist subagents that run in isolated contexts. The main agent delegates via a built-in `task` tool; results flow back cleanly or stream directly to the channel.
 5. **Scheduled jobs**: Users can ask the agent to schedule recurring tasks. Cron jobs publish to the same message bus and flow through the same pipeline as user messages.
-6. **Pluggable everything**: Message bus (asyncio / RabbitMQ / Kafka), checkpointer (SQLite / Postgres), LLM providers — swap backends via config, not code changes.
+6. **Pluggable everything**: Message bus (asyncio / RabbitMQ / Kafka), checkpointer (SQLite / Postgres), agent filesystem/shell backend (local-shell / filesystem / state / store), LLM providers — swap backends via config, not code changes.
 7. **Middleware pipeline**: Content filtering, PII redaction, rate limiting, and RBAC run as composable middleware before every LLM call.
 8. **Built on LangChain + LangGraph**: Not a wrapper — langclaw compiles down to a real LangGraph `CompiledStateGraph`. Bring any LangChain tool, model, or integration.
 
@@ -197,7 +197,7 @@ Available extras: `telegram`, `discord`, `slack`, `websocket`, `postgres`, `rabb
 | Package | Purpose |
 |---|---|
 | `app.py` | `Langclaw` class — the developer's primary interface (decorators, lifecycle, wiring) |
-| `agents/` | LangGraph agent construction, tool wiring, subagent delegation |
+| `agents/` | LangGraph agent construction, tool wiring, subagent delegation, pluggable filesystem/shell backend (`backend.py`) |
 | `gateway/` | Channel orchestration (`GatewayManager`), command routing, message dispatch |
 | `bus/` | Message bus abstraction — asyncio (dev), RabbitMQ / Kafka (prod) |
 | `middleware/` | Request pipeline: RBAC, rate limit, content filter, PII redaction |
@@ -216,6 +216,7 @@ Available extras: `telegram`, `discord`, `slack`, `websocket`, `postgres`, `rabb
 - **Channel-routed subagents** — subagents can publish results directly to the originating channel (`output="channel"`)
 - **Guardrails middleware** — `ContentFilterMiddleware` (keyword/regex) and `PIIMiddleware` (redaction) in the built-in stack
 - **Heartbeat / proactive wake-up** — event-driven condition checks that fire messages through the agent pipeline
+- **Pluggable agent backend** — deepagents filesystem/shell backend selectable via `config.agents.backend` (local-shell / filesystem / state / store); defaults to `local_shell` for the `execute` tool
 
 ### Planned
 
