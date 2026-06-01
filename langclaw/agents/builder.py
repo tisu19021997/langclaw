@@ -357,12 +357,32 @@ def create_claw_agent(
             author_factory=_workflow_author_factory,
             script_runner_factory=_workflow_script_runner_factory,
         )
-        # Let startup resume rebuild a step executor over this live toolset.
+        # Let non-tool entry points (bus dispatch / cron / startup resume) rebuild
+        # the step executor and Mode-2 callables over this live toolset.
         workflow_runtime.set_resume_executor_factory(_workflow_executor_factory)
+        workflow_runtime.set_authoring_factories(
+            author_factory=_workflow_author_factory,
+            script_runner_factory=_workflow_script_runner_factory,
+        )
         # Mode 1 PTC names (build-time, unnarrowed; per-call RBAC narrows later).
         _workflow_ptc_names = resolve_workflow_ptc_names(
             workflow_registry, workflows_config=config.workflows
         )
+
+    # Runtime workflow authoring: the agent saves a workflow by writing a
+    # `workflows/<name>.js` file with its ordinary `write_file` tool (no bespoke
+    # tool). Active when the workflow primitive AND the interpreter are enabled
+    # (a saved body runs in the eval sandbox) AND the backend is filesystem-rooted
+    # (`fs_root` exists) — state/store backends have no host folder for the loader
+    # to watch, so authoring-by-file is unavailable there. Drives the prompt nudge;
+    # the gateway watches the folder and loads what gets written.
+    _workflow_authoring_active = (
+        config.workflows.enabled
+        and config.interpreter.enabled
+        and workflow_registry is not None
+        and workflow_runtime is not None
+        and fs_root is not None
+    )
 
     # Resolve the base ``AGENTS.md`` system prompt. For filesystem-rooted
     # backends prefer the agent's on-disk workspace, then the global workspace,
@@ -386,6 +406,17 @@ def create_claw_agent(
         from langclaw.interpreter import interpreter_system_prompt
 
         system_prompt = f"{system_prompt}\n\n{interpreter_system_prompt(config, tools)}"
+
+    # Make workflows discoverable to the model (mirrors the interpreter nudge).
+    # Emitted when there are workflows to list OR the agent can author them via
+    # write_file — so the run → save loop is explained even before the first
+    # workflow exists. An agent with neither sees nothing.
+    if _workflows_active or _workflow_authoring_active:
+        from langclaw.workflows import workflow_system_prompt
+
+        nudge = workflow_system_prompt(workflow_registry, authoring=_workflow_authoring_active)
+        if nudge:
+            system_prompt = f"{system_prompt}\n\n{nudge}"
 
     if display_name:
         system_prompt = f"Your name is {display_name}.\n\n{system_prompt}"

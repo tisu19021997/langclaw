@@ -92,13 +92,81 @@ class WorkflowRuntime:
         self._run_store = run_store
         self._phase_cb_factory = phase_cb_factory
         self._run_gate = asyncio.Semaphore(max(1, config.max_concurrent_runs))
-        # Set by the agent builder so startup resume can rebuild a step executor
-        # over the (default agent's) live toolset.
+        # Set by the agent builder so non-tool entry points (bus dispatch, cron,
+        # startup resume) can rebuild the step executor / Mode-2 callables over
+        # the default agent's live, role-filtered toolset.
         self._resume_executor_factory: Callable[[Any], Any] | None = None
+        self._author_factory: Callable[[Any], Any] | None = None
+        self._script_runner_factory: Callable[[Any], Any] | None = None
 
     def set_resume_executor_factory(self, factory: Callable[[Any], Any]) -> None:
         """Register the executor factory used to build a resume-time step executor."""
         self._resume_executor_factory = factory
+
+    def set_authoring_factories(
+        self,
+        *,
+        author_factory: Callable[[Any], Any],
+        script_runner_factory: Callable[[Any], Any],
+    ) -> None:
+        """Register the Mode-2 author / script-runner factories.
+
+        Lets :meth:`run_registered` (bus dispatch, cron, resume) run
+        ``llm_authored`` workflows without the per-call tool bridge.  Each
+        factory takes a spec and returns the author / script-runner closing over
+        the live toolset (built by the agent builder).
+        """
+        self._author_factory = author_factory
+        self._script_runner_factory = script_runner_factory
+
+    async def run_registered(self, spec: WorkflowSpec, run_input: Any, *, run_id: str) -> Any:
+        """Run *spec* using the factories registered at agent-build time.
+
+        The entry point for runs started **outside** the per-message tool bridge —
+        bus dispatch (``origin="workflow"``), cron-fired workflows, and startup
+        resume.  Dispatches on ``spec.mode``:
+
+        - ``"python"`` builds a step executor via the resume executor factory;
+        - ``"llm_authored"`` builds the author + script-runner via the authoring
+          factories (and, with a durable script store, replays a frozen body).
+
+        Raises:
+            RuntimeError: when the factory required for the spec's mode was never
+                registered (e.g. workflows enabled but the builder did not wire
+                them).
+        """
+        if spec.mode == "saved":
+            if self._script_runner_factory is None:
+                raise RuntimeError(
+                    f"Cannot run saved workflow {spec.name!r}: no script-runner "
+                    "factory registered (needs the interpreter extra)."
+                )
+            return await self.start_run(
+                spec,
+                run_input,
+                run_id=run_id,
+                script_runner=self._script_runner_factory(spec),
+            )
+        if spec.mode == "llm_authored":
+            if self._author_factory is None or self._script_runner_factory is None:
+                raise RuntimeError(
+                    f"Cannot run llm_authored workflow {spec.name!r}: no authoring "
+                    "factories registered (needs a model + interpreter extra)."
+                )
+            return await self.start_run(
+                spec,
+                run_input,
+                run_id=run_id,
+                author=self._author_factory(spec),
+                script_runner=self._script_runner_factory(spec),
+            )
+        if self._resume_executor_factory is None:
+            raise RuntimeError(
+                f"Cannot run workflow {spec.name!r}: no resume executor factory registered."
+            )
+        maybe = self._resume_executor_factory(None)
+        executor = await maybe if isinstance(maybe, Awaitable) else maybe
+        return await self.start_run(spec, run_input, run_id=run_id, executor=executor)
 
     async def start_run(
         self,
@@ -140,7 +208,11 @@ class WorkflowRuntime:
         if self._run_store is not None:
             await self._run_store.mark_running(run_id, spec.name, _serialize_input(run_input))
         try:
-            if spec.mode == "llm_authored":
+            if spec.mode == "saved":
+                output = await self._run_saved(
+                    spec, validated_input, run_id=run_id, script_runner=script_runner
+                )
+            elif spec.mode == "llm_authored":
                 output = await self._run_authored(
                     spec, validated_input, run_id=run_id, author=author, script_runner=script_runner
                 )
@@ -168,19 +240,18 @@ class WorkflowRuntime:
         ``run_id``, so already-completed steps replay from the step store and only
         the unfinished tail executes.  Returns the resumed ``run_id``s.
 
-        Python-mode only: a run whose spec is no longer registered, or whose spec
-        is ``llm_authored``, is skipped (logged).  *make_executor* may be sync or
-        async and is called per spec to build the step executor; when omitted, the
-        factory registered via :meth:`set_resume_executor_factory` is used.
+        A run whose spec is no longer registered is skipped (logged).  Python-mode
+        runs replay from the durable step store (only the unfinished tail
+        re-executes); ``llm_authored`` runs replay their **frozen body** from the
+        durable script store and re-execute it (individual Mode-2 steps are not
+        memoized) — skipped only if the authoring factories were never registered.
+
+        *make_executor* (python-mode only; used by tests) may be sync or async and
+        builds the step executor per spec.  When omitted, the registered factories
+        drive both modes via :meth:`run_registered`.
         """
         if self._run_store is None:
             return []
-        if make_executor is None:
-            if self._resume_executor_factory is None:
-                logger.warning("Cannot resume workflows: no resume executor factory registered.")
-                return []
-            factory = self._resume_executor_factory
-            make_executor = lambda _spec: factory(None)  # noqa: E731
         resumed: list[str] = []
         for record in await self._run_store.list_incomplete():
             run_id = record["run_id"]
@@ -188,13 +259,21 @@ class WorkflowRuntime:
             if spec is None:
                 logger.warning(f"Cannot resume {run_id}: workflow {record['spec_name']!r} gone.")
                 continue
-            if spec.mode == "llm_authored":
-                logger.warning(f"Cannot resume {run_id}: llm_authored resume is not supported.")
+            if spec.mode == "llm_authored" and make_executor is not None:
+                # Explicit python-only executor given; cannot drive Mode 2.
+                logger.warning(f"Cannot resume {run_id}: llm_authored needs authoring factories.")
                 continue
-            maybe = make_executor(spec)
-            executor = await maybe if isinstance(maybe, Awaitable) else maybe
             logger.info(f"Resuming incomplete workflow run {run_id} ({spec.name!r})")
-            await self.start_run(spec, record["input"], run_id=run_id, executor=executor)
+            if make_executor is not None:
+                maybe = make_executor(spec)
+                executor = await maybe if isinstance(maybe, Awaitable) else maybe
+                await self.start_run(spec, record["input"], run_id=run_id, executor=executor)
+            else:
+                try:
+                    await self.run_registered(spec, record["input"], run_id=run_id)
+                except RuntimeError as exc:
+                    logger.warning(f"Cannot resume {run_id}: {exc}")
+                    continue
             resumed.append(run_id)
         return resumed
 
@@ -280,6 +359,50 @@ class WorkflowRuntime:
             # The body is a Mode-2 run's audit artifact — at DEBUG normally, and
             # at WARNING on failure so a broken body is visible without DEBUG.
             logger.debug(f"Workflow {spec.name!r} run {run_id} body:\n{script}")
+            coro = script_runner(script, validated_input)
+            try:
+                if spec.timeout_s is not None:
+                    output = await asyncio.wait_for(coro, timeout=spec.timeout_s)
+                else:
+                    output = await coro
+            except Exception:
+                logger.warning(f"Workflow {spec.name!r} run {run_id} failed; body:\n{script}")
+                raise
+
+        output = self._validate_output(spec, output)
+        logger.info(f"Workflow {spec.name!r} run {run_id} completed")
+        return output
+
+    async def _run_saved(
+        self,
+        spec: WorkflowSpec,
+        validated_input: Any,
+        *,
+        run_id: str,
+        script_runner: ScriptRunnerFn | None,
+    ) -> Any:
+        """Run a ``mode="saved"`` workflow: execute its frozen body verbatim.
+
+        Unlike ``llm_authored``, there is no author step and no per-run script
+        freezing — ``spec.script`` (loaded from the saved-workflow file) *is* the
+        source of truth, so the body is handed straight to the script runner.
+
+        Resume is at-least-once and **non-idempotent**: like ``llm_authored``, a
+        saved body is not step-memoized, so a crash-resume re-runs the whole
+        script. If it calls side-effecting tools (e.g. ``write_file`` or an egress
+        tool via ``uses_tools``), those effects repeat. Write saved scripts to
+        tolerate re-execution.
+        """
+        if script_runner is None:
+            raise ValueError(f"Workflow {spec.name!r} (mode='saved') requires a `script_runner`.")
+        script = spec.script or ""
+        async with self._run_gate:
+            logger.info(
+                f"Workflow {spec.name!r} run {run_id}: running saved body ({len(script)} chars)"
+            )
+            emit_progress(
+                {"kind": "authored", "workflow": spec.name, "run_id": run_id, "script": script}
+            )
             coro = script_runner(script, validated_input)
             try:
                 if spec.timeout_s is not None:

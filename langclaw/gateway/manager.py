@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import traceback
+import uuid
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Final
@@ -80,6 +82,10 @@ class GatewayManager:
         ) = None,
         named_agent_specs: dict[str, dict[str, Any]] | None = None,
         default_agent_spec: dict[str, Any] | None = None,
+        workflow_runtime: Any | None = None,
+        workflow_registry: Any | None = None,
+        workflow_run_store: Any | None = None,
+        saved_reload_cb: Callable[[], bool] | None = None,
         agent_backend: Any | None = None,
     ) -> None:
         self._config = config
@@ -91,6 +97,20 @@ class GatewayManager:
         self._agent_backend = agent_backend
         self._channels = [ch for ch in channels if ch.is_enabled()]
         self._cron_manager = cron_manager
+        # Workflow-as-message-source (origin="workflow"): the runtime + registry
+        # let the gateway run a named workflow directly (bus dispatch / cron),
+        # the run store backs `/workflows runs|status`, and the live-task map backs
+        # `/workflows cancel` for runs the gateway itself started.
+        self._workflow_runtime = workflow_runtime
+        self._workflow_registry = workflow_registry
+        self._workflow_run_store = workflow_run_store
+        # Reconcile saved workflow files (agent-written workflows/<name>.js) into
+        # the registry when the folder changes; returns whether anything changed.
+        self._saved_reload_cb = saved_reload_cb
+        self._workflow_runs: dict[str, asyncio.Task] = {}
+        # Strong refs to fire-and-forget progress sends so the event loop does
+        # not garbage-collect them mid-flight (only holds a weak ref otherwise).
+        self._background_tasks: set[asyncio.Task] = set()
         self._context_schema = context_schema or LangclawContext
         self._context_defaults = context_defaults or {}
         self._context_factory = context_factory
@@ -121,6 +141,14 @@ class GatewayManager:
         # prompts when the underlying file changes.
         self._agents_md_hashes: dict[str, str] = {}
 
+        # Track the last-seen workflow registry version for the default agent so a
+        # runtime-authored workflow triggers a rebuild and goes live as a
+        # workflow_<name> tool in the same session.
+        self._workflow_registry_versions: dict[str, int | None] = {}
+        # Track the last-seen content hash of the saved-workflows folder so a file
+        # the agent writes there is reconciled into the registry on the next turn.
+        self._workflows_dir_hashes: dict[str, str | None] = {}
+
         # Simple per-agent locks to avoid concurrent rebuilds.
         self._agent_locks: dict[str, asyncio.Lock] = {}
         # Keep a reference to the raw named-agent specs so we can rebuild them
@@ -136,6 +164,13 @@ class GatewayManager:
         # Register /agent only when named agents exist (no-op otherwise).
         if self._named_agent_specs:
             self._setup_agent_command()
+
+        # Register /workflows whenever the feature is enabled (the app passes a
+        # registry — possibly empty — in that case), so the command stays
+        # discoverable even before any workflow is registered. It is hidden only
+        # when the app author left workflows disabled.
+        if self._workflow_registry is not None:
+            self._setup_workflow_command()
 
         # Phase 2 hook point — auto-routing resolver (not yet wired):
         # self._agent_resolver: Callable[[InboundMessage], Awaitable[str | None]] | None = None
@@ -174,6 +209,23 @@ class GatewayManager:
         except OSError:
             text = ""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def _compute_workflows_dir_hash(self) -> str:
+        """Return a stable hash of every ``*.js`` in the saved-workflows folder.
+
+        Names + contents, so adding, editing, or removing a workflow file changes
+        the hash and triggers a reconcile. A missing folder hashes to empty.
+        """
+        directory = self._config.agents.workflows_dir
+        try:
+            parts: list[str] = []
+            for path in sorted(directory.glob("*.js")):
+                parts.append(path.name)
+                parts.append(path.read_text("utf-8"))
+            blob = "\0".join(parts)
+        except OSError:
+            blob = ""
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
     def _get_agent_lock(self, agent_name: str) -> asyncio.Lock:
         lock = self._agent_locks.get(agent_name)
@@ -236,27 +288,69 @@ class GatewayManager:
         path = self._get_agents_md_path_for_agent(agent_name)
         new_hash = self._compute_agents_md_hash(path)
         old_hash = self._agents_md_hashes.get(agent_name)
+
+        # Saved-workflow folder watch (default agent, file-authoring enabled): when
+        # the agent has written/edited/removed a workflows/<name>.js, reconcile the
+        # registry from disk *before* reading the version below — the reconcile
+        # bumps registry.version, which the version check then turns into a rebuild.
+        new_dir_hash: str | None = None
+        if agent_name == "default" and self._saved_reload_cb is not None:
+            new_dir_hash = self._compute_workflows_dir_hash()
+            old_dir_hash = self._workflows_dir_hashes.get(agent_name)
+            if old_hash is not None and old_dir_hash is not None and new_dir_hash != old_dir_hash:
+                try:
+                    self._saved_reload_cb()
+                except Exception as exc:  # noqa: BLE001 — never break the turn
+                    logger.error("Saved-workflow reconcile failed: {}", exc)
+            self._workflows_dir_hashes[agent_name] = new_dir_hash
+
+        # Workflow registry version — only the default agent carries
+        # workflow_<name> tools, so only it rebuilds on a runtime registration.
+        new_wf_version = (
+            self._workflow_registry.version
+            if agent_name == "default" and self._workflow_registry is not None
+            else None
+        )
+        old_wf_version = self._workflow_registry_versions.get(agent_name)
+
         if self._config.debug:
             logger.info(
-                "[debug] AGENTS.md watch — agent='{}' path='{}' hash={}",
+                "[debug] agent watch — agent='{}' path='{}' hash={} wf_version={}",
                 agent_name,
                 path,
                 new_hash[:12],
+                new_wf_version,
             )
+
+        # First sighting: record baselines, do not rebuild.
         if old_hash is None:
             self._agents_md_hashes[agent_name] = new_hash
-            return current
-        if new_hash == old_hash:
+            self._workflow_registry_versions[agent_name] = new_wf_version
             return current
 
-        # Slow path: AGENTS.md changed — rebuild under a per-agent lock so only
-        # one task performs the work.
-        logger.info("AGENTS.md changed for agent '{}' ({}), rebuilding…", agent_name, path)
+        agents_md_changed = new_hash != old_hash
+        workflows_changed = new_wf_version != old_wf_version
+        if not agents_md_changed and not workflows_changed:
+            return current
+
+        # Slow path: AGENTS.md and/or the workflow registry changed — rebuild
+        # under a per-agent lock so only one task performs the work.
+        reason = (
+            "AGENTS.md changed"
+            if agents_md_changed and not workflows_changed
+            else "workflow registry changed"
+            if workflows_changed and not agents_md_changed
+            else "AGENTS.md + workflow registry changed"
+        )
+        logger.info("{} for agent '{}' ({}), rebuilding…", reason, agent_name, path)
         lock = self._get_agent_lock(agent_name)
         async with lock:
-            # Double-check inside the lock in case another task already rebuilt.
-            latest_hash = self._agents_md_hashes.get(agent_name)
-            if latest_hash == new_hash:
+            # Double-check inside the lock in case another task already rebuilt
+            # both watched inputs to their current values.
+            if (
+                self._agents_md_hashes.get(agent_name) == new_hash
+                and self._workflow_registry_versions.get(agent_name) == new_wf_version
+            ):
                 return self._agent_map.get(agent_name, current)
 
             try:
@@ -270,11 +364,15 @@ class GatewayManager:
                     agent_name,
                 )
                 self._agents_md_hashes[agent_name] = new_hash
+                self._workflow_registry_versions[agent_name] = new_wf_version
                 return current
 
             try:
                 if agent_name == "default":
                     # Rebuild the main agent using the same knobs as Langclaw.create_agent().
+                    # The workflow registry/runtime MUST be threaded through, else a
+                    # rebuild silently drops every workflow_<name> tool (and the
+                    # workflow tools) from the default agent.
                     rebuilt = create_claw_agent(
                         self._config,
                         checkpointer=self._checkpointer_backend.get(),
@@ -288,6 +386,8 @@ class GatewayManager:
                         backend=self._agent_backend,
                         context_schema=self._context_schema,
                         display_name=self._config.agents.display_name or None,
+                        workflow_registry=self._workflow_registry,
+                        workflow_runtime=self._workflow_runtime,
                     )
                 else:
                     # Named agents reuse their original spec.
@@ -296,17 +396,18 @@ class GatewayManager:
 
                 self._agent_map[agent_name] = rebuilt
                 self._agents_md_hashes[agent_name] = new_hash
-                logger.info("Reloaded AGENTS.md and rebuilt agent '{}'.", agent_name)
+                self._workflow_registry_versions[agent_name] = new_wf_version
+                logger.info("Rebuilt agent '{}'.", agent_name)
                 return rebuilt
             except Exception as exc:  # noqa: BLE001
                 logger.error(
-                    "Error rebuilding agent '{}' after AGENTS.md change: {}. "
-                    "Continuing with existing compiled agent.",
+                    "Error rebuilding agent '{}': {}. Continuing with existing compiled agent.",
                     agent_name,
                     exc,
                 )
-                # Even if rebuild fails, update the hash so we don't thrash.
+                # Even if rebuild fails, update the baselines so we don't thrash.
                 self._agents_md_hashes[agent_name] = new_hash
+                self._workflow_registry_versions[agent_name] = new_wf_version
                 return current
 
     def _setup_agent_command(self) -> None:
@@ -372,6 +473,108 @@ class GatewayManager:
             return ""  # Empty response — agent will reply directly
 
         self._command_router.register("agent", _cmd_agent, "send message to a named agent")
+
+    def _setup_workflow_command(self) -> None:
+        """Register the built-in ``/workflows`` command (closure over the runtime).
+
+        Subcommands:
+          - ``/workflows`` / ``/workflows list`` — registered workflows.
+          - ``/workflows runs`` — recent runs from the journal (needs the run store).
+          - ``/workflows status <run_id>`` — a run's status (journal + live tasks).
+          - ``/workflows run <name> [json]`` — start a run via the bus
+            (``origin="workflow"``), mirroring ``/agent <name> <message>``.
+          - ``/workflows cancel <run_id>`` — cancel a gateway-started live run.
+        """
+        registry = self._workflow_registry
+        run_store = self._workflow_run_store
+        live_runs = self._workflow_runs
+        bus = self._bus
+
+        async def _cmd_workflow(ctx: CommandContext) -> str:
+            sub = ctx.args[0].lower() if ctx.args else "list"
+
+            if sub == "list":
+                specs = list(registry.specs())
+                if not specs:
+                    return "No workflows registered."
+                lines = ["Registered workflows:"]
+                for s in specs:
+                    tag = "" if getattr(s, "mode", "python") == "python" else f" [{s.mode}]"
+                    desc = f" — {s.description}" if s.description else ""
+                    lines.append(f"  {s.name}{tag}{desc}")
+                return "\n".join(lines)
+
+            if sub == "runs":
+                if run_store is None:
+                    return "Run journal not enabled (set workflows.resume_on_startup)."
+                records = await run_store.list_all()
+                if not records:
+                    return "No workflow runs recorded."
+                # asearch ordering is backend-dependent, so this is a sample of up
+                # to 20 runs, not guaranteed to be the newest 20.
+                shown = records[-20:]
+                lines = [f"Workflow runs ({len(shown)} of {len(records)}):"]
+                for r in shown:
+                    lines.append(
+                        f"  [{r.get('status', '?')}] {r.get('run_id')} ({r.get('spec_name')})"
+                    )
+                return "\n".join(lines)
+
+            if sub == "status":
+                if len(ctx.args) < 2:
+                    return "Usage: /workflows status <run_id>"
+                run_id = ctx.args[1]
+                live = " (live)" if run_id in live_runs else ""
+                if run_store is not None:
+                    for r in await run_store.list_all():
+                        if r.get("run_id") == run_id:
+                            return f"{run_id}: {r.get('status')}{live}"
+                return f"{run_id}: {'running' + live if live else 'unknown'}"
+
+            if sub == "run":
+                if len(ctx.args) < 2:
+                    return "Usage: /workflows run <name> [json-input]"
+                name = ctx.args[1]
+                if registry.get(name) is None:
+                    return f"Unknown workflow {name!r}."
+                wf_input = " ".join(ctx.args[2:]) if len(ctx.args) > 2 else ""
+                run_id = f"{name}:{uuid.uuid4().hex[:12]}"
+                await bus.publish(
+                    InboundMessage(
+                        channel=ctx.channel,
+                        user_id=ctx.user_id,
+                        context_id=ctx.context_id,
+                        chat_id=ctx.chat_id,
+                        content=f"run workflow {name}",
+                        origin="workflow",
+                        metadata={
+                            "workflow_name": name,
+                            "workflow_input": wf_input,
+                            "run_id": run_id,
+                        },
+                    )
+                )
+                return f"Started workflow {name!r} (run_id: {run_id})."
+
+            if sub == "cancel":
+                if len(ctx.args) < 2:
+                    return "Usage: /workflows cancel <run_id>"
+                run_id = ctx.args[1]
+                task = live_runs.get(run_id)
+                if task is None:
+                    return (
+                        f"No live run {run_id} to cancel "
+                        "(only gateway-started runs are cancelable)."
+                    )
+                task.cancel()
+                return f"Cancelling run {run_id}."
+
+            return (
+                "Usage: /workflows [list | runs | status <run_id> | "
+                "run <name> [json] | cancel <run_id>]"
+            )
+
+        self._command_router.register("workflows", _cmd_workflow, "list/run/inspect workflows")
 
     async def _resolve_agent_name(self, msg: InboundMessage) -> str:
         """Determine which named agent should handle this message.
@@ -719,9 +922,146 @@ class GatewayManager:
                     "workflow": event.get("workflow", ""),
                 },
             )
-            asyncio.create_task(channel.send(out))
+            task = asyncio.create_task(channel.send(out))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
         return _sink
+
+    @staticmethod
+    def _stringify_workflow_output(value: Any) -> str:
+        """Render a workflow's output as channel-deliverable text."""
+        if isinstance(value, str):
+            return value
+        if hasattr(value, "model_dump"):
+            value = value.model_dump()
+        try:
+            return json.dumps(value, default=str, indent=2)
+        except (TypeError, ValueError):
+            return str(value)
+
+    @staticmethod
+    def _parse_workflow_input(raw: Any) -> Any:
+        """Decode a workflow input from message metadata.
+
+        Cron stamps a JSON string; the `/workflows run` command may pass a dict or
+        a JSON string.  A non-JSON string is passed through verbatim (the spec's
+        input model validates it downstream).
+        """
+        if isinstance(raw, str) and raw.strip():
+            try:
+                return json.loads(raw)
+            except (TypeError, ValueError):
+                return raw
+        return raw
+
+    async def _handle_workflow(self, msg: InboundMessage, channel: BaseChannel) -> None:
+        """Run the workflow named in *msg* metadata and deliver its output.
+
+        Looks up ``metadata["workflow_name"]`` in the registry, enforces the
+        workflow-axis RBAC allowlist, then runs it via the runtime's registered
+        factories.  Phases / Mode-2 authored bodies project to the channel through
+        the same progress sink the agent path uses.  Failures are delivered as a
+        plain message — a broken workflow never crashes the bus worker.
+
+        RBAC scope: this gates *which* workflow a role may invoke (parity with the
+        ``workflow_<name>`` tool gate).  The step executor itself runs against the
+        default agent's full toolset — the per-request ``ToolPermissionMiddleware``
+        does not apply to a step's direct ``tool.ainvoke`` (pre-existing for the
+        tool bridge too; see ``WorkflowsConfig``).
+        """
+        meta = msg.metadata or {}
+        name = meta.get("workflow_name", "")
+        spec = self._workflow_registry.get(name) if self._workflow_registry else None
+        if self._workflow_runtime is None or spec is None:
+            await channel.send(
+                OutboundMessage(
+                    channel=msg.channel,
+                    user_id=msg.user_id,
+                    context_id=msg.context_id,
+                    chat_id=msg.chat_id,
+                    content=f"Unknown workflow {name!r}." if name else "No workflow specified.",
+                    type="ai",
+                )
+            )
+            return
+
+        # Workflow-axis RBAC: the bus / cron / `/workflows run` entry points honour
+        # the same default-deny allowlist the `workflow_<name>` tool gate applies
+        # on the agent path (otherwise dispatching via the bus would bypass it).
+        perms = self._config.permissions
+        if getattr(perms, "enabled", False):
+            from langclaw.middleware.permissions import allowed_workflow_names
+
+            role = self._resolve_user_role(msg) or perms.default_role
+            permitted = allowed_workflow_names(perms, role, self._workflow_registry.names())
+            if name not in permitted:
+                await channel.send(
+                    OutboundMessage(
+                        channel=msg.channel,
+                        user_id=msg.user_id,
+                        context_id=msg.context_id,
+                        chat_id=msg.chat_id,
+                        content=f"Workflow {name!r} is not permitted for your role.",
+                        type="ai",
+                    )
+                )
+                return
+
+        run_id = meta.get("run_id") or f"{name}:{uuid.uuid4().hex[:12]}"
+        if run_id in self._workflow_runs:
+            await channel.send(
+                OutboundMessage(
+                    channel=msg.channel,
+                    user_id=msg.user_id,
+                    context_id=msg.context_id,
+                    chat_id=msg.chat_id,
+                    content=f"Workflow run {run_id!r} is already in progress.",
+                    type="ai",
+                )
+            )
+            return
+        workflow_input = self._parse_workflow_input(meta.get("workflow_input"))
+        logger.info(
+            f"Workflow dispatch | channel={msg.channel} user={msg.user_id} "
+            f"workflow={name} run_id={run_id}"
+        )
+
+        self._workflow_runs[run_id] = asyncio.current_task()  # type: ignore[assignment]
+        progress_token = set_progress_sink(self._make_workflow_progress_sink(msg, channel))
+        try:
+            output = await self._workflow_runtime.run_registered(
+                spec, workflow_input, run_id=run_id
+            )
+            await channel.send(
+                OutboundMessage(
+                    channel=msg.channel,
+                    user_id=msg.user_id,
+                    context_id=msg.context_id,
+                    chat_id=msg.chat_id,
+                    content=self._stringify_workflow_output(output),
+                    type="ai",
+                    metadata={"origin": "workflow", "workflow": name, "run_id": run_id},
+                )
+            )
+        except asyncio.CancelledError:
+            logger.info(f"Workflow run {run_id} cancelled.")
+            raise
+        except Exception as exc:  # noqa: BLE001 — surfaced to channel as text
+            logger.exception(f"Workflow run {run_id} ({name!r}) failed")
+            await channel.send(
+                OutboundMessage(
+                    channel=msg.channel,
+                    user_id=msg.user_id,
+                    context_id=msg.context_id,
+                    chat_id=msg.chat_id,
+                    content=f"Workflow {name!r} failed: {exc}",
+                    type="ai",
+                )
+            )
+        finally:
+            reset_progress_sink(progress_token)
+            self._workflow_runs.pop(run_id, None)
 
     async def _handle(self, msg: InboundMessage) -> None:
         """
@@ -769,6 +1109,14 @@ class GatewayManager:
                     metadata=out_meta,
                 )
             )
+            return
+
+        # Workflow-as-message-source: a message with origin="workflow" runs the
+        # named workflow directly (bypassing the LLM) and streams its progress +
+        # final output to the channel. Published by cron-fired workflow jobs or
+        # the `/workflows run` command.
+        if msg.origin == "workflow":
+            await self._handle_workflow(msg, channel)
             return
 
         # Message for main agent — resolve which agent handles this session.

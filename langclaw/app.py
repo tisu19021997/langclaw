@@ -35,7 +35,13 @@ from langclaw.config.schema import (
 )
 from langclaw.context import LangclawContext
 from langclaw.gateway.commands import CommandContext
-from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
+from langclaw.naming import check_command_name_allowed, check_tool_name_allowed
+from langclaw.workflows import (
+    SavedWorkflowStore,
+    WorkflowRegistry,
+    WorkflowRuntime,
+    WorkflowSpec,
+)
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -46,8 +52,18 @@ if TYPE_CHECKING:
     from langclaw.bus.base import BaseMessageBus, InboundMessage
     from langclaw.cron.scheduler import CronManager
     from langclaw.gateway.base import BaseChannel
+    from langclaw.workflows.authored import ScriptStore
     from langclaw.workflows.resume import StepStore
     from langclaw.workflows.run_store import RunStore
+
+
+def _noop_saved_body(ctx: Any, inp: Any) -> None:
+    """Placeholder body for ``mode="saved"`` specs.
+
+    A saved workflow runs its frozen ``script`` (JS), never a Python body — but
+    :class:`WorkflowSpec` requires a callable ``fn``, so this stands in and is
+    never invoked by the runtime's saved-mode path."""
+    return None
 
 
 class Langclaw:
@@ -126,6 +142,9 @@ class Langclaw:
         # Set at startup when ``workflows.durable_steps`` is on, else None.
         self._step_store: StepStore | None = None
         self._run_store: RunStore | None = None
+        self._script_store: ScriptStore | None = None
+        # File-backed store for runtime-authored (agent-written) workflow files.
+        self._saved_store: SavedWorkflowStore | None = None
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None
@@ -172,6 +191,7 @@ class Langclaw:
             from langchain_core.tools import tool as lc_tool
 
             t = fn if isinstance(fn, _BaseTool) else lc_tool(fn)
+            check_tool_name_allowed(t.name)
             self._extra_tools.append(t)
 
             if roles:
@@ -184,6 +204,7 @@ class Langclaw:
 
     def register_tool(self, tool: Any, roles: list[str] | None = None) -> None:
         """Register an existing ``BaseTool`` instance."""
+        check_tool_name_allowed(tool.name)
         self._extra_tools.append(tool)
 
         if roles:
@@ -192,6 +213,8 @@ class Langclaw:
 
     def register_tools(self, tools: list[Any], roles: list[str] | None = None) -> None:
         """Register multiple ``BaseTool`` instances at once."""
+        for tool in tools:
+            check_tool_name_allowed(tool.name)
         self._extra_tools.extend(tools)
 
         if roles:
@@ -233,6 +256,8 @@ class Langclaw:
             async def ping(ctx: CommandContext) -> str:
                 return "Pong!"
         """
+
+        check_command_name_allowed(name)
 
         def decorator(
             fn: Callable[[CommandContext], Awaitable[str]],
@@ -305,7 +330,7 @@ class Langclaw:
 
         Args:
             name:            Unique workflow handle (invoked as ``workflow_<name>``,
-                             ``/workflow <name>``, cron, or PTC).
+                             ``/workflows run <name>``, cron, or PTC).
             description:     Becomes the **tool description** the LLM reads to
                              decide *when* to call this workflow — exactly like a
                              ``@app.tool`` docstring. Write it as guidance ("Research
@@ -721,27 +746,104 @@ class Langclaw:
             backend=self._backend,
             context_schema=context_schema,
             display_name=effective_config.agents.display_name or None,
-            workflow_registry=self._workflows if len(self._workflows) else None,
+            # Pass the registry whenever workflows are enabled (even if empty) so
+            # a saved workflow the agent writes to disk goes live on rebuild.
+            workflow_registry=self._workflows if effective_config.workflows.enabled else None,
             workflow_runtime=self._get_workflow_runtime(effective_config),
         )
 
     def _get_workflow_runtime(self, effective_config: LangclawConfig) -> WorkflowRuntime | None:
         """Lazily build (and cache) the shared :class:`WorkflowRuntime`.
 
-        Returns ``None`` when workflows are disabled or none are registered, so
-        the builder leaves the workflow tools off entirely.  Cached so every
-        agent (default + named) shares one runtime — i.e. one global
-        ``max_concurrent_runs`` ceiling.
+        Returns ``None`` only when workflows are disabled.  Built whenever the
+        feature is enabled — even with zero registered workflows — so the gateway
+        can register (and run) a workflow authored at runtime by writing a file.
+        Cached so every agent (default + named) shares one
+        runtime — i.e. one global ``max_concurrent_runs`` ceiling.
         """
-        if not effective_config.workflows.enabled or not len(self._workflows):
+        if not effective_config.workflows.enabled:
             return None
         if self._workflow_runtime is None:
             self._workflow_runtime = WorkflowRuntime(
                 effective_config.workflows,
                 step_store=self._step_store,
                 run_store=self._run_store,
+                script_store=self._script_store,
             )
         return self._workflow_runtime
+
+    def _saved_workflow_store(self) -> SavedWorkflowStore:
+        """Return the file-backed saved-workflow store (host workspace path)."""
+        if self._saved_store is None:
+            self._saved_store = SavedWorkflowStore(self._config.agents.workflows_dir)
+        return self._saved_store
+
+    def _reload_saved_workflows(self) -> bool:
+        """Reconcile ``mode="saved"`` specs in the registry against the ``.js`` files
+        the agent has written into the ``workflows/`` folder.
+
+        Idempotent — run at startup (before the agent is built) and again whenever
+        the gateway notices the folder changed, so a workflow the agent authors by
+        writing a file goes live (and a deleted/edited file is removed/updated)
+        without a restart.  Returns whether the registry changed.
+
+        No-op unless both the workflow primitive and the interpreter are enabled —
+        a saved body is JavaScript run in the ``eval`` sandbox, so it needs the
+        interpreter to execute and the workflow machinery to surface it as a tool.
+
+        Only ``mode="saved"`` specs are touched: an in-code ``@app.workflow`` (or a
+        reserved name) always wins, so a file can never shadow or evict it.
+        """
+        cfg = self._config
+        if not (cfg.workflows.enabled and cfg.interpreter.enabled):
+            return False
+        desired = {sw.name: sw for sw in self._saved_workflow_store().load_all()}
+        reserved = self._reserved_names()
+        changed = False
+
+        # 1. Drop saved specs whose file is gone or whose content changed.
+        for name in self._workflows.names():
+            spec = self._workflows.get(name)
+            if spec is None or spec.mode != "saved":
+                continue
+            want = desired.get(name)
+            if want is None or want.script != spec.script or want.description != spec.description:
+                self._workflows.unregister(name)
+                changed = True
+
+        # 2. (Re)register desired files not currently present.
+        for name, sw in desired.items():
+            if name in self._workflows:
+                # Either unchanged-saved (kept above) or an in-code workflow wins.
+                if self._workflows.get(name).mode != "saved":
+                    logger.warning(
+                        f"Saved workflow file {name!r} shadows a registered workflow; ignoring."
+                    )
+                continue
+            try:
+                self._workflows.register(
+                    WorkflowSpec(
+                        name=sw.name,
+                        fn=_noop_saved_body,
+                        description=sw.description,
+                        mode="saved",
+                        script=sw.script,
+                        uses_tools=list(sw.uses_tools),
+                    ),
+                    reserved_names=reserved,
+                )
+                changed = True
+            except ValueError as exc:
+                logger.warning(f"Skipping saved workflow {sw.name!r}: {exc}")
+        if changed:
+            active = sum(
+                1 for n in self._workflows.names() if self._workflows.get(n).mode == "saved"
+            )
+            logger.info(
+                f"Reconciled saved workflows from {self._saved_workflow_store().directory} "
+                f"({active} active)"
+            )
+        return changed
 
     async def _open_workflow_stores(self, stack: AsyncExitStack, cp_cfg: Any, wf_cfg: Any) -> None:
         """Open the opt-in durable step store + run journal, bound to *stack*.
@@ -758,6 +860,7 @@ class Langclaw:
 
         from pathlib import Path
 
+        from langclaw.workflows.authored import StoreScriptStore
         from langclaw.workflows.run_store import StoreRunStore
         from langclaw.workflows.step_store import StoreStepStore, make_step_store_backend
 
@@ -766,6 +869,9 @@ class Langclaw:
         await stack.enter_async_context(backend)
         store = backend.get_store()
         self._step_store = StoreStepStore(store)
+        # Mode-2 bodies share the same store so llm_authored runs survive a restart
+        # (frozen-body replay on resume).
+        self._script_store = StoreScriptStore(store)
         if wf_cfg.resume_on_startup:
             self._run_store = StoreRunStore(store)
         logger.info("Workflow durable step store enabled ({})", cp_cfg.backend)
@@ -862,6 +968,10 @@ class Langclaw:
                 await stack.enter_async_context(checkpointer_backend)
                 await self._open_workflow_stores(stack, cp_cfg, cfg.workflows)
 
+                # Load runtime-authored (file-written) workflows from disk so they
+                # boot as workflow_<name> tools alongside @app.workflow ones.
+                self._reload_saved_workflows()
+
                 cron_manager = None
                 if cfg.cron.enabled:
                     from langclaw.cron import make_cron_manager
@@ -902,6 +1012,18 @@ class Langclaw:
                         "bus": bus,
                         "model": None,
                     },
+                    workflow_runtime=self._workflow_runtime,
+                    # Pass the registry (even if empty) whenever workflows are
+                    # enabled so /workflows stays registered/discoverable; None
+                    # when the feature is off so the command stays hidden.
+                    workflow_registry=(self._workflows if cfg.workflows.enabled else None),
+                    workflow_run_store=self._run_store,
+                    # Reconcile saved workflow files on folder change → live tools.
+                    saved_reload_cb=(
+                        self._reload_saved_workflows
+                        if (cfg.workflows.enabled and cfg.interpreter.enabled)
+                        else None
+                    ),
                 )
 
                 cron_status = "enabled" if cron_manager else "disabled"

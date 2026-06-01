@@ -17,7 +17,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 #: The orchestration authoring modes a :class:`WorkflowSpec` may declare.
-_VALID_MODES = frozenset({"python", "llm_authored"})
+#:
+#: - ``python``       — operator authors the async body (``@app.workflow``).
+#: - ``llm_authored`` — the LLM authors the body fresh per run from the contract.
+#: - ``saved``        — a body authored at runtime (a ``workflows/<name>.js`` file
+#:                      the agent writes) and frozen to disk; reused verbatim.
+_VALID_MODES = frozenset({"python", "llm_authored", "saved"})
 
 
 @dataclass(slots=True)
@@ -26,7 +31,7 @@ class WorkflowSpec:
 
     Attributes:
         name:         Unique handle used to invoke the workflow (tool name
-                      ``workflow_<name>``, ``/workflow <name>``, cron, PTC).
+                      ``workflow_<name>``, ``/workflows run <name>``, cron, PTC).
         fn:           The async body — ``async def (ctx, inp) -> output``.
         description:  One-line human/LLM-facing summary.
         input_model:  Optional Pydantic model validating the run input.
@@ -51,6 +56,10 @@ class WorkflowSpec:
     uses_tools: list[str] = field(default_factory=list)
     """Tool names this workflow declares it needs, validated at registration."""
 
+    script: str | None = None
+    """The frozen JS body for ``mode="saved"`` (authored at runtime). ``None`` for
+    other modes."""
+
     def __post_init__(self) -> None:
         if self.mode not in _VALID_MODES:
             raise ValueError(
@@ -63,6 +72,13 @@ class WorkflowSpec:
             raise ValueError(
                 f"Workflow {self.name!r}: mode='llm_authored' requires a non-empty "
                 "`description` — it is the spec the LLM authors the body from."
+            )
+        # A saved workflow's body is its frozen `script`; without one there is
+        # nothing to run.
+        if self.mode == "saved" and not (self.script or "").strip():
+            raise ValueError(
+                f"Workflow {self.name!r}: mode='saved' requires a non-empty `script` "
+                "— the frozen JS body authored at runtime."
             )
 
     def validate_input(self, value: Any) -> Any:
@@ -86,6 +102,17 @@ class WorkflowRegistry:
 
     def __init__(self) -> None:
         self._by_name: dict[str, WorkflowSpec] = {}
+        # Monotonic counter bumped on every successful (de)registration. The
+        # gateway compares it to detect a runtime-authored (file-written)
+        # registration and rebuild the agent so the new `workflow_<name>` tool
+        # goes live in the same session — the registry-native analogue of the
+        # AGENTS.md content hash.
+        self._version = 0
+
+    @property
+    def version(self) -> int:
+        """Monotonic registry version — changes whenever a workflow is added."""
+        return self._version
 
     def register(
         self,
@@ -116,7 +143,21 @@ class WorkflowRegistry:
                 "subagent, agent, or command. Choose a unique name."
             )
         self._by_name[name] = spec
+        self._version += 1
         return spec
+
+    def unregister(self, name: str) -> bool:
+        """Remove the workflow registered under *name*; return whether one existed.
+
+        Bumps the version (like :meth:`register`) so a removal also triggers an
+        agent rebuild.  Used to roll back a runtime registration whose on-disk
+        persistence failed, so the registry never holds an unpersisted workflow.
+        """
+        if name in self._by_name:
+            del self._by_name[name]
+            self._version += 1
+            return True
+        return False
 
     def get(self, name: str) -> WorkflowSpec | None:
         """Return the spec registered under *name*, or ``None``."""

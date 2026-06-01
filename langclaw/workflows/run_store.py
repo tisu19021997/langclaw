@@ -42,6 +42,10 @@ class RunStore(Protocol):
         """Return every run still in ``"running"`` (crashed mid-flight)."""
         ...
 
+    async def list_all(self) -> list[dict[str, Any]]:
+        """Return every recorded run (any status), for operator introspection."""
+        ...
+
 
 class StoreRunStore:
     """Run journal over a LangGraph ``BaseStore``.
@@ -74,11 +78,15 @@ class StoreRunStore:
 
     async def list_incomplete(self) -> list[dict[str, Any]]:
         """Return every run still in ``"running"`` (crashed mid-flight)."""
+        return [r for r in await self.list_all() if r.get("status") == "running"]
+
+    async def list_all(self) -> list[dict[str, Any]]:
+        """Return every recorded run (any status)."""
         out: list[dict[str, Any]] = []
         offset = 0
         while True:
             page = await self._store.asearch(_NAMESPACE, limit=_PAGE, offset=offset)
-            out.extend(item.value for item in page if item.value.get("status") == "running")
+            out.extend(item.value for item in page)
             if len(page) < _PAGE:
                 return out
             offset += _PAGE

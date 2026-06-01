@@ -372,6 +372,21 @@ class AgentConfig(BaseModel):
     def memories_dir(self) -> Path:
         return self.workspace_dir / self.memories_source.lstrip("/")
 
+    @property
+    def workflows_dir(self) -> Path:
+        """Host directory holding runtime-authored (saved) workflow ``.js`` files.
+
+        Rooted at the agent's *filesystem backend root* so it matches where the
+        agent's own ``write_file`` lands: ``backend.root_dir`` when set, else the
+        workspace dir. (For ``state``/``store`` backends there is no host root and
+        file-authoring is unavailable — see ``WorkflowsConfig``.)"""
+        root = (
+            Path(self.backend.root_dir).expanduser()
+            if self.backend.root_dir
+            else self.workspace_dir
+        )
+        return root / "workflows"
+
 
 class SqliteCheckpointerConfig(BaseModel):
     db_path: str = Field(default_factory=lambda: str(_LANGCLAW_HOME / "state.db"))
@@ -514,7 +529,7 @@ class RoleConfig(BaseModel):
 
     workflows: StringList = Field(default_factory=list)
     """Workflow names this role may invoke — via the ``workflow_<name>`` tool,
-    a ``/workflow`` command, cron, or (Phase 2) ``tools.workflow.<name>`` inside
+    a ``/workflows`` command, cron, or (Phase 2) ``tools.workflow.<name>`` inside
     an interpreter script.  **Default-deny** like ``subagents`` — an empty list
     means the role may invoke no workflows.  Use ``["*"]`` to allow every
     registered workflow.  A third RBAC axis alongside ``tools`` and
@@ -606,11 +621,34 @@ class WorkflowsConfig(BaseModel):
     """Operator-authored Workflow primitive configuration (issue #38).
 
     Opt-in and **off by default**.  When enabled, workflows registered with
-    ``@app.workflow()`` become invocable: each is a typed, multi-step
-    orchestration exposed as a ``workflow_<name>`` tool, RBAC-gated by role.
-    Steps currently run **in-process** against the live, role-filtered toolset
-    (so tool-level RBAC applies); full bus → gateway re-entry per step (inheriting
-    rate limiting, channel context, and checkpointing) is not yet wired.
+    ``@app.workflow()`` become invocable three ways: the LLM calls the
+    ``workflow_<name>`` tool; an operator runs ``/workflows run <name>``; or a
+    message with ``origin="workflow"`` (e.g. a cron-fired job) dispatches one
+    through the gateway.  Each is typed, multi-step, and RBAC-gated by role.
+
+    **Runtime authoring (``mode="saved"``):** when this *and* ``interpreter`` are
+    enabled (and the backend is filesystem-rooted), the agent can save a workflow
+    by **writing a file** with its ordinary ``write_file`` tool — there is no
+    bespoke save tool.  After running an ad-hoc job with ``eval``, the user can say
+    "save that workflow"; the agent writes the same JS to ``workflows/<name>.js``
+    (with ``// @description`` / ``// @uses`` header comments).  The gateway watches
+    that folder, reconciles the file into the registry, and rebuilds the default
+    agent, so the new ``workflow_<name>`` tool goes live in the same session and
+    reloads on every restart.  (Requires the ``interpreter`` extra — a saved body
+    runs in the same QuickJS sandbox as ``eval``.  ``state``/``store`` backends have
+    no host folder, so file-authoring is unavailable there.)
+
+    RBAC is enforced at the **invocation** boundary: the ``workflow_<name>`` tool
+    gate, the ``/workflows`` command, cron dispatch, and bus dispatch all consult
+    the role's default-deny workflow allowlist.  A workflow's **steps**, however,
+    run **in-process** by calling ``tool.ainvoke`` directly — they bypass the
+    graph, so the per-request ``ToolPermissionMiddleware`` does not filter a
+    step's toolset.  A workflow can therefore reach any tool in the default
+    agent's toolset; restrict reachable tools via the workflow's ``uses_tools``,
+    not per-role tool RBAC.  Bus dispatch runs a *whole workflow* as one bus
+    message; full bus → gateway re-entry per *step* (inheriting rate limiting,
+    channel context, per-step checkpointing, and step-level RBAC) is not yet
+    wired.
 
     Env: ``LANGCLAW__WORKFLOWS__ENABLED=true``
     """

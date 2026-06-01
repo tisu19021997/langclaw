@@ -19,9 +19,11 @@ key.  ``BaseCheckpointSaver`` persists graph checkpoints keyed by
 ``(thread_id, checkpoint_ns, checkpoint_id)`` and is the wrong shape; ``BaseStore``
 *is* a namespaced KV store, which is exactly the ``StepStore`` contract.
 
-NOTE: this wires *persistence*, not the resume *trigger*.  Completed steps now
-survive in the store, but nothing re-invokes a run with a prior ``run_id`` yet —
-``run_id`` is freshly minted per call, with no resume command or startup replay.
+This wires step *persistence*.  The resume *trigger* lives elsewhere: the run
+journal (:mod:`langclaw.workflows.run_store`) records each run's status, and
+``resume_on_startup`` replays runs left ``"running"`` by a crash via
+``WorkflowRuntime.resume_incomplete`` — completed steps replay from this store
+and only the unfinished tail re-executes.
 """
 
 from __future__ import annotations

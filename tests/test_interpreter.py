@@ -484,6 +484,22 @@ def test_interpreter_system_prompt_warns_about_persistence_and_read_shape():
     assert "console.log" in prompt
 
 
+def test_interpreter_system_prompt_states_no_ambient_host_apis():
+    """The nudge must tell the model the sandbox has no fetch/require/etc. and
+    that tools.* is the only I/O — otherwise weak models default to fetch(...)
+    and hit 'fetch is not defined'."""
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.interpreter import interpreter_system_prompt
+
+    cfg = LangclawConfig()
+    cfg.interpreter.enabled = True
+    prompt = interpreter_system_prompt(cfg, [type("T", (), {"name": "web_fetch"})()])
+    lower = prompt.lower()
+    assert "fetch(" in prompt  # explicitly names the wrong instinct
+    assert "no ambient host" in lower or "no `fetch`" in lower or "no fetch" in lower
+    assert "tools.webFetch" in prompt  # points at the right door
+
+
 def test_tool_signatures_derive_args_from_schema_and_curated_returns():
     from langclaw.config.schema import LangclawConfig
     from langclaw.interpreter import tool_signatures

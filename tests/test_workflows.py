@@ -208,6 +208,56 @@ def test_app_create_agent_wires_registered_workflows(monkeypatch):
     assert "workflow_digest" in tool_names
 
 
+def test_authoring_nudge_present_when_interpreter_and_workflows_enabled(monkeypatch):
+    """With both flags on (and the default filesystem-rooted backend), the system
+    prompt teaches the agent to author workflows by writing workflows/<name>.js —
+    even with ZERO registered workflows. There is no bespoke save tool."""
+    import deepagents
+
+    from langclaw import Langclaw
+    from langclaw.config.schema import LangclawConfig
+
+    captured: dict = {}
+
+    def fake_create_deep_agent(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(deepagents, "create_deep_agent", fake_create_deep_agent)
+
+    app = Langclaw(
+        config=LangclawConfig(interpreter={"enabled": True}, workflows={"enabled": True})
+    )
+    app.create_agent(model=object())
+    tool_names = [getattr(t, "name", "") for t in captured["tools"]]
+    assert "save_workflow" not in tool_names  # no bespoke tool — uses write_file
+    assert "workflows/" in captured["system_prompt"]
+    assert "write_file" in captured["system_prompt"]
+
+
+def test_authoring_nudge_absent_without_interpreter(monkeypatch):
+    """A saved workflow is JS run in the eval sandbox; without the interpreter the
+    file-authoring convention is not taught."""
+    import deepagents
+
+    from langclaw import Langclaw
+    from langclaw.config.schema import LangclawConfig
+
+    captured: dict = {}
+
+    def fake_create_deep_agent(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(deepagents, "create_deep_agent", fake_create_deep_agent)
+
+    app = Langclaw(
+        config=LangclawConfig(interpreter={"enabled": False}, workflows={"enabled": True})
+    )
+    app.create_agent(model=object())
+    assert "workflows/<name>.js" not in captured["system_prompt"]
+
+
 def test_app_create_agent_omits_workflows_when_disabled(monkeypatch):
     import deepagents
 
@@ -1117,6 +1167,76 @@ async def test_runtime_mode2_requires_author_and_runner():
         await rt.start_run(spec, None, run_id="r1")  # no author/script_runner
 
 
+def test_workflow_spec_saved_requires_script():
+    """A saved workflow's body lives in its frozen `script`; without one there is
+    nothing to run, so registration must reject it."""
+    from langclaw.workflows import WorkflowSpec
+
+    with pytest.raises(ValueError, match="(?i)script"):
+        WorkflowSpec(name="x", fn=lambda c, i: None, mode="saved")
+
+
+async def test_runtime_saved_mode_runs_frozen_script():
+    """A saved run executes its frozen body verbatim via the injected
+    script_runner — no author step (the body is the source of truth)."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    spec = WorkflowSpec(
+        name="hn",
+        fn=lambda c, i: None,
+        description="saved hn digest",
+        mode="saved",
+        script="await tools.output({ result: inp.n });",
+    )
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+    seen: dict = {}
+
+    async def script_runner(script, inp):
+        seen["run"] = (script, inp)
+        return {"echo": inp}
+
+    out = await rt.start_run(spec, {"n": 3}, run_id="r1", script_runner=script_runner)
+    assert out == {"echo": {"n": 3}}
+    assert seen["run"] == ("await tools.output({ result: inp.n });", {"n": 3})
+
+
+async def test_runtime_saved_mode_requires_script_runner():
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    spec = WorkflowSpec(name="hn", fn=lambda c, i: None, description="d", mode="saved", script="x")
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+    with pytest.raises(ValueError, match="(?i)script_runner|runner"):
+        await rt.start_run(spec, None, run_id="r1")  # no script_runner
+
+
+async def test_run_registered_saved_uses_script_runner_factory():
+    """Bus/cron entry: run_registered dispatches a saved workflow through the
+    registered script_runner factory (no author needed)."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    spec = WorkflowSpec(
+        name="hn",
+        fn=lambda c, i: None,
+        description="d",
+        mode="saved",
+        script="BODY",
+    )
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+
+    async def script_runner(script, inp):
+        return f"ran:{script}"
+
+    rt.set_authoring_factories(
+        author_factory=lambda s: None,
+        script_runner_factory=lambda s: script_runner,
+    )
+    out = await rt.run_registered(spec, None, run_id="r1")
+    assert out == "ran:BODY"
+
+
 async def test_runtime_python_mode_still_requires_executor():
     """The default python path is unchanged and still drives spec.fn via the
     injected step executor."""
@@ -1947,3 +2067,196 @@ def test_run_store_satisfies_protocol():
     from langclaw.workflows.run_store import RunStore, StoreRunStore
 
     assert isinstance(StoreRunStore(InMemoryStore()), RunStore)
+
+
+# ---------------------------------------------------------------------------
+# 6 — Workflows as a bus-native message source (#48) + run_registered (#46)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_store_list_all_returns_recent_runs():
+    """list_all surfaces every run (any status), newest-first, for /workflows runs."""
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.workflows.run_store import StoreRunStore
+
+    rs = StoreRunStore(InMemoryStore())
+    await rs.mark_running("r1", "demo", {"q": 1})
+    await rs.mark_completed("r1")
+    await rs.mark_running("r2", "demo", {"q": 2})
+    await rs.mark_failed("r2")
+    await rs.mark_running("r3", "demo", {"q": 3})
+
+    runs = await rs.list_all()
+    statuses = {r["run_id"]: r["status"] for r in runs}
+    assert statuses == {"r1": "completed", "r2": "failed", "r3": "running"}
+
+
+@pytest.mark.asyncio
+async def test_run_registered_python_uses_registered_executor_factory():
+    """run_registered builds the executor from the registered factory (bus dispatch)."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    calls: list[str] = []
+
+    async def body(ctx, inp):
+        return await ctx.tool("greet")
+
+    async def _exec(req):
+        calls.append(req.target)
+        return "hi"
+
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+    rt.set_resume_executor_factory(lambda _rt: _exec)
+
+    spec = WorkflowSpec(name="demo", description="", fn=body)
+    out = await rt.run_registered(spec, None, run_id="rr-1")
+    assert out == "hi"
+    assert calls == ["greet"]
+
+
+@pytest.mark.asyncio
+async def test_run_registered_llm_authored_uses_authoring_factories():
+    """run_registered routes llm_authored specs through the registered author/runner."""
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    async def _author(spec, inp):
+        return "SCRIPT_BODY"
+
+    async def _runner(script, inp):
+        return {"ran": script}
+
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+    rt.set_authoring_factories(
+        author_factory=lambda _spec: _author,
+        script_runner_factory=lambda _spec: _runner,
+    )
+
+    spec = WorkflowSpec(
+        name="auth", description="author a body", fn=lambda c, i: None, mode="llm_authored"
+    )
+    out = await rt.run_registered(spec, {"x": 1}, run_id="rr-2")
+    assert out == {"ran": "SCRIPT_BODY"}
+
+
+@pytest.mark.asyncio
+async def test_run_registered_without_factory_raises():
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+    spec = WorkflowSpec(name="demo", description="", fn=lambda c, i: None)
+    with pytest.raises(RuntimeError, match="no resume executor factory"):
+        await rt.run_registered(spec, None, run_id="rr-3")
+
+
+@pytest.mark.asyncio
+async def test_resume_incomplete_resumes_llm_authored_with_script_store():
+    """With authoring factories + a script store, a crashed llm_authored run resumes,
+    replaying its frozen body rather than re-authoring (#46)."""
+    from langgraph.store.memory import InMemoryStore
+
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import WorkflowRuntime, WorkflowSpec
+    from langclaw.workflows.authored import StoreScriptStore
+    from langclaw.workflows.run_store import StoreRunStore
+
+    store = InMemoryStore()
+    run_store = StoreRunStore(store)
+    script_store = StoreScriptStore(store)
+
+    author_calls: list[str] = []
+
+    async def _author(spec, inp):
+        author_calls.append(spec.name)
+        return "FROZEN_BODY"
+
+    runs: list[str] = []
+
+    async def _runner(script, inp):
+        runs.append(script)
+        return {"body": script}
+
+    rt = WorkflowRuntime(
+        WorkflowsConfig(enabled=True), run_store=run_store, script_store=script_store
+    )
+    rt.set_authoring_factories(
+        author_factory=lambda _spec: _author,
+        script_runner_factory=lambda _spec: _runner,
+    )
+
+    spec = WorkflowSpec(
+        name="auth", description="author a body", fn=lambda c, i: None, mode="llm_authored"
+    )
+
+    # First run authors + freezes the body.
+    await rt.run_registered(spec, {"in": 1}, run_id="run-A")
+    assert author_calls == ["auth"]
+
+    # Model a crash: mark it running again.
+    await run_store.mark_running("run-A", "auth", {"in": 1})
+
+    resumed = await rt.resume_incomplete(get_spec=lambda n: spec if n == "auth" else None)
+    assert resumed == ["run-A"]
+    # Author NOT called again — frozen body replayed from the script store.
+    assert author_calls == ["auth"]
+    assert runs == ["FROZEN_BODY", "FROZEN_BODY"]
+
+
+# ---------------------------------------------------------------------------
+# 7 — workflow_system_prompt (capability awareness for the agent)
+# ---------------------------------------------------------------------------
+
+
+def test_workflow_system_prompt_empty_registry_is_blank():
+    from langclaw.workflows import WorkflowRegistry, workflow_system_prompt
+
+    assert workflow_system_prompt(WorkflowRegistry()) == ""
+
+
+def test_workflow_system_prompt_lists_registered_workflows():
+    from langclaw.workflows import WorkflowRegistry, WorkflowSpec, workflow_system_prompt
+
+    reg = WorkflowRegistry()
+    reg.register(WorkflowSpec(name="report", description="build a daily report", fn=lambda c, i: i))
+    reg.register(
+        WorkflowSpec(
+            name="research", description="deep research", fn=lambda c, i: i, mode="llm_authored"
+        )
+    )
+
+    prompt = workflow_system_prompt(reg)
+    assert "<workflows>" in prompt and "</workflows>" in prompt
+    # tool names (not bare names) so the model calls the right tool
+    assert "workflow_report" in prompt
+    assert "workflow_research" in prompt
+    assert "build a daily report" in prompt
+    assert "[llm_authored]" in prompt  # non-python mode is flagged
+    # honest contract: run, don't author
+    assert "cannot create" in prompt.lower()
+
+
+def test_workflow_system_prompt_authoring_teaches_file_convention():
+    """With authoring on, the nudge teaches the write_file convention and drops
+    the false 'cannot create' claim."""
+    from langclaw.workflows import WorkflowRegistry, workflow_system_prompt
+
+    prompt = workflow_system_prompt(WorkflowRegistry(), authoring=True)
+    assert prompt  # non-empty even with zero registered workflows
+    assert "write_file" in prompt
+    assert "workflows/" in prompt
+    assert "@description" in prompt
+    assert "cannot create" not in prompt.lower()
+
+
+def test_workflow_system_prompt_authoring_with_registered_lists_and_authors():
+    from langclaw.workflows import WorkflowRegistry, WorkflowSpec, workflow_system_prompt
+
+    reg = WorkflowRegistry()
+    reg.register(WorkflowSpec(name="report", description="daily report", fn=lambda c, i: i))
+    prompt = workflow_system_prompt(reg, authoring=True)
+    assert "workflow_report" in prompt
+    assert "workflows/" in prompt
