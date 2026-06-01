@@ -282,6 +282,53 @@ class ChannelsConfig(BaseModel):
     matrix: MatrixChannelConfig = Field(default_factory=MatrixChannelConfig)
 
 
+class BackendConfig(BaseModel):
+    """Selects which deepagents filesystem backend the agent runs on.
+
+    deepagents abstracts the agent's file tools (``ls``/``read_file``/
+    ``write_file``/``edit_file``/``glob``/``grep`` and, for shell backends,
+    ``execute``) behind a swappable backend.  This config drives the common,
+    purely-declarative cases; advanced backends that need live objects
+    (``StoreBackend`` with a custom store/namespace, ``CompositeBackend``, a
+    sandbox, …) are injected as instances via ``Langclaw(backend=...)`` /
+    ``create_claw_agent(backend=...)``.
+
+    - ``"local_shell"`` (default) — real files under ``root_dir`` **plus** an
+      ``execute`` tool that runs shell commands on the host. Enables shell
+      access; ``virtual_mode`` still sandboxes file *paths* to ``root_dir`` but
+      the ``execute`` command itself is unsandboxed (``subprocess`` on the
+      host). Disable by selecting another backend if that is too broad.
+    - ``"filesystem"`` — real files under ``root_dir``, no ``execute`` tool.
+    - ``"state"`` — files live in LangGraph thread state (no host filesystem).
+    - ``"store"`` — files live in a LangGraph ``BaseStore`` (cross-thread).
+    """
+
+    backend: Literal["local_shell", "filesystem", "state", "store"] = "local_shell"
+    """Which backend to construct. Default ``"local_shell"`` to expose the
+    ``execute`` tool."""
+
+    root_dir: str = ""
+    """Filesystem root for ``local_shell``/``filesystem`` backends. Empty means
+    'use the agent's workspace directory'. Ignored by ``state``/``store``."""
+
+    virtual_mode: bool = True
+    """Sandbox file paths to ``root_dir`` (reject ``../`` traversal). Applies to
+    the filesystem-rooted backends only."""
+
+    execute_timeout: int = 120
+    """``local_shell`` only — per-command wall-clock timeout in seconds."""
+
+    max_output_bytes: int = 100_000
+    """``local_shell`` only — cap on captured command output bytes."""
+
+    inherit_env: bool = False
+    """``local_shell`` only — when ``True`` the host environment is inherited by
+    spawned commands. Off by default; combine with ``env`` for an explicit set."""
+
+    env: StringDict = Field(default_factory=dict)
+    """``local_shell`` only — extra environment variables for spawned commands."""
+
+
 class AgentConfig(BaseModel):
     model: str = "anthropic:claude-sonnet-4-5-20250929"
     model_kwargs: dict[str, Any] = Field(default_factory=dict)
@@ -289,6 +336,8 @@ class AgentConfig(BaseModel):
     banned_keywords: StringList = Field(default_factory=list)
     extra_skills: StringList = Field(default_factory=list)
     display_name: str = ""
+    backend: BackendConfig = Field(default_factory=BackendConfig)
+    """Deepagents filesystem/shell backend selection. See ``BackendConfig``."""
     """Human-facing name for the default agent. Injected into the system prompt
     so the model knows its own name and shown in ``/agent`` listings. Empty
     string means no display name configured."""

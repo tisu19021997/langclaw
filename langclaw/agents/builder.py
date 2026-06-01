@@ -183,6 +183,7 @@ def create_claw_agent(
     system_prompt: str | None = None,
     bus: BaseMessageBus | None = None,
     model: BaseChatModel | None = None,
+    backend: Any | None = None,
     context_schema: type[LangclawContext] | None = None,
     agent_name: str | None = None,
     display_name: str | None = None,
@@ -226,6 +227,13 @@ def create_claw_agent(
         bus:             Running ``BaseMessageBus`` — required when any
                          subagent uses ``output="channel"`` (Phase 2).
         model:           Pre-built chat model. If omitted, resolved from config.
+        backend:         A deepagents backend instance (or factory callable).
+                         Overrides ``config.agents.backend``.  Use this for the
+                         advanced backends that need live objects — ``StoreBackend``
+                         with a custom store/namespace, ``CompositeBackend``, a
+                         sandbox.  ``None`` (default) builds the config-selected
+                         backend (``local_shell`` by default, which exposes the
+                         ``execute`` tool) rooted at the agent's workspace.
         context_schema:  Custom context schema to use for the agent. If omitted,
                          uses the default LangclawContext.
         agent_name:      Name of the named agent being built.  When provided,
@@ -243,16 +251,31 @@ def create_claw_agent(
     """
     try:
         from deepagents import create_deep_agent
-        from deepagents.backends import FilesystemBackend
     except ImportError as exc:
         raise ImportError("deepagents is required. Install with: uv add deepagents") from exc
+
+    from langclaw.agents.backend import backend_root_dir, make_backend
 
     # Per-agent workspace: named agents get an isolated subdirectory;
     # the default agent keeps the global workspace.
     workspace_dir = (
         config.agents.workspace_dir / agent_name if agent_name else config.agents.workspace_dir
     )
-    workspace_dir.mkdir(parents=True, exist_ok=True)
+
+    # Resolve the deepagents backend. An explicit instance (store / composite /
+    # sandbox / custom) wins; otherwise build the config-selected one rooted at
+    # this agent's workspace. ``fs_root`` is the host directory for filesystem-
+    # rooted backends (FilesystemBackend / LocalShellBackend) and ``None`` for
+    # backends that don't live on the local filesystem (state / store) — every
+    # local-filesystem assumption below keys off it.
+    resolved_backend = (
+        backend if backend is not None else make_backend(config.agents.backend, workspace_dir)
+    )
+    fs_root = backend_root_dir(resolved_backend)
+
+    # Only create a real directory when the backend actually uses one.
+    if fs_root is not None:
+        fs_root.mkdir(parents=True, exist_ok=True)
 
     resolved_model = model or init_chat_model(config.agents.model, **config.agents.model_kwargs)
 
@@ -264,7 +287,12 @@ def create_claw_agent(
     builtin_tools: list[Any] = []
     builtin_tools += build_web_tools(config)
     builtin_tools += build_gmail_tools(config)
-    builtin_tools += build_fs_tools(config, workspace_dir)
+    # ``move_file`` / ``delete_file`` manipulate a real directory directly, so
+    # they only make sense for filesystem-rooted backends. Non-filesystem
+    # backends (state / store) rely on deepagents' own backend-delegated file
+    # tools (ls / read_file / write_file / edit_file) instead.
+    if fs_root is not None:
+        builtin_tools += build_fs_tools(config, fs_root)
     if cron_manager is not None:
         builtin_tools += build_cron_tools(config, cron_manager)
 
@@ -336,9 +364,18 @@ def create_claw_agent(
             workflow_registry, workflows_config=config.workflows
         )
 
-    agents_md = workspace_dir / "AGENTS.md"
-    if not agents_md.exists():
-        agents_md = config.agents.agents_md_file  # fall back to global
+    # Resolve the base ``AGENTS.md`` system prompt. For filesystem-rooted
+    # backends prefer the agent's on-disk workspace, then the global workspace,
+    # then the packaged default. Non-filesystem backends have no host workspace
+    # to read from, so they go straight to the packaged default.
+    if fs_root is not None:
+        agents_md = fs_root / "AGENTS.md"
+        if not agents_md.exists():
+            agents_md = config.agents.agents_md_file  # fall back to global
+        if not agents_md.exists():
+            agents_md = _DEFAULT_AGENTS_MD  # fall back to packaged default
+    else:
+        agents_md = _DEFAULT_AGENTS_MD
     base_prompt = agents_md.read_text("utf-8") if agents_md.exists() else ""
     if system_prompt:
         system_prompt = f"{base_prompt}\n\n{system_prompt}"
@@ -475,10 +512,7 @@ def create_claw_agent(
         skills=skills,
         system_prompt=system_prompt,
         checkpointer=checkpointer,
-        backend=FilesystemBackend(
-            root_dir=str(workspace_dir),
-            virtual_mode=True,
-        ),
+        backend=resolved_backend,
         middleware=middleware,
         context_schema=context_schema,
         subagents=final_subagents,

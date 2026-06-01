@@ -80,11 +80,15 @@ class GatewayManager:
         ) = None,
         named_agent_specs: dict[str, dict[str, Any]] | None = None,
         default_agent_spec: dict[str, Any] | None = None,
+        agent_backend: Any | None = None,
     ) -> None:
         self._config = config
         self._bus = bus
         self._checkpointer_backend = checkpointer_backend
         self._agent = agent
+        # Optional explicit deepagents backend applied to lazily-built named
+        # agents (mirrors the default agent's backend). ``None`` → config-driven.
+        self._agent_backend = agent_backend
         self._channels = [ch for ch in channels if ch.is_enabled()]
         self._cron_manager = cron_manager
         self._context_schema = context_schema or LangclawContext
@@ -212,6 +216,7 @@ class GatewayManager:
             extra_tools=spec.get("tools"),
             system_prompt=spec.get("system_prompt"),
             model=spec.get("model"),
+            backend=self._agent_backend,
             context_schema=self._context_schema,
             agent_name=agent_name,
             display_name=spec.get("display_name") or None,
@@ -280,6 +285,7 @@ class GatewayManager:
                         system_prompt=self._default_agent_spec.get("system_prompt"),
                         bus=self._default_agent_spec.get("bus"),
                         model=self._default_agent_spec.get("model"),
+                        backend=self._agent_backend,
                         context_schema=self._context_schema,
                         display_name=self._config.agents.display_name or None,
                     )
