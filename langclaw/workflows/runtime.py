@@ -135,6 +135,18 @@ class WorkflowRuntime:
                 registered (e.g. workflows enabled but the builder did not wire
                 them).
         """
+        if spec.mode == "saved":
+            if self._script_runner_factory is None:
+                raise RuntimeError(
+                    f"Cannot run saved workflow {spec.name!r}: no script-runner "
+                    "factory registered (needs the interpreter extra)."
+                )
+            return await self.start_run(
+                spec,
+                run_input,
+                run_id=run_id,
+                script_runner=self._script_runner_factory(spec),
+            )
         if spec.mode == "llm_authored":
             if self._author_factory is None or self._script_runner_factory is None:
                 raise RuntimeError(
@@ -196,7 +208,11 @@ class WorkflowRuntime:
         if self._run_store is not None:
             await self._run_store.mark_running(run_id, spec.name, _serialize_input(run_input))
         try:
-            if spec.mode == "llm_authored":
+            if spec.mode == "saved":
+                output = await self._run_saved(
+                    spec, validated_input, run_id=run_id, script_runner=script_runner
+                )
+            elif spec.mode == "llm_authored":
                 output = await self._run_authored(
                     spec, validated_input, run_id=run_id, author=author, script_runner=script_runner
                 )
@@ -343,6 +359,44 @@ class WorkflowRuntime:
             # The body is a Mode-2 run's audit artifact — at DEBUG normally, and
             # at WARNING on failure so a broken body is visible without DEBUG.
             logger.debug(f"Workflow {spec.name!r} run {run_id} body:\n{script}")
+            coro = script_runner(script, validated_input)
+            try:
+                if spec.timeout_s is not None:
+                    output = await asyncio.wait_for(coro, timeout=spec.timeout_s)
+                else:
+                    output = await coro
+            except Exception:
+                logger.warning(f"Workflow {spec.name!r} run {run_id} failed; body:\n{script}")
+                raise
+
+        output = self._validate_output(spec, output)
+        logger.info(f"Workflow {spec.name!r} run {run_id} completed")
+        return output
+
+    async def _run_saved(
+        self,
+        spec: WorkflowSpec,
+        validated_input: Any,
+        *,
+        run_id: str,
+        script_runner: ScriptRunnerFn | None,
+    ) -> Any:
+        """Run a ``mode="saved"`` workflow: execute its frozen body verbatim.
+
+        Unlike ``llm_authored``, there is no author step and no per-run script
+        freezing — ``spec.script`` (loaded from the saved-workflow file) *is* the
+        source of truth, so the body is handed straight to the script runner.
+        """
+        if script_runner is None:
+            raise ValueError(f"Workflow {spec.name!r} (mode='saved') requires a `script_runner`.")
+        script = spec.script or ""
+        async with self._run_gate:
+            logger.info(
+                f"Workflow {spec.name!r} run {run_id}: running saved body ({len(script)} chars)"
+            )
+            emit_progress(
+                {"kind": "authored", "workflow": spec.name, "run_id": run_id, "script": script}
+            )
             coro = script_runner(script, validated_input)
             try:
                 if spec.timeout_s is not None:

@@ -54,6 +54,12 @@ config.interpreter.enabled = True
 config.interpreter.allow_tools = ["write_file"]
 config.interpreter.timeout = 600.0  # seconds, covers the whole subagent fan-out
 
+# Turn on the workflow primitive too, so once the agent runs this job via eval you
+# can say "save that workflow as hn_digest" — it persists the JS to
+# <workspace>/workflows/hn_digest.js and it becomes a `workflow_hn_digest` tool you
+# can re-run later (and after a restart). Needs both flags on (see save_workflow).
+config.workflows.enabled = True
+
 # Keyless web search so the example runs without a search-provider key
 # (web_fetch needs no key at all). Swap to brave/tavily for better results.
 config.tools.search_backend = "duckduckgo"

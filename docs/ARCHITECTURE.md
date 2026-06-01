@@ -135,12 +135,26 @@ flowchart TB
     subgraph Dispatch["start_run — dispatch on spec.mode"]
         PY["python: spec.fn(ctx, input)<br/>steps via StepExecutor"]
         L2["llm_authored: author body once,<br/>replay frozen body thereafter"]
+        SV["saved: run frozen spec.script verbatim<br/>(no author step)"]
     end
     SR --> PY
     SR --> L2
+    SR --> SV
 
     EX["build_toolset_executor<br/>(default agent's full toolset)"]
     PY --> EX
+
+    subgraph Authoring["Runtime authoring (workflows + interpreter on)"]
+        EV["eval program<br/>(ad-hoc 'run a workflow to …')"]
+        SW["save_workflow tool"]
+        REG["WorkflowRegistry.register<br/>(mode='saved', version++)"]
+        FILE[("workspace/workflows/&lt;name&gt;.js")]
+        RB["_ensure_agent_fresh sees<br/>registry.version change → rebuild"]
+    end
+    EV --> SW --> REG --> RB
+    SW --> FILE
+    RB --> T
+    FILE -. "startup: _load_saved_workflows()" .-> REG
 
     subgraph Stores["Durable stores (opt-in: durable_steps)"]
         SS[("StepStore<br/>ns: workflow_steps/&lt;run_id&gt;")]
@@ -157,6 +171,7 @@ flowchart TB
 - **One runtime, one ceiling.** Every entry shares the cached `WorkflowRuntime` (so `max_concurrent_runs` is global). Progress (`ctx.phase` / `ctx.log` / Mode-2 authored body) projects to the channel through the same request-scoped sink the agent path installs.
 - **RBAC is at the invocation boundary.** Tool / command / cron / bus dispatch all consult the role's default-deny workflow allowlist (`allowed_workflow_names`). A workflow's *steps* call `tool.ainvoke` directly and bypass `ToolPermissionMiddleware`, so they run against the default agent's full toolset — constrain reachable tools via the workflow's `uses_tools`, not per-role tool RBAC.
 - **Durability is opt-in.** With `durable_steps`, completed steps and frozen Mode-2 bodies persist to a LangGraph `BaseStore` (a sibling SQLite file or the Postgres DSN). With `resume_on_startup`, the run journal replays runs left `"running"` by a crash: python-mode replays only the unfinished tail; `llm_authored` replays its frozen body (steps are not individually memoized, so resume is at-least-once).
+- **Runtime authoring closes the loop (`mode="saved"`).** When workflows *and* the interpreter are enabled, the agent gets `save_workflow`: it turns the throwaway `eval` script the user just ran into a named, reusable workflow. Registering bumps `registry.version`, which `_ensure_agent_fresh` watches (alongside the AGENTS.md hash) to rebuild the **default** agent — so `workflow_<name>` goes live in the same session. The body persists to host disk (`workspace/workflows/<name>.js`, langclaw infra independent of the deepagents `backend`) and reloads via `_load_saved_workflows()` on restart. A saved body runs in the same QuickJS sandbox as `eval`, so its capability surface is `uses_tools` ∩ live toolset under the interpreter's read-only-by-default PTC posture.
 
 ## Design Vision: A Framework, Not an App
 

@@ -216,7 +216,19 @@ def _make_one_workflow_tool(
     async def _run(workflow_input: Any = None) -> str:
         run_id = f"{spec.name}:{uuid.uuid4().hex[:12]}"
         try:
-            if spec.mode == "llm_authored":
+            if spec.mode == "saved":
+                if script_runner_factory is None:
+                    raise WorkflowStepError(
+                        f"workflow {spec.name!r} is mode='saved' but the script "
+                        "runner is not wired (needs the interpreter extra)."
+                    )
+                output = await runtime.start_run(
+                    spec,
+                    workflow_input,
+                    run_id=run_id,
+                    script_runner=script_runner_factory(spec),
+                )
+            elif spec.mode == "llm_authored":
                 if author_factory is None or script_runner_factory is None:
                     raise WorkflowStepError(
                         f"workflow {spec.name!r} is mode='llm_authored' but Mode 2 "
@@ -247,39 +259,60 @@ def _make_one_workflow_tool(
     )
 
 
-def workflow_system_prompt(registry: WorkflowRegistry) -> str:
-    """System-prompt nudge that makes registered workflows discoverable to the agent.
+def workflow_system_prompt(registry: WorkflowRegistry, *, authoring: bool = False) -> str:
+    """System-prompt nudge that makes workflows discoverable to the agent.
 
     The workflow-axis analogue of
     :func:`langclaw.interpreter.interpreter_system_prompt`'s ``<code_interpreter>``
     block: without it the ``workflow_<name>`` tools are present but unexplained, so
-    the model rarely reaches for them. This lists each registered workflow (tool
-    name + mode + description) and states the contract — run, don't author.
+    the model rarely reaches for them. Lists each registered workflow (tool name +
+    mode + description).
 
-    Returns ``""`` when nothing is registered, so the builder appends nothing.
+    Args:
+        registry:  The populated :class:`WorkflowRegistry`.
+        authoring: When ``True`` the ``save_workflow`` tool is available, so the
+                   nudge teaches the run → save loop ("run an ``eval`` program,
+                   then save it as a reusable workflow") and drops the
+                   "cannot create" contract. When ``False`` the agent can only run
+                   pre-registered workflows.
+
+    Returns:
+        The ``<workflows>`` block, or ``""`` when there is nothing to say
+        (no registered workflows and authoring off).
     """
     specs = registry.specs()
-    if not specs:
+    if not specs and not authoring:
         return ""
+
     lines = []
     for s in specs:
         mode = "" if getattr(s, "mode", "python") == "python" else f" [{s.mode}]"
         desc = f" — {s.description}" if s.description else ""
         lines.append(f"  - {workflow_tool_name(s.name)}{mode}{desc}")
-    listing = "\n".join(lines)
-    return (
-        "<workflows>\n"
-        "Workflows are pre-built, durable, multi-step orchestrations the operator "
-        "registered. When a request matches one, run it by calling its "
-        "`workflow_<name>` tool instead of improvising the same steps yourself — a "
-        "workflow is typed, budgeted, and resumable, so it is more reliable than an "
-        "ad-hoc sequence. You can run the workflows below but cannot create or modify "
-        "them (that is done in code by the developer). For ad-hoc control flow that no "
-        "workflow covers, use the `eval` interpreter if available.\n"
-        "Available workflows:\n"
-        f"{listing}\n"
-        "</workflows>"
+    listing = "\n".join(lines) if lines else "  (none registered yet)"
+
+    intro = (
+        "Workflows are durable, typed, multi-step orchestrations exposed as "
+        "`workflow_<name>` tools. When a request matches one, run that tool instead "
+        "of improvising the same steps yourself — it is budgeted and resumable, so "
+        "more reliable than an ad-hoc sequence."
     )
+    if authoring:
+        authoring_block = (
+            "\nYou can also CREATE workflows at runtime with `save_workflow`. When the "
+            "user asks to save, remember, or 'turn into a workflow' a multi-step task "
+            "you just ran via `eval`, call `save_workflow(name, script, description)` "
+            "with that same JavaScript program. It is persisted and immediately becomes "
+            "a new `workflow_<name>` tool you can run later. Use this for repeatable "
+            "jobs; for a one-off, just run `eval` and don't save."
+        )
+    else:
+        authoring_block = (
+            "\nYou can run the workflows below but cannot create or modify them (that is "
+            "done in code by the developer). For ad-hoc control flow that no workflow "
+            "covers, use the `eval` interpreter if available."
+        )
+    return f"<workflows>\n{intro}{authoring_block}\nAvailable workflows:\n{listing}\n</workflows>"
 
 
 def _stringify(value: Any) -> str:

@@ -63,6 +63,11 @@ from langclaw.workflows.registry import WorkflowRegistry, WorkflowSpec
 from langclaw.workflows.resume import InMemoryStepStore, StepMemoizer, StepStore
 from langclaw.workflows.run_store import RunStore, StoreRunStore
 from langclaw.workflows.runtime import WorkflowRuntime
+from langclaw.workflows.saved_store import (
+    SavedWorkflow,
+    SavedWorkflowStore,
+    validate_saved_name,
+)
 from langclaw.workflows.step_store import (
     MemoryStepStoreBackend,
     StepStoreBackend,
@@ -79,6 +84,8 @@ __all__ = [
     "ScriptStore",
     "StepMemoizer",
     "RunStore",
+    "SavedWorkflow",
+    "SavedWorkflowStore",
     "StepStore",
     "StepStoreBackend",
     "StoreRunStore",
@@ -102,5 +109,6 @@ __all__ = [
     "reset_progress_sink",
     "resolve_workflow_ptc_names",
     "set_progress_sink",
+    "validate_saved_name",
     "workflow_system_prompt",
 ]

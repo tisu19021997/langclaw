@@ -37,6 +37,7 @@ uv run pre-commit run --all-files  # Full pre-commit suite
 | Choose agent backend | `langclaw/agents/backend.py` (`make_backend` factory + `backend_root_dir`) |
 | Modify config schema | `langclaw/config/schema.py` (Pydantic Settings) |
 | Code interpreter (RLM) | `langclaw/interpreter/__init__.py` (PTC resolver + middleware factory) |
+| Runtime workflow authoring | `langclaw/agents/tools/save_workflow.py` + `langclaw/workflows/saved_store.py` |
 | CLI commands | `langclaw/cli/app.py` (Typer) |
 | Agent construction | `langclaw/agents/builder.py` |
 | Gateway orchestration | `langclaw/gateway/manager.py` |
@@ -330,3 +331,37 @@ allowlist of tools — including `tools.task({subagent_type})` to orchestrate
 - **Subagent gate:** `RoleConfig.subagents` is a per-role, default-deny allowlist
   of subagent types a script may reach via `tools.task`
   (`allowed_subagents` / `check_subagent_permission`).
+
+## Runtime Workflow Authoring (`save_workflow`)
+
+The bridge between the throwaway `eval` script and the durable workflow
+primitive. When **both** `workflows.enabled` and `interpreter.enabled` are on,
+the agent gets a `save_workflow(name, script, description, uses_tools)` tool
+(offered even with zero registered workflows, like `/workflows`). Flow:
+
+1. User: *"Run a workflow to: …"* → the agent writes an `eval` program (the
+   `<code_interpreter>` nudge routes "run a workflow"/"orchestrate" phrasing here).
+2. User: *"Save that workflow as hn_digest"* → the agent calls `save_workflow`,
+   which (a) validates the name (`saved_store.validate_saved_name` + registry
+   collision against `reserved_names`), (b) registers a `WorkflowSpec(mode="saved")`
+   into the shared `WorkflowRegistry` (bumping `registry.version`), then (c)
+   persists `<workspace>/workflows/<name>.js` + a `.json` sidecar.
+3. **Same-session liveness:** `GatewayManager._ensure_agent_fresh` watches
+   `registry.version` (alongside the AGENTS.md content hash) and rebuilds the
+   **default** agent when it changes, so `workflow_<name>` goes live without a
+   restart. The rebuild now threads `workflow_registry`/`workflow_runtime` through
+   (previously an AGENTS.md reload silently dropped workflow tools).
+4. **Restart:** `app._load_saved_workflows()` (in `_run_async`, before the agent
+   build) reloads `workflows/*.js` as `mode="saved"` specs.
+
+**`mode="saved"` execution:** the frozen `spec.script` runs verbatim via
+`build_workflow_script_runner` (the same QuickJS path as `llm_authored`, minus
+the per-run authoring step) — `runtime._run_saved`. Saved workflows are global
+(default agent only); named agents don't carry workflow tools.
+
+**Honest limits:** saved workflows require *both* flags; a saved body is JS in
+the eval sandbox, so its capability surface is `uses_tools` ∩ live toolset (same
+PTC posture as `eval` — mutating tools need `interpreter.allow_tools`). The
+`workflows/` folder is host-disk langclaw infra (like the run journal),
+independent of the deepagents `backend` — saving works even under a non-filesystem
+agent backend (state/store).

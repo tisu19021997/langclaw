@@ -137,6 +137,11 @@ class GatewayManager:
         # prompts when the underlying file changes.
         self._agents_md_hashes: dict[str, str] = {}
 
+        # Track the last-seen workflow registry version for the default agent so a
+        # runtime-authored workflow (save_workflow) triggers a rebuild and goes
+        # live as a workflow_<name> tool in the same session.
+        self._workflow_registry_versions: dict[str, int | None] = {}
+
         # Simple per-agent locks to avoid concurrent rebuilds.
         self._agent_locks: dict[str, asyncio.Lock] = {}
         # Keep a reference to the raw named-agent specs so we can rebuild them
@@ -259,27 +264,54 @@ class GatewayManager:
         path = self._get_agents_md_path_for_agent(agent_name)
         new_hash = self._compute_agents_md_hash(path)
         old_hash = self._agents_md_hashes.get(agent_name)
+
+        # Workflow registry version — only the default agent carries
+        # workflow_<name> tools, so only it rebuilds on a runtime registration.
+        new_wf_version = (
+            self._workflow_registry.version
+            if agent_name == "default" and self._workflow_registry is not None
+            else None
+        )
+        old_wf_version = self._workflow_registry_versions.get(agent_name)
+
         if self._config.debug:
             logger.info(
-                "[debug] AGENTS.md watch — agent='{}' path='{}' hash={}",
+                "[debug] agent watch — agent='{}' path='{}' hash={} wf_version={}",
                 agent_name,
                 path,
                 new_hash[:12],
+                new_wf_version,
             )
+
+        # First sighting: record baselines, do not rebuild.
         if old_hash is None:
             self._agents_md_hashes[agent_name] = new_hash
-            return current
-        if new_hash == old_hash:
+            self._workflow_registry_versions[agent_name] = new_wf_version
             return current
 
-        # Slow path: AGENTS.md changed — rebuild under a per-agent lock so only
-        # one task performs the work.
-        logger.info("AGENTS.md changed for agent '{}' ({}), rebuilding…", agent_name, path)
+        agents_md_changed = new_hash != old_hash
+        workflows_changed = new_wf_version != old_wf_version
+        if not agents_md_changed and not workflows_changed:
+            return current
+
+        # Slow path: AGENTS.md and/or the workflow registry changed — rebuild
+        # under a per-agent lock so only one task performs the work.
+        reason = (
+            "AGENTS.md changed"
+            if agents_md_changed and not workflows_changed
+            else "workflow registry changed"
+            if workflows_changed and not agents_md_changed
+            else "AGENTS.md + workflow registry changed"
+        )
+        logger.info("{} for agent '{}' ({}), rebuilding…", reason, agent_name, path)
         lock = self._get_agent_lock(agent_name)
         async with lock:
-            # Double-check inside the lock in case another task already rebuilt.
-            latest_hash = self._agents_md_hashes.get(agent_name)
-            if latest_hash == new_hash:
+            # Double-check inside the lock in case another task already rebuilt
+            # both watched inputs to their current values.
+            if (
+                self._agents_md_hashes.get(agent_name) == new_hash
+                and self._workflow_registry_versions.get(agent_name) == new_wf_version
+            ):
                 return self._agent_map.get(agent_name, current)
 
             try:
@@ -293,11 +325,15 @@ class GatewayManager:
                     agent_name,
                 )
                 self._agents_md_hashes[agent_name] = new_hash
+                self._workflow_registry_versions[agent_name] = new_wf_version
                 return current
 
             try:
                 if agent_name == "default":
                     # Rebuild the main agent using the same knobs as Langclaw.create_agent().
+                    # The workflow registry/runtime MUST be threaded through, else a
+                    # rebuild silently drops every workflow_<name> tool (and the
+                    # save_workflow tool) from the default agent.
                     rebuilt = create_claw_agent(
                         self._config,
                         checkpointer=self._checkpointer_backend.get(),
@@ -311,6 +347,8 @@ class GatewayManager:
                         backend=self._agent_backend,
                         context_schema=self._context_schema,
                         display_name=self._config.agents.display_name or None,
+                        workflow_registry=self._workflow_registry,
+                        workflow_runtime=self._workflow_runtime,
                     )
                 else:
                     # Named agents reuse their original spec.
@@ -319,17 +357,18 @@ class GatewayManager:
 
                 self._agent_map[agent_name] = rebuilt
                 self._agents_md_hashes[agent_name] = new_hash
-                logger.info("Reloaded AGENTS.md and rebuilt agent '{}'.", agent_name)
+                self._workflow_registry_versions[agent_name] = new_wf_version
+                logger.info("Rebuilt agent '{}'.", agent_name)
                 return rebuilt
             except Exception as exc:  # noqa: BLE001
                 logger.error(
-                    "Error rebuilding agent '{}' after AGENTS.md change: {}. "
-                    "Continuing with existing compiled agent.",
+                    "Error rebuilding agent '{}': {}. Continuing with existing compiled agent.",
                     agent_name,
                     exc,
                 )
-                # Even if rebuild fails, update the hash so we don't thrash.
+                # Even if rebuild fails, update the baselines so we don't thrash.
                 self._agents_md_hashes[agent_name] = new_hash
+                self._workflow_registry_versions[agent_name] = new_wf_version
                 return current
 
     def _setup_agent_command(self) -> None:

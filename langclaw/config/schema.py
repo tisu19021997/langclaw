@@ -372,6 +372,15 @@ class AgentConfig(BaseModel):
     def memories_dir(self) -> Path:
         return self.workspace_dir / self.memories_source.lstrip("/")
 
+    @property
+    def workflows_dir(self) -> Path:
+        """Host directory holding runtime-authored (``save_workflow``) workflows.
+
+        Always a real host path (langclaw infrastructure, like the run journal),
+        independent of the agent's deepagents backend — so saving works even when
+        the agent's file tools are non-filesystem (state / store backends)."""
+        return self.workspace_dir / "workflows"
+
 
 class SqliteCheckpointerConfig(BaseModel):
     db_path: str = Field(default_factory=lambda: str(_LANGCLAW_HOME / "state.db"))
@@ -610,6 +619,15 @@ class WorkflowsConfig(BaseModel):
     ``workflow_<name>`` tool; an operator runs ``/workflows run <name>``; or a
     message with ``origin="workflow"`` (e.g. a cron-fired job) dispatches one
     through the gateway.  Each is typed, multi-step, and RBAC-gated by role.
+
+    **Runtime authoring (``mode="saved"``):** when this *and* ``interpreter`` are
+    enabled, the agent gets a ``save_workflow`` tool.  After running an ad-hoc job
+    with ``eval``, the user can say "save that workflow"; the agent persists the JS
+    body to ``<workspace>/workflows/<name>.js`` and registers it as a saved
+    workflow.  The gateway notices the registry change and rebuilds the default
+    agent, so the new ``workflow_<name>`` tool goes live in the same session and
+    reloads on every restart.  (Requires the ``interpreter`` extra — a saved body
+    runs in the same QuickJS sandbox as ``eval``.)
 
     RBAC is enforced at the **invocation** boundary: the ``workflow_<name>`` tool
     gate, the ``/workflows`` command, cron dispatch, and bus dispatch all consult
