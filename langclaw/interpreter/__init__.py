@@ -302,6 +302,11 @@ RUNTIME_TOOL_CONTRACTS: dict[str, dict[str, Any]] = {
 # one tool, so they are stated once and never grow as the toolset changes.
 _RUNTIME_ABI_RULES = (
     "Runtime rules (the sandbox ABI — these never change):\n"
+    "- This is a bare QuickJS sandbox with **no ambient host APIs**: there is no "
+    "`fetch`, `XMLHttpRequest`, `require`, `import`, `process`, `Buffer`, timers, or "
+    "any Node/browser global. The ONLY way to reach the network, filesystem, or "
+    "subagents is the `tools.*` functions listed below — e.g. use "
+    "`await tools.webFetch({ urls: [...] })`, never `fetch(...)`.\n"
     "- Tools live on `tools` in **camelCase** (`read_file` → `tools.readFile`). Any "
     "other spelling — including snake_case — throws `TypeError: not a function`.\n"
     "- Each `eval` runs in a **fresh context**: variables do NOT persist between "
