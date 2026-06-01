@@ -113,6 +113,8 @@ Authority stays with the org two independent ways: at **assembly** (sealed survi
 
 **Documented escape hatch (graft from OVERLAY-FS).** If the LRU instance cache proves too heavy under high concurrency, fall back to a **single agent + read-only personal context injected at assembly time** — losing agent-driven personal *writes* but preserving the layering and privacy. A **day-one spike** confirms whether deepagents exposes any request-time backend selection; if it does, that unlocks the cheaper single-instance path and we take it.
 
+> **Update — backend injection landed.** The builder no longer hardcodes `FilesystemBackend`: `create_claw_agent(backend=...)` / `Langclaw(backend=...)` now accept an explicit backend, and deepagents' `create_deep_agent(backend=...)` accepts a `Callable[[ToolRuntime], BackendProtocol]` **runtime factory** — i.e. request-time backend selection *is* supported. That partially settles the Phase-0 spike below and opens the cheaper single-instance path: one cached agent whose backend factory re-roots per request from the `ToolRuntime` context (`user_id`), instead of the per-`(agent,user)` LRU. The layered-prompt assembly (§5) and per-layer write-gating still need building; this only removes the backend-binding risk.
+
 ## 6. Promotion & Governance Flow
 
 Proposal-as-diff (GitOps PR model), composed from existing primitives — `@app.command`, `user_roles`/`_resolve_user_role`, the `RoleConfig.subagents` allowlist, and the file-backed memory store.
@@ -179,17 +181,17 @@ LANGCLAW__CHANNELS__TELEGRAM__USER_TEAMS__123456=growth
 LANGCLAW__CHANNELS__TELEGRAM__USER_ROLES__789012=marketing-lead
 ```
 
-`builder.py`: (a) replace the single `AGENTS.md` read with `assemble_system_prompt`; (b) replace the single `FilesystemBackend` with three layer-scoped roots + the read-only `org_read` tool; (c) key `_agent_map` on `(agent_name, user_id)` with the LRU. `gateway/manager.py`: register `/propose`, `/review`, `/approve`, `/reject` via the existing command closure; reuse `_resolve_user_role` for gating. Reused wholesale: named-agent subtree pattern, `@app.command`, RBAC, `_safe_resolve`, subagents, the bus.
+`builder.py`: (a) replace the single `AGENTS.md` read with `assemble_system_prompt`; (b) swap the injected backend (default `LocalShellBackend` via `make_backend`) for a `CompositeBackend` of three layer-scoped roots + the read-only `org_read` tool — passed through the existing `backend=` param, or as a per-request backend factory; (c) key `_agent_map` on `(agent_name, user_id)` with the LRU (or drop the LRU entirely if the factory path is taken). `gateway/manager.py`: register `/propose`, `/review`, `/approve`, `/reject` via the existing command closure; reuse `_resolve_user_role` for gating. Reused wholesale: named-agent subtree pattern, `@app.command`, RBAC, `_safe_resolve`, subagents, the bus.
 
 ## 8. Backward Compatibility / Migration
 
-Today's single workspace is the **degenerate single-org, single-user** case. When `workspace_layers.enabled = false` (the default), `assemble_system_prompt` reads the legacy single `workspace/<agent>/AGENTS.md`, the single `FilesystemBackend` is unchanged, and `_agent_map` keys on name only — **zero behavior change** for every existing deployment. Layering, per-user roots, and the proposal commands activate only when explicitly enabled.
+Today's single workspace is the **degenerate single-org, single-user** case. When `workspace_layers.enabled = false` (the default), `assemble_system_prompt` reads the legacy single `workspace/<agent>/AGENTS.md`, the config-default backend (now `LocalShellBackend`, selectable via `config.agents.backend`) is unchanged, and `_agent_map` keys on name only — **zero behavior change** for every existing deployment. Layering, per-user roots, and the proposal commands activate only when explicitly enabled.
 
 When enabled with no `org/` present, first build treats the existing flat tree as the org layer: move (or symlink) `AGENTS.md`, `skills/`, `memories/` under `org/` and create empty `users/`. A one-time `langclaw migrate-workspace` does this idempotently. Enabling is per-agent, so a deployment can layer the `marketing` agent while leaving others flat.
 
 ## 9. Phased Rollout + Risks
 
-**Phase 0 — de-risk (day one).** Spike the deepagents backend-root question: does it expose any request-time backend selection? The answer chooses between the LRU per-`(agent,user)` instance path and the cheaper single-instance path. Gating.
+**Phase 0 — de-risk (day one).** ~~Spike the deepagents backend-root question: does it expose any request-time backend selection?~~ **Answered:** yes — `create_deep_agent(backend=...)` takes a `Callable[[ToolRuntime], BackendProtocol]` factory, and langclaw now threads a `backend=` param through `create_claw_agent` / `Langclaw` (see §5 update note). This unlocks the cheaper single-instance path; the remaining spike is confirming the factory can read `user_id` from the `ToolRuntime` context to re-root per request.
 
 **Phase 1 — layered read-only.** `WorkspaceLayerConfig`, `org/`+`users/` tree, two-phase `assemble_system_prompt`, `org_read` tool, employee-writable `users/` fs root, hardened SessionManager namespace, migration command. Ships the org/employee split and privacy without governance.
 
@@ -198,6 +200,6 @@ When enabled with no `org/` present, first build treats the existing flat tree a
 **Phase 3 — auto-audit + teams.** `policy_auditor` subagent, `masks.yaml` whiteouts, team middle tier.
 
 **Top 3 risks / open questions:**
-1. **Build-time vs request-time binding (highest).** Per-employee writable memory requires either an LRU per-`(agent,user)` instance cache (memory + cold-start cost) or a request-time backend swap deepagents may not support. Mitigation: Phase-0 spike + the documented read-only-context escape hatch.
+1. **Build-time vs request-time binding (~~highest~~ → downgraded).** Per-employee writable memory requires either an LRU per-`(agent,user)` instance cache (memory + cold-start cost) or a request-time backend swap. **The swap is now confirmed supported** (deepagents' `backend=` runtime factory + langclaw's `backend=` param — see §5/Phase-0), so the single-instance path is viable; the residual risk is only wiring `user_id` from `ToolRuntime` into the factory. Mitigation: the confirmed factory path + the documented read-only-context escape hatch.
 2. **Agent-instance explosion.** Many concurrent employees × the LRU cap means cold-starts under churn and a hard concurrency ceiling. Open question: is the read-only-injection fallback acceptable as the default at scale, reserving live writes for smaller teams?
 3. **Auto-audit trust boundary.** An LLM auditor auto-accepting org-playbook changes is a real attack/error surface. Mitigation: auto-accept is opt-in and structurally forbidden from touching `sealed:` rules; conservatively, Phase 2 ships human-only approval and the auditor lands in Phase 3 behind a flag.
