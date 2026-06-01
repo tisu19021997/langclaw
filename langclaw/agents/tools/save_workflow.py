@@ -69,17 +69,22 @@ def build_save_workflow_tool(
     registry: WorkflowRegistry,
     store: SavedWorkflowStore,
     reserved_names: set[str],
+    permissions_enabled: bool = False,
 ) -> BaseTool:
     """Build the ``save_workflow`` tool bound to a registry + saved-workflow store.
 
     Args:
-        registry:       The shared :class:`WorkflowRegistry`. A successful save
-                        registers a ``mode="saved"`` spec here and bumps its
-                        version so the gateway rebuilds the agent.
-        store:          File-backed store persisting the JS body to the workspace
-                        ``workflows/`` folder.
-        reserved_names: Names already claimed by tools, subagents, agents, or
-                        commands — a saved workflow may not collide with them.
+        registry:            The shared :class:`WorkflowRegistry`. A successful
+                             save registers a ``mode="saved"`` spec here and bumps
+                             its version so the gateway rebuilds the agent.
+        store:               File-backed store persisting the JS body to the
+                             workspace ``workflows/`` folder.
+        reserved_names:      Names already claimed by tools, subagents, agents, or
+                             commands — a saved workflow may not collide with them.
+        permissions_enabled: Whether RBAC is on.  When ``True`` the new
+                             ``workflow_<name>`` tool is default-denied until an
+                             operator grants the name to a role, so the success
+                             message says so instead of promising immediate use.
     """
     from langchain_core.tools import StructuredTool
 
@@ -121,8 +126,10 @@ def build_save_workflow_tool(
         except ValueError as exc:
             return {"error": str(exc)}
 
-        # 4. Persist only after the registry accepts it, so disk never holds a
-        #    workflow the running app rejected.
+        # 4. Persist after the registry accepts it (so a name the app rejects never
+        #    lands on disk). If the write fails, roll the registration back so the
+        #    registry never holds an unpersisted workflow that would vanish on
+        #    restart and block re-saving under the same name.
         try:
             store.save(
                 name,
@@ -131,16 +138,24 @@ def build_save_workflow_tool(
                 uses_tools=list(uses_tools or []),
             )
         except OSError as exc:
-            return {"error": f"Registered but failed to persist {name!r} to disk: {exc}"}
+            registry.unregister(name)
+            return {"error": f"Failed to persist {name!r} to disk (not saved): {exc}"}
 
         logger.info(f"save_workflow: registered + persisted {name!r}")
         tool_name = workflow_tool_name(name)
-        return {
-            "message": (
-                f"Saved workflow {name!r}. It is now available as the `{tool_name}` "
-                "tool and persists across restarts."
+        if permissions_enabled:
+            # RBAC is default-deny per workflow name; the new tool is invisible to
+            # roles until an operator allowlists it. Don't promise immediate use.
+            availability = (
+                f"It is saved (persists across restarts) and will appear as the "
+                f"`{tool_name}` tool, but RBAC is enabled — an operator must grant "
+                f"{name!r} to a role before it can be run."
             )
-        }
+        else:
+            availability = (
+                f"It is now available as the `{tool_name}` tool and persists across restarts."
+            )
+        return {"message": f"Saved workflow {name!r}. {availability}"}
 
     return StructuredTool.from_function(
         coroutine=_save,

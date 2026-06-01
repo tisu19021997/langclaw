@@ -146,6 +146,19 @@ class WorkflowRegistry:
         self._version += 1
         return spec
 
+    def unregister(self, name: str) -> bool:
+        """Remove the workflow registered under *name*; return whether one existed.
+
+        Bumps the version (like :meth:`register`) so a removal also triggers an
+        agent rebuild.  Used to roll back a runtime registration whose on-disk
+        persistence failed, so the registry never holds an unpersisted workflow.
+        """
+        if name in self._by_name:
+            del self._by_name[name]
+            self._version += 1
+            return True
+        return False
+
     def get(self, name: str) -> WorkflowSpec | None:
         """Return the spec registered under *name*, or ``None``."""
         return self._by_name.get(name)

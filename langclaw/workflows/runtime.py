@@ -386,6 +386,12 @@ class WorkflowRuntime:
         Unlike ``llm_authored``, there is no author step and no per-run script
         freezing — ``spec.script`` (loaded from the saved-workflow file) *is* the
         source of truth, so the body is handed straight to the script runner.
+
+        Resume is at-least-once and **non-idempotent**: like ``llm_authored``, a
+        saved body is not step-memoized, so a crash-resume re-runs the whole
+        script. If it calls side-effecting tools (e.g. ``write_file`` or an egress
+        tool via ``uses_tools``), those effects repeat. Write saved scripts to
+        tolerate re-execution.
         """
         if script_runner is None:
             raise ValueError(f"Workflow {spec.name!r} (mode='saved') requires a `script_runner`.")

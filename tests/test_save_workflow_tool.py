@@ -11,10 +11,15 @@ from langclaw.agents.tools.save_workflow import build_save_workflow_tool
 from langclaw.workflows import SavedWorkflowStore, WorkflowRegistry, WorkflowSpec
 
 
-def _make(tmp_path: Path, *, reserved=()):
+def _make(tmp_path: Path, *, reserved=(), permissions_enabled=False):
     registry = WorkflowRegistry()
     store = SavedWorkflowStore(tmp_path / "workflows")
-    tool = build_save_workflow_tool(registry=registry, store=store, reserved_names=set(reserved))
+    tool = build_save_workflow_tool(
+        registry=registry,
+        store=store,
+        reserved_names=set(reserved),
+        permissions_enabled=permissions_enabled,
+    )
     return tool, registry, store
 
 
@@ -74,3 +79,46 @@ async def test_empty_script_returns_error(tmp_path: Path) -> None:
     result = await tool.ainvoke({"name": "blank", "script": "   ", "description": "d"})
     assert "error" in result
     assert registry.get("blank") is None
+
+
+async def test_disk_failure_rolls_back_registration(tmp_path: Path, monkeypatch) -> None:
+    """If persistence fails, the registry must NOT keep the spec — else it would
+    vanish on restart and block re-saving the same name."""
+    tool, registry, store = _make(tmp_path)
+
+    def boom(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(store, "save", boom)
+    result = await tool.ainvoke(
+        {"name": "doomed", "script": "await tools.output({ result: 1 });", "description": "d"}
+    )
+
+    assert "error" in result and "not saved" in result["error"]
+    # Rolled back: name is free to re-save, and version returned to baseline net-even.
+    assert registry.get("doomed") is None
+    assert "doomed" not in registry
+
+
+async def test_permissions_enabled_message_is_honest(tmp_path: Path) -> None:
+    """Under RBAC the new workflow_<name> is default-denied; the message must not
+    promise immediate availability."""
+    tool, registry, _ = _make(tmp_path, permissions_enabled=True)
+    result = await tool.ainvoke(
+        {"name": "gated", "script": "await tools.output({ result: 1 });", "description": "d"}
+    )
+    assert "error" not in result
+    assert registry.get("gated") is not None  # still registered + persisted
+    msg = result["message"].lower()
+    assert "rbac" in msg or "grant" in msg or "role" in msg
+    assert "now available" not in msg
+
+
+def test_registry_unregister_roundtrip() -> None:
+    reg = WorkflowRegistry()
+    reg.register(WorkflowSpec(name="x", fn=lambda c, i: None, description="d"))
+    v = reg.version
+    assert reg.unregister("x") is True
+    assert reg.get("x") is None
+    assert reg.version > v  # removal also bumps so the agent rebuilds
+    assert reg.unregister("x") is False  # idempotent

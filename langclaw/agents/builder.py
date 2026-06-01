@@ -394,6 +394,7 @@ def create_claw_agent(
                 registry=workflow_registry,
                 store=SavedWorkflowStore(config.agents.workflows_dir),
                 reserved_names=_reserved,
+                permissions_enabled=config.permissions.enabled,
             )
         ]
 
