@@ -24,6 +24,7 @@ uv run pre-commit run --all-files  # Full pre-commit suite
 | Add middleware | `langclaw/middleware/` + wire in `agents/builder.py` |
 | Add message bus | `langclaw/bus/<name>.py` + factory in `bus/__init__.py` |
 | Add checkpointer | `langclaw/checkpointer/<name>.py` + factory in `checkpointer/__init__.py` |
+| Choose agent backend | `langclaw/agents/backend.py` (`make_backend` factory + `backend_root_dir`) |
 | Modify config schema | `langclaw/config/schema.py` (Pydantic Settings) |
 | Code interpreter (RLM) | `langclaw/interpreter/__init__.py` (PTC resolver + middleware factory) |
 | CLI commands | `langclaw/cli/app.py` (Typer) |
@@ -267,8 +268,35 @@ LANGCLAW__CHANNELS__TELEGRAM__TOKEN=bot123:abc
 LANGCLAW__CHANNELS__TELEGRAM__ENABLED=true
 LANGCLAW__BUS__BACKEND=rabbitmq
 LANGCLAW__CHECKPOINTER__BACKEND=postgres
+LANGCLAW__AGENTS__BACKEND__BACKEND=filesystem   # drop the host `execute` shell tool
 LANGCLAW__INTERPRETER__ENABLED=true        # opt into the sandboxed `eval` tool
 ```
+
+## Agent Backend (filesystem / shell)
+
+deepagents abstracts the agent's file tools (`ls` / `read_file` / `write_file` /
+`edit_file` / `glob` / `grep`, plus `execute` on shell backends) behind a
+swappable backend. `langclaw/agents/backend.py:make_backend()` builds one from
+`config.agents.backend`; `create_claw_agent(backend=...)` and
+`Langclaw(backend=...)` accept a fully-constructed instance (or a
+`Callable[[ToolRuntime], BackendProtocol]`) for the advanced backends config
+can't express (`StoreBackend` with a custom store/namespace, `CompositeBackend`,
+a sandbox).
+
+- **Default is `local_shell`** (`LocalShellBackend`) — real files under the
+  agent workspace **plus** an `execute` tool. `virtual_mode=True` sandboxes file
+  *paths* to the workspace, but `execute` runs host shell commands **unsandboxed**
+  (`subprocess`). Select `filesystem` (`LANGCLAW__AGENTS__BACKEND__BACKEND=filesystem`)
+  to keep the file tools without `execute`.
+- **Other backends:** `state` (files live in LangGraph thread state) and `store`
+  (files in a LangGraph `BaseStore`, cross-thread) need no host filesystem.
+- **`backend_root_dir(backend)`** returns the host directory for filesystem-rooted
+  backends (`FilesystemBackend` / `LocalShellBackend`) and `None` otherwise. The
+  builder keys every local-filesystem assumption off it: the workspace `mkdir`,
+  the langclaw-specific `move_file` / `delete_file` tools, and the on-disk
+  `AGENTS.md` read are skipped for `state` / `store` backends, which fall back to
+  the packaged default prompt and rely on deepagents' own backend-delegated file
+  tools.
 
 ## Code Interpreter (RLM)
 
