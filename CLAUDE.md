@@ -5,6 +5,16 @@ Multi-channel AI agent framework built on LangChain, LangGraph, and deepagents.
 See @AGENTS.md for package map and code conventions.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for design rationale and detailed flow diagrams (read on demand — not auto-loaded).
 
+## Working Principles (read before doing anything)
+
+langclaw is a **framework** — its product is the developer's experience building on it. Before writing code:
+
+1. **Big picture first.** In 1–2 lines, state how the change fits langclaw's architecture/vision (bus → gateway → agent; pluggable backends; explicit registration) and which existing primitive it extends. If a task would benefit from a different sequencing or a smaller first slice that lands the vision, say so before starting.
+2. **Design the DX before the internals.** For anything developer-facing — `@app.*` decorators, config keys, commands, error messages, public names — lead with the cleanest surface: clear names, helpful errors, honest docstrings, the fewest new concepts. Optimize for the person `pip install`-ing langclaw, not the fastest internal hack.
+3. **Be langclaw-native.** Prefer the existing pattern (bus message source, middleware, registry + factory, `BaseStore`) over porting an external design. New name-minting or pluggable things go through the established seam (e.g. `langclaw/naming.py`, `make_*` factories) and scale by one declaration.
+4. **Centralize over scatter; flag reuse/scope tradeoffs** before implementing, not after.
+5. **Don't cap.** Separate what is wired and works from inert scaffolding; lead with the honest limitation. Use red/green TDD.
+
 ## Quick Reference
 
 ```bash
