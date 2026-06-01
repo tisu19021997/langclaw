@@ -66,6 +66,8 @@ from langclaw.workflows.runtime import WorkflowRuntime
 from langclaw.workflows.saved_store import (
     SavedWorkflow,
     SavedWorkflowStore,
+    parse_metadata,
+    render_saved_file,
     validate_saved_name,
 )
 from langclaw.workflows.step_store import (
@@ -105,6 +107,8 @@ __all__ = [
     "emit_progress",
     "make_step_store_backend",
     "make_workflow_tools",
+    "parse_metadata",
+    "render_saved_file",
     "render_workflow_progress",
     "reset_progress_sink",
     "resolve_workflow_ptc_names",

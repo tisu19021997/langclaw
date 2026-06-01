@@ -20,8 +20,8 @@ from typing import Any
 #:
 #: - ``python``       — operator authors the async body (``@app.workflow``).
 #: - ``llm_authored`` — the LLM authors the body fresh per run from the contract.
-#: - ``saved``        — a body authored at runtime (via ``save_workflow``) and
-#:                      frozen to disk; reused verbatim, no per-run authoring.
+#: - ``saved``        — a body authored at runtime (a ``workflows/<name>.js`` file
+#:                      the agent writes) and frozen to disk; reused verbatim.
 _VALID_MODES = frozenset({"python", "llm_authored", "saved"})
 
 
@@ -103,7 +103,7 @@ class WorkflowRegistry:
     def __init__(self) -> None:
         self._by_name: dict[str, WorkflowSpec] = {}
         # Monotonic counter bumped on every successful (de)registration. The
-        # gateway compares it to detect a runtime-authored (`save_workflow`)
+        # gateway compares it to detect a runtime-authored (file-written)
         # registration and rebuild the agent so the new `workflow_<name>` tool
         # goes live in the same session — the registry-native analogue of the
         # AGENTS.md content hash.

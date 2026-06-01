@@ -85,6 +85,7 @@ class GatewayManager:
         workflow_runtime: Any | None = None,
         workflow_registry: Any | None = None,
         workflow_run_store: Any | None = None,
+        saved_reload_cb: Callable[[], bool] | None = None,
         agent_backend: Any | None = None,
     ) -> None:
         self._config = config
@@ -103,6 +104,9 @@ class GatewayManager:
         self._workflow_runtime = workflow_runtime
         self._workflow_registry = workflow_registry
         self._workflow_run_store = workflow_run_store
+        # Reconcile saved workflow files (agent-written workflows/<name>.js) into
+        # the registry when the folder changes; returns whether anything changed.
+        self._saved_reload_cb = saved_reload_cb
         self._workflow_runs: dict[str, asyncio.Task] = {}
         # Strong refs to fire-and-forget progress sends so the event loop does
         # not garbage-collect them mid-flight (only holds a weak ref otherwise).
@@ -138,9 +142,12 @@ class GatewayManager:
         self._agents_md_hashes: dict[str, str] = {}
 
         # Track the last-seen workflow registry version for the default agent so a
-        # runtime-authored workflow (save_workflow) triggers a rebuild and goes
-        # live as a workflow_<name> tool in the same session.
+        # runtime-authored workflow triggers a rebuild and goes live as a
+        # workflow_<name> tool in the same session.
         self._workflow_registry_versions: dict[str, int | None] = {}
+        # Track the last-seen content hash of the saved-workflows folder so a file
+        # the agent writes there is reconciled into the registry on the next turn.
+        self._workflows_dir_hashes: dict[str, str | None] = {}
 
         # Simple per-agent locks to avoid concurrent rebuilds.
         self._agent_locks: dict[str, asyncio.Lock] = {}
@@ -203,6 +210,23 @@ class GatewayManager:
             text = ""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
+    def _compute_workflows_dir_hash(self) -> str:
+        """Return a stable hash of every ``*.js`` in the saved-workflows folder.
+
+        Names + contents, so adding, editing, or removing a workflow file changes
+        the hash and triggers a reconcile. A missing folder hashes to empty.
+        """
+        directory = self._config.agents.workflows_dir
+        try:
+            parts: list[str] = []
+            for path in sorted(directory.glob("*.js")):
+                parts.append(path.name)
+                parts.append(path.read_text("utf-8"))
+            blob = "\0".join(parts)
+        except OSError:
+            blob = ""
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
     def _get_agent_lock(self, agent_name: str) -> asyncio.Lock:
         lock = self._agent_locks.get(agent_name)
         if lock is None:
@@ -264,6 +288,21 @@ class GatewayManager:
         path = self._get_agents_md_path_for_agent(agent_name)
         new_hash = self._compute_agents_md_hash(path)
         old_hash = self._agents_md_hashes.get(agent_name)
+
+        # Saved-workflow folder watch (default agent, file-authoring enabled): when
+        # the agent has written/edited/removed a workflows/<name>.js, reconcile the
+        # registry from disk *before* reading the version below — the reconcile
+        # bumps registry.version, which the version check then turns into a rebuild.
+        new_dir_hash: str | None = None
+        if agent_name == "default" and self._saved_reload_cb is not None:
+            new_dir_hash = self._compute_workflows_dir_hash()
+            old_dir_hash = self._workflows_dir_hashes.get(agent_name)
+            if old_hash is not None and old_dir_hash is not None and new_dir_hash != old_dir_hash:
+                try:
+                    self._saved_reload_cb()
+                except Exception as exc:  # noqa: BLE001 — never break the turn
+                    logger.error("Saved-workflow reconcile failed: {}", exc)
+            self._workflows_dir_hashes[agent_name] = new_dir_hash
 
         # Workflow registry version — only the default agent carries
         # workflow_<name> tools, so only it rebuilds on a runtime registration.
@@ -333,7 +372,7 @@ class GatewayManager:
                     # Rebuild the main agent using the same knobs as Langclaw.create_agent().
                     # The workflow registry/runtime MUST be threaded through, else a
                     # rebuild silently drops every workflow_<name> tool (and the
-                    # save_workflow tool) from the default agent.
+                    # workflow tools) from the default agent.
                     rebuilt = create_claw_agent(
                         self._config,
                         checkpointer=self._checkpointer_backend.get(),

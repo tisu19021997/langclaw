@@ -1,5 +1,5 @@
-"""Startup loader: saved workflows on disk become registered ``mode="saved"``
-specs (and therefore ``workflow_<name>`` tools) when the gateway boots.
+"""Reconcile loader: saved-workflow .js files on disk become (and stay in sync
+with) registered ``mode="saved"`` specs — and therefore ``workflow_<name>`` tools.
 """
 
 from __future__ import annotations
@@ -19,17 +19,20 @@ def _app_with_workspace(tmp_path: Path, *, workflows=True, interpreter=True) -> 
     return Langclaw(config=cfg)
 
 
+def _store(app: Langclaw) -> SavedWorkflowStore:
+    return SavedWorkflowStore(app._config.agents.workflows_dir)
+
+
 def test_loader_registers_saved_workflows(tmp_path: Path) -> None:
     app = _app_with_workspace(tmp_path)
-    store = SavedWorkflowStore(app._config.agents.workflows_dir)
-    store.save(
+    _store(app).save(
         "hn_digest",
         script="await tools.output({ result: 1 });",
         description="Daily HN digest",
         uses_tools=["web_fetch", "write_file"],
     )
 
-    app._load_saved_workflows()
+    assert app._reload_saved_workflows() is True
 
     spec = app._workflows.get("hn_digest")
     assert spec is not None
@@ -40,13 +43,9 @@ def test_loader_registers_saved_workflows(tmp_path: Path) -> None:
 
 
 def test_loader_noop_when_interpreter_disabled(tmp_path: Path) -> None:
-    # Saved workflows are JS bodies run in the eval sandbox; without the
-    # interpreter there is nothing to run them, so they are not loaded.
     app = _app_with_workspace(tmp_path, interpreter=False)
-    SavedWorkflowStore(app._config.agents.workflows_dir).save(
-        "x", script="await tools.output({ result: 1 });", description="d"
-    )
-    app._load_saved_workflows()
+    _store(app).save("x", script="await tools.output({ result: 1 });", description="d")
+    assert app._reload_saved_workflows() is False
     assert app._workflows.get("x") is None
 
 
@@ -57,10 +56,42 @@ def test_loader_skips_name_colliding_with_registered_workflow(tmp_path: Path) ->
     async def _dup(ctx, inp):
         return "py"
 
-    SavedWorkflowStore(app._config.agents.workflows_dir).save(
-        "dup", script="await tools.output({ result: 1 });", description="saved one"
-    )
-    app._load_saved_workflows()
+    _store(app).save("dup", script="await tools.output({ result: 1 });", description="saved one")
+    app._reload_saved_workflows()
 
-    # The pre-registered python workflow wins; the saved one is skipped.
+    # The pre-registered python workflow wins; the saved file is ignored.
     assert app._workflows.get("dup").mode == "python"
+
+
+def test_reconcile_removes_deleted_file(tmp_path: Path) -> None:
+    app = _app_with_workspace(tmp_path)
+    store = _store(app)
+    store.save("temp", script="await tools.output({ result: 1 });", description="d")
+    app._reload_saved_workflows()
+    assert app._workflows.get("temp") is not None
+
+    store.delete("temp")
+    assert app._reload_saved_workflows() is True
+    assert app._workflows.get("temp") is None
+
+
+def test_reconcile_updates_changed_file(tmp_path: Path) -> None:
+    app = _app_with_workspace(tmp_path)
+    store = _store(app)
+    store.save("ev", script="await tools.output({ result: 1 });", description="v1")
+    app._reload_saved_workflows()
+    assert app._workflows.get("ev").description == "v1"
+
+    store.save("ev", script="await tools.output({ result: 2 });", description="v2")
+    assert app._reload_saved_workflows() is True
+    spec = app._workflows.get("ev")
+    assert spec.description == "v2"
+    assert "result: 2" in spec.script
+
+
+def test_reconcile_is_idempotent_when_unchanged(tmp_path: Path) -> None:
+    app = _app_with_workspace(tmp_path)
+    _store(app).save("stable", script="await tools.output({ result: 1 });", description="d")
+    assert app._reload_saved_workflows() is True
+    # Second run with no disk change must report no change (so no needless rebuild).
+    assert app._reload_saved_workflows() is False

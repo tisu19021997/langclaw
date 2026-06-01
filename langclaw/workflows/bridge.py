@@ -270,11 +270,11 @@ def workflow_system_prompt(registry: WorkflowRegistry, *, authoring: bool = Fals
 
     Args:
         registry:  The populated :class:`WorkflowRegistry`.
-        authoring: When ``True`` the ``save_workflow`` tool is available, so the
-                   nudge teaches the run → save loop ("run an ``eval`` program,
-                   then save it as a reusable workflow") and drops the
-                   "cannot create" contract. When ``False`` the agent can only run
-                   pre-registered workflows.
+        authoring: When ``True`` the agent can author workflows (by writing a
+                   ``workflows/<name>.js`` file), so the nudge teaches the run →
+                   save loop ("run an ``eval`` program, then save it as a file")
+                   and drops the "cannot create" contract. When ``False`` the
+                   agent can only run pre-registered workflows.
 
     Returns:
         The ``<workflows>`` block, or ``""`` when there is nothing to say
@@ -299,12 +299,21 @@ def workflow_system_prompt(registry: WorkflowRegistry, *, authoring: bool = Fals
     )
     if authoring:
         authoring_block = (
-            "\nYou can also CREATE workflows at runtime with `save_workflow`. When the "
-            "user asks to save, remember, or 'turn into a workflow' a multi-step task "
-            "you just ran via `eval`, call `save_workflow(name, script, description)` "
-            "with that same JavaScript program. It is persisted and immediately becomes "
-            "a new `workflow_<name>` tool you can run later. Use this for repeatable "
-            "jobs; for a one-off, just run `eval` and don't save."
+            "\nYou can also CREATE a workflow at runtime by writing a file — there is no "
+            "special tool, just use `write_file`. When the user asks to save, remember, "
+            "or 'turn into a workflow' a multi-step task you just ran via `eval`, write "
+            "the SAME JavaScript program to `workflows/<name>.js` in your workspace. "
+            "Rules:\n"
+            "  - `<name>` may contain only letters, digits, `_` or `-` (it becomes the "
+            "`workflow_<name>` tool).\n"
+            "  - Start the file with metadata comments: `// @description <one line>` and, "
+            "if it calls tools, `// @uses tool_a, tool_b`.\n"
+            "  - The body is the same sandboxed JS as `eval`: it receives the run input "
+            "as the global `inp` and must emit its result with "
+            "`await tools.output({ result: <value> })`.\n"
+            "Once written, it is loaded automatically and becomes a `workflow_<name>` "
+            "tool you can run later (and after a restart). Use this for repeatable jobs; "
+            "for a one-off, just run `eval` and don't save."
         )
     else:
         authoring_block = (

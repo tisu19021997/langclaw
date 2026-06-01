@@ -208,9 +208,10 @@ def test_app_create_agent_wires_registered_workflows(monkeypatch):
     assert "workflow_digest" in tool_names
 
 
-def test_save_workflow_tool_offered_when_interpreter_and_workflows_enabled(monkeypatch):
-    """`save_workflow` is offered when both flags are on — even with ZERO
-    registered workflows — so the agent can author the first one."""
+def test_authoring_nudge_present_when_interpreter_and_workflows_enabled(monkeypatch):
+    """With both flags on (and the default filesystem-rooted backend), the system
+    prompt teaches the agent to author workflows by writing workflows/<name>.js —
+    even with ZERO registered workflows. There is no bespoke save tool."""
     import deepagents
 
     from langclaw import Langclaw
@@ -229,12 +230,14 @@ def test_save_workflow_tool_offered_when_interpreter_and_workflows_enabled(monke
     )
     app.create_agent(model=object())
     tool_names = [getattr(t, "name", "") for t in captured["tools"]]
-    assert "save_workflow" in tool_names
+    assert "save_workflow" not in tool_names  # no bespoke tool — uses write_file
+    assert "workflows/" in captured["system_prompt"]
+    assert "write_file" in captured["system_prompt"]
 
 
-def test_save_workflow_tool_absent_without_interpreter(monkeypatch):
-    """A saved workflow is JS run in the eval sandbox; without the interpreter
-    there is nothing to run it, so the authoring tool is withheld."""
+def test_authoring_nudge_absent_without_interpreter(monkeypatch):
+    """A saved workflow is JS run in the eval sandbox; without the interpreter the
+    file-authoring convention is not taught."""
     import deepagents
 
     from langclaw import Langclaw
@@ -252,8 +255,7 @@ def test_save_workflow_tool_absent_without_interpreter(monkeypatch):
         config=LangclawConfig(interpreter={"enabled": False}, workflows={"enabled": True})
     )
     app.create_agent(model=object())
-    tool_names = [getattr(t, "name", "") for t in captured["tools"]]
-    assert "save_workflow" not in tool_names
+    assert "workflows/<name>.js" not in captured["system_prompt"]
 
 
 def test_app_create_agent_omits_workflows_when_disabled(monkeypatch):
@@ -2237,22 +2239,24 @@ def test_workflow_system_prompt_lists_registered_workflows():
     assert "cannot create" in prompt.lower()
 
 
-def test_workflow_system_prompt_authoring_advertises_save_workflow():
-    """With authoring on, the nudge teaches save_workflow and drops the false
-    'cannot create' claim."""
+def test_workflow_system_prompt_authoring_teaches_file_convention():
+    """With authoring on, the nudge teaches the write_file convention and drops
+    the false 'cannot create' claim."""
     from langclaw.workflows import WorkflowRegistry, workflow_system_prompt
 
     prompt = workflow_system_prompt(WorkflowRegistry(), authoring=True)
     assert prompt  # non-empty even with zero registered workflows
-    assert "save_workflow" in prompt
+    assert "write_file" in prompt
+    assert "workflows/" in prompt
+    assert "@description" in prompt
     assert "cannot create" not in prompt.lower()
 
 
-def test_workflow_system_prompt_authoring_with_registered_lists_and_saves():
+def test_workflow_system_prompt_authoring_with_registered_lists_and_authors():
     from langclaw.workflows import WorkflowRegistry, WorkflowSpec, workflow_system_prompt
 
     reg = WorkflowRegistry()
     reg.register(WorkflowSpec(name="report", description="daily report", fn=lambda c, i: i))
     prompt = workflow_system_prompt(reg, authoring=True)
     assert "workflow_report" in prompt
-    assert "save_workflow" in prompt
+    assert "workflows/" in prompt

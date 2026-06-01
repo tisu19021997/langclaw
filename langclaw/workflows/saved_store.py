@@ -1,28 +1,36 @@
 """
 File-backed store for *saved* workflows (runtime authoring).
 
-When a user says "save that workflow", the agent calls the ``save_workflow``
-tool with the JavaScript body it just authored for ``eval``.  That body is
-persisted here as a named, reusable artifact under the workspace ``workflows/``
-folder, then registered as a ``mode="saved"`` :class:`WorkflowSpec` so it boots
-(and hot-reloads) as a ``workflow_<name>`` tool — exactly like an operator's
-``@app.workflow`` registration, but authored at runtime.
+A saved workflow is just a JavaScript file the agent writes into the workspace
+``workflows/`` folder with its ordinary ``write_file`` tool — there is no bespoke
+"save" tool. The gateway watches that folder, and any ``<name>.js`` it finds is
+loaded as a ``mode="saved"`` :class:`WorkflowSpec` and surfaced as a
+``workflow_<name>`` tool (the same surface as an ``@app.workflow``), reloaded on
+change and on restart.
 
-This is deliberately **not** the :class:`~langclaw.workflows.authored.ScriptStore`:
-that freezes a body *per run* (keyed by ``run_id``, in the checkpointer DB) so a
-resume replays the same script.  A *saved* workflow is reusable and named — the
-``.js`` file on disk is the source of truth, readable and editable by the
-developer and version-controllable alongside the workspace.
+The ``.js`` file *is* the source of truth — readable, editable, and
+version-controllable. Metadata travels inline as leading JS comments so it stays
+a single, valid script:
 
-Layout (one workflow → two sibling files, so the body stays a clean ``.js``):
+    // @description Summarize today's top Hacker News posts into the vault.
+    // @uses web_fetch, write_file
+    const posts = await tools.webFetch({ url: "https://news.ycombinator.com" });
+    await tools.output({ result: posts });
 
-    <workflows_dir>/<name>.js      # the JavaScript body
-    <workflows_dir>/<name>.json    # {"description": ..., "uses_tools": [...]}
+- ``name`` is the filename stem; it must match ``[A-Za-z0-9_-]+`` (also the
+  ``workflow_<name>`` tool suffix), which keeps it a single path segment that
+  can never escape the folder.
+- ``@description`` (optional) becomes the tool description the LLM reads.
+- ``@uses`` (optional, comma/space separated) narrows the sandbox capability set;
+  omitted ⇒ the body inherits the same read-only ``eval`` PTC allowlist.
+
+This is deliberately **not** the :class:`~langclaw.workflows.authored.ScriptStore`
+(per-run, keyed by ``run_id``, in the checkpointer DB). A saved workflow is named
+and reusable; the file on disk is canonical.
 """
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -33,6 +41,10 @@ from loguru import logger
 #: ``workflow_<name>`` tool suffix): letters, digits, underscore, hyphen.
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
 
+#: Inline metadata directives, matched on leading ``// @key value`` comment lines.
+_DESCRIPTION_RE = re.compile(r"^\s*//\s*@description\s+(.*?)\s*$", re.MULTILINE)
+_USES_RE = re.compile(r"^\s*//\s*@uses(?:_tools)?\s+(.*?)\s*$", re.MULTILINE)
+
 
 @dataclass(slots=True)
 class SavedWorkflow:
@@ -40,9 +52,11 @@ class SavedWorkflow:
 
     Attributes:
         name:        Unique handle (``workflow_<name>`` tool, ``/workflows run``).
-        script:      The JavaScript body, run in the same QuickJS sandbox as ``eval``.
-        description: One-line summary the LLM reads to decide when to call it.
-        uses_tools:  Tool names the body needs (narrows the sandbox capability set).
+        script:      The JavaScript body (the whole file; comments are valid JS),
+                     run in the same QuickJS sandbox as ``eval``.
+        description: One-line summary parsed from ``// @description``.
+        uses_tools:  Tool names parsed from ``// @uses``; empty ⇒ inherit the
+                     default eval PTC allowlist.
     """
 
     name: str
@@ -55,8 +69,7 @@ def validate_saved_name(name: str) -> str:
     """Return *name* if it is a safe single path segment, else raise ``ValueError``.
 
     Rejects empty names, path separators, ``..`` traversal, and whitespace — so a
-    saved name can never escape the ``workflows/`` folder or collide with the
-    ``.js`` / ``.json`` sidecar convention.
+    saved name can never escape the ``workflows/`` folder.
     """
     if not name or not _SAFE_NAME.match(name):
         raise ValueError(
@@ -66,8 +79,41 @@ def validate_saved_name(name: str) -> str:
     return name
 
 
+def parse_metadata(script: str) -> tuple[str, list[str]]:
+    """Extract ``(description, uses_tools)`` from a saved script's ``// @`` header.
+
+    Tolerant: a script with no header yields ``("", [])``. Only the comment
+    directives are read — the body is never modified.
+    """
+    desc_match = _DESCRIPTION_RE.search(script)
+    description = desc_match.group(1).strip() if desc_match else ""
+    uses_match = _USES_RE.search(script)
+    uses_tools: list[str] = []
+    if uses_match:
+        uses_tools = [t for t in re.split(r"[,\s]+", uses_match.group(1).strip()) if t]
+    return description, uses_tools
+
+
+def render_saved_file(
+    script: str, *, description: str = "", uses_tools: list[str] | None = None
+) -> str:
+    """Compose the canonical on-disk form: a ``// @`` header + the body.
+
+    Used by :meth:`SavedWorkflowStore.save` and mirrors exactly what the prompt
+    tells the agent to write, so a file written either way parses identically.
+    """
+    header: list[str] = []
+    if description:
+        header.append(f"// @description {description}")
+    if uses_tools:
+        header.append(f"// @uses {', '.join(uses_tools)}")
+    if header:
+        return "\n".join(header) + "\n" + script
+    return script
+
+
 class SavedWorkflowStore:
-    """Persist and load runtime-authored workflows under one directory."""
+    """Read (and, for tests/programmatic use, write) saved workflows in one directory."""
 
     def __init__(self, directory: Path | str) -> None:
         self._dir = Path(directory)
@@ -84,26 +130,29 @@ class SavedWorkflowStore:
         description: str = "",
         uses_tools: list[str] | None = None,
     ) -> SavedWorkflow:
-        """Write *name*'s body + metadata, overwriting any existing same-named one."""
+        """Write ``<name>.js`` (header + body), overwriting any same-named file.
+
+        The agent normally writes this file itself with ``write_file``; this method
+        is the programmatic equivalent (used by tests and tooling) and emits the
+        same canonical format the loader parses.
+        """
         validate_saved_name(name)
         self._dir.mkdir(parents=True, exist_ok=True)
-        (self._dir / f"{name}.js").write_text(script, encoding="utf-8")
-        meta = {"description": description, "uses_tools": list(uses_tools or [])}
-        (self._dir / f"{name}.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        content = render_saved_file(script, description=description, uses_tools=uses_tools)
+        (self._dir / f"{name}.js").write_text(content, encoding="utf-8")
         logger.info(f"Saved workflow {name!r} to {self._dir}")
         return SavedWorkflow(
             name=name,
-            script=script,
+            script=content,
             description=description,
             uses_tools=list(uses_tools or []),
         )
 
     def load_all(self) -> list[SavedWorkflow]:
-        """Return every persisted workflow, sorted by name. Empty if dir missing.
+        """Return every ``*.js`` workflow, sorted by name. Empty if dir missing.
 
-        A ``.js`` file with no/broken sidecar still loads (empty description / no
-        tools) — the body is the source of truth and must never be silently
-        dropped because metadata went stale.
+        A file whose stem is not a safe name is skipped with a warning (it could
+        never have been a valid ``workflow_<name>`` tool anyway).
         """
         if not self._dir.is_dir():
             return []
@@ -116,15 +165,7 @@ class SavedWorkflowStore:
                 logger.warning(f"Skipping saved workflow with unsafe filename: {js.name}")
                 continue
             script = js.read_text(encoding="utf-8")
-            description, uses_tools = "", []
-            meta_path = self._dir / f"{name}.json"
-            if meta_path.is_file():
-                try:
-                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
-                    description = str(meta.get("description", ""))
-                    uses_tools = list(meta.get("uses_tools", []))
-                except (ValueError, TypeError) as exc:
-                    logger.warning(f"Bad metadata for saved workflow {name!r}: {exc}")
+            description, uses_tools = parse_metadata(script)
             out.append(
                 SavedWorkflow(
                     name=name, script=script, description=description, uses_tools=uses_tools
@@ -133,12 +174,10 @@ class SavedWorkflowStore:
         return out
 
     def delete(self, name: str) -> bool:
-        """Remove *name*'s files. Returns ``True`` if anything was deleted."""
+        """Remove ``<name>.js``. Returns ``True`` if a file was deleted."""
         validate_saved_name(name)
-        removed = False
-        for suffix in (".js", ".json"):
-            path = self._dir / f"{name}{suffix}"
-            if path.exists():
-                path.unlink()
-                removed = True
-        return removed
+        path = self._dir / f"{name}.js"
+        if path.exists():
+            path.unlink()
+            return True
+        return False

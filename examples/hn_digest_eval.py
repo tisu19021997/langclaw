@@ -55,9 +55,10 @@ config.interpreter.allow_tools = ["write_file"]
 config.interpreter.timeout = 600.0  # seconds, covers the whole subagent fan-out
 
 # Turn on the workflow primitive too, so once the agent runs this job via eval you
-# can say "save that workflow as hn_digest" — it persists the JS to
-# <workspace>/workflows/hn_digest.js and it becomes a `workflow_hn_digest` tool you
-# can re-run later (and after a restart). Needs both flags on (see save_workflow).
+# can say "save that workflow as hn_digest" — the agent just writes the JS to
+# workflows/hn_digest.js with write_file and it becomes a `workflow_hn_digest` tool
+# you can re-run later (and after a restart). Needs both flags on + a filesystem
+# backend (the default local_shell qualifies).
 config.workflows.enabled = True
 
 # Keyless web search so the example runs without a search-provider key

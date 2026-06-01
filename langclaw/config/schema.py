@@ -374,12 +374,18 @@ class AgentConfig(BaseModel):
 
     @property
     def workflows_dir(self) -> Path:
-        """Host directory holding runtime-authored (``save_workflow``) workflows.
+        """Host directory holding runtime-authored (saved) workflow ``.js`` files.
 
-        Always a real host path (langclaw infrastructure, like the run journal),
-        independent of the agent's deepagents backend — so saving works even when
-        the agent's file tools are non-filesystem (state / store backends)."""
-        return self.workspace_dir / "workflows"
+        Rooted at the agent's *filesystem backend root* so it matches where the
+        agent's own ``write_file`` lands: ``backend.root_dir`` when set, else the
+        workspace dir. (For ``state``/``store`` backends there is no host root and
+        file-authoring is unavailable — see ``WorkflowsConfig``.)"""
+        root = (
+            Path(self.backend.root_dir).expanduser()
+            if self.backend.root_dir
+            else self.workspace_dir
+        )
+        return root / "workflows"
 
 
 class SqliteCheckpointerConfig(BaseModel):
@@ -621,13 +627,16 @@ class WorkflowsConfig(BaseModel):
     through the gateway.  Each is typed, multi-step, and RBAC-gated by role.
 
     **Runtime authoring (``mode="saved"``):** when this *and* ``interpreter`` are
-    enabled, the agent gets a ``save_workflow`` tool.  After running an ad-hoc job
-    with ``eval``, the user can say "save that workflow"; the agent persists the JS
-    body to ``<workspace>/workflows/<name>.js`` and registers it as a saved
-    workflow.  The gateway notices the registry change and rebuilds the default
+    enabled (and the backend is filesystem-rooted), the agent can save a workflow
+    by **writing a file** with its ordinary ``write_file`` tool — there is no
+    bespoke save tool.  After running an ad-hoc job with ``eval``, the user can say
+    "save that workflow"; the agent writes the same JS to ``workflows/<name>.js``
+    (with ``// @description`` / ``// @uses`` header comments).  The gateway watches
+    that folder, reconciles the file into the registry, and rebuilds the default
     agent, so the new ``workflow_<name>`` tool goes live in the same session and
     reloads on every restart.  (Requires the ``interpreter`` extra — a saved body
-    runs in the same QuickJS sandbox as ``eval``.)
+    runs in the same QuickJS sandbox as ``eval``.  ``state``/``store`` backends have
+    no host folder, so file-authoring is unavailable there.)
 
     RBAC is enforced at the **invocation** boundary: the ``workflow_<name>`` tool
     gate, the ``/workflows`` command, cron dispatch, and bus dispatch all consult

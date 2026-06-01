@@ -369,34 +369,20 @@ def create_claw_agent(
             workflow_registry, workflows_config=config.workflows
         )
 
-    # Runtime workflow authoring: offer the `save_workflow` tool whenever the
-    # workflow primitive AND the interpreter are enabled — even with zero
-    # registered workflows, so the agent can author the *first* one. (A saved
-    # workflow is a JS body run in the eval sandbox, hence the interpreter gate.)
-    # Added after `_live_tools` is captured so it is not exposed to eval / workflow
-    # scripts — the agent calls it directly, not from inside a sandboxed program.
+    # Runtime workflow authoring: the agent saves a workflow by writing a
+    # `workflows/<name>.js` file with its ordinary `write_file` tool (no bespoke
+    # tool). Active when the workflow primitive AND the interpreter are enabled
+    # (a saved body runs in the eval sandbox) AND the backend is filesystem-rooted
+    # (`fs_root` exists) — state/store backends have no host folder for the loader
+    # to watch, so authoring-by-file is unavailable there. Drives the prompt nudge;
+    # the gateway watches the folder and loads what gets written.
     _workflow_authoring_active = (
         config.workflows.enabled
         and config.interpreter.enabled
         and workflow_registry is not None
         and workflow_runtime is not None
+        and fs_root is not None
     )
-    if _workflow_authoring_active:
-        from langclaw.agents.tools.save_workflow import build_save_workflow_tool
-        from langclaw.naming import RESERVED_COMMAND_NAMES
-        from langclaw.workflows import SavedWorkflowStore
-
-        _reserved = {getattr(t, "name", "") for t in tools} | set(RESERVED_COMMAND_NAMES)
-        _reserved |= {s.get("name", "") for s in (subagents or []) if isinstance(s, dict)}
-        _reserved.discard("")
-        tools = tools + [
-            build_save_workflow_tool(
-                registry=workflow_registry,
-                store=SavedWorkflowStore(config.agents.workflows_dir),
-                reserved_names=_reserved,
-                permissions_enabled=config.permissions.enabled,
-            )
-        ]
 
     # Resolve the base ``AGENTS.md`` system prompt. For filesystem-rooted
     # backends prefer the agent's on-disk workspace, then the global workspace,
@@ -423,7 +409,7 @@ def create_claw_agent(
 
     # Make workflows discoverable to the model (mirrors the interpreter nudge).
     # Emitted when there are workflows to list OR the agent can author them via
-    # save_workflow — so the run → save loop is explained even before the first
+    # write_file — so the run → save loop is explained even before the first
     # workflow exists. An agent with neither sees nothing.
     if _workflows_active or _workflow_authoring_active:
         from langclaw.workflows import workflow_system_prompt

@@ -40,7 +40,7 @@ class _Agent:
         self.tag = tag
 
 
-def _mgr(tmp_path: Path, registry: WorkflowRegistry) -> GatewayManager:
+def _mgr(tmp_path: Path, registry: WorkflowRegistry, *, saved_reload_cb=None) -> GatewayManager:
     (tmp_path / "workspace").mkdir(parents=True, exist_ok=True)
     cfg = LangclawConfig()
     cfg.agents.root_dir = str(tmp_path)
@@ -54,6 +54,7 @@ def _mgr(tmp_path: Path, registry: WorkflowRegistry) -> GatewayManager:
         default_agent_spec={"system_prompt": None, "bus": None, "model": None},
         workflow_registry=registry,
         workflow_runtime=object(),
+        saved_reload_cb=saved_reload_cb,
     )
 
 
@@ -111,3 +112,64 @@ async def test_no_rebuild_when_registry_unchanged(tmp_path: Path, monkeypatch: p
     again = await mgr._ensure_agent_fresh("default")
     assert again.tag == "initial"
     assert calls["n"] == 0  # nothing changed → no rebuild
+
+
+@pytest.mark.asyncio
+async def test_writing_workflow_file_reconciles_and_rebuilds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """End-to-end of the file-edit path: the agent writes workflows/<name>.js,
+    the gateway's folder watch reconciles it into the registry on the next turn,
+    and the version bump rebuilds the default agent so workflow_<name> goes live."""
+    from langclaw.workflows import SavedWorkflowStore, WorkflowSpec
+
+    registry = WorkflowRegistry()
+
+    # A minimal reconcile callback mirroring app._reload_saved_workflows.
+    store = SavedWorkflowStore(tmp_path / "workspace" / "workflows")
+
+    def reload_cb() -> bool:
+        names_on_disk = {sw.name for sw in store.load_all()}
+        changed = False
+        for sw in store.load_all():
+            if sw.name not in registry:
+                registry.register(
+                    WorkflowSpec(
+                        name=sw.name,
+                        fn=lambda c, i: None,
+                        description=sw.description,
+                        mode="saved",
+                        script=sw.script,
+                    )
+                )
+                changed = True
+        for name in registry.names():
+            if name not in names_on_disk:
+                registry.unregister(name)
+                changed = True
+        return changed
+
+    mgr = _mgr(tmp_path, registry, saved_reload_cb=reload_cb)
+
+    captured: dict = {}
+
+    def fake_create_claw_agent(config, **kwargs):
+        _ = config
+        captured.update(kwargs)
+        return _Agent("rebuilt")
+
+    monkeypatch.setattr(
+        "langclaw.agents.builder.create_claw_agent", fake_create_claw_agent, raising=True
+    )
+
+    # First turn: baseline (folder empty), no rebuild.
+    first = await mgr._ensure_agent_fresh("default")
+    assert first.tag == "initial"
+
+    # Agent writes a workflow file (simulated).
+    store.save("hn", script="await tools.output({ result: 1 });", description="HN")
+
+    rebuilt = await mgr._ensure_agent_fresh("default")
+    assert rebuilt.tag == "rebuilt"  # folder change → reconcile → version bump → rebuild
+    assert registry.get("hn") is not None
+    assert captured["workflow_registry"] is registry
