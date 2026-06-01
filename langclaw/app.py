@@ -906,7 +906,10 @@ class Langclaw:
                         "model": None,
                     },
                     workflow_runtime=self._workflow_runtime,
-                    workflow_registry=self._workflows if len(self._workflows) else None,
+                    # Pass the registry (even if empty) whenever workflows are
+                    # enabled so /workflow stays registered/discoverable; None
+                    # when the feature is off so the command stays hidden.
+                    workflow_registry=(self._workflows if cfg.workflows.enabled else None),
                     workflow_run_store=self._run_store,
                 )
 

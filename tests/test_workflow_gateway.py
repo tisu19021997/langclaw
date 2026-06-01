@@ -247,6 +247,32 @@ async def test_handle_workflow_denied_for_role_without_allowlist():
 
 
 @pytest.mark.asyncio
+async def test_workflow_command_registered_when_enabled_but_empty():
+    """/workflow stays discoverable with zero workflows registered (DX): the
+    command is present and `list` reports none, rather than vanishing."""
+    empty = WorkflowRegistry()
+    config = MagicMock()
+    config.permissions.enabled = False
+    cp = MagicMock()
+    cp.get.return_value = MagicMock()
+
+    mgr = GatewayManager(
+        config=config,
+        bus=AsyncMock(),
+        checkpointer_backend=cp,
+        agent=MagicMock(),
+        channels=[_FakeChannel()],
+        workflow_runtime=None,  # no runtime yet — feature on, nothing registered
+        workflow_registry=empty,
+    )
+
+    names = [c.name for c in mgr._command_router.list_commands()]
+    assert "workflow" in names
+    out = await mgr._command_router.dispatch("workflow", _ctx("list"))
+    assert "No workflows registered" in out
+
+
+@pytest.mark.asyncio
 async def test_handle_workflow_rejects_duplicate_run_id():
     mgr = _make_manager(_make_registry())
     channel = mgr._channel_map["websocket"]

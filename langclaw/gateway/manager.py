@@ -149,8 +149,11 @@ class GatewayManager:
         if self._named_agent_specs:
             self._setup_agent_command()
 
-        # Register /workflow only when the workflow primitive is wired.
-        if self._workflow_runtime is not None and self._workflow_registry is not None:
+        # Register /workflow whenever the feature is enabled (the app passes a
+        # registry — possibly empty — in that case), so the command stays
+        # discoverable even before any workflow is registered. It is hidden only
+        # when the app author left workflows disabled.
+        if self._workflow_registry is not None:
             self._setup_workflow_command()
 
         # Phase 2 hook point — auto-routing resolver (not yet wired):
