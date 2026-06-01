@@ -26,7 +26,7 @@ class WorkflowSpec:
 
     Attributes:
         name:         Unique handle used to invoke the workflow (tool name
-                      ``workflow_<name>``, ``/workflow <name>``, cron, PTC).
+                      ``workflow_<name>``, ``/workflows run <name>``, cron, PTC).
         fn:           The async body — ``async def (ctx, inp) -> output``.
         description:  One-line human/LLM-facing summary.
         input_model:  Optional Pydantic model validating the run input.

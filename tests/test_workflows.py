@@ -1956,7 +1956,7 @@ def test_run_store_satisfies_protocol():
 
 @pytest.mark.asyncio
 async def test_run_store_list_all_returns_recent_runs():
-    """list_all surfaces every run (any status), newest-first, for /workflow runs."""
+    """list_all surfaces every run (any status), newest-first, for /workflows runs."""
     from langgraph.store.memory import InMemoryStore
 
     from langclaw.workflows.run_store import StoreRunStore

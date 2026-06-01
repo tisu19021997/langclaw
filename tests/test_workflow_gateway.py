@@ -1,6 +1,6 @@
-"""Workflows as a bus-native message source (#48) + /workflow commands (#47).
+"""Workflows as a bus-native message source (#48) + /workflows commands (#47).
 
-Exercises the gateway dispatch path (origin="workflow") and the /workflow command
+Exercises the gateway dispatch path (origin="workflow") and the /workflows command
 closure against a real WorkflowRuntime + registry with a fake channel.
 """
 
@@ -135,7 +135,7 @@ async def test_workflow_progress_projected_to_channel():
     assert any("run" in m.content for m in progress)
 
 
-# --- /workflow command ------------------------------------------------------
+# --- /workflows command ------------------------------------------------------
 
 
 def _ctx(*args) -> CommandContext:
@@ -248,7 +248,7 @@ async def test_handle_workflow_denied_for_role_without_allowlist():
 
 @pytest.mark.asyncio
 async def test_workflow_command_registered_when_enabled_but_empty():
-    """/workflow stays discoverable with zero workflows registered (DX): the
+    """/workflows stays discoverable with zero workflows registered (DX): the
     command is present and `list` reports none, rather than vanishing."""
     empty = WorkflowRegistry()
     config = MagicMock()
