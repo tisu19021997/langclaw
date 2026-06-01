@@ -110,7 +110,7 @@ def allowed_workflow_names(
     Default-deny is deliberate: a workflow can compose tools and subagents, so
     a role with ``tools=["*"]`` should still not reach a workflow unless it is
     explicitly granted.  Shared by the ``workflow_<name>`` tool gate, the
-    ``/workflow`` command, cron dispatch, and the PTC workflow-namespace
+    ``/workflows`` command, cron dispatch, and the PTC workflow-namespace
     resolver so the axis cannot drift (unification tracked in #37).
 
     Args:

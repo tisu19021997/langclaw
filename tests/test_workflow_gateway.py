@@ -147,14 +147,14 @@ def _ctx(*args) -> CommandContext:
 @pytest.mark.asyncio
 async def test_workflow_command_list():
     mgr = _make_manager(_make_registry())
-    out = await mgr._command_router.dispatch("workflow", _ctx())
+    out = await mgr._command_router.dispatch("workflows", _ctx())
     assert "echo" in out and "boom" in out
 
 
 @pytest.mark.asyncio
 async def test_workflow_command_run_publishes_to_bus():
     mgr = _make_manager(_make_registry())
-    out = await mgr._command_router.dispatch("workflow", _ctx("run", "echo", '{"q":2}'))
+    out = await mgr._command_router.dispatch("workflows", _ctx("run", "echo", '{"q":2}'))
     assert "Started workflow" in out
     # Published an origin=workflow message
     published = mgr._bus.publish.call_args[0][0]
@@ -166,7 +166,7 @@ async def test_workflow_command_run_publishes_to_bus():
 @pytest.mark.asyncio
 async def test_workflow_command_run_unknown():
     mgr = _make_manager(_make_registry())
-    out = await mgr._command_router.dispatch("workflow", _ctx("run", "nope"))
+    out = await mgr._command_router.dispatch("workflows", _ctx("run", "nope"))
     assert "Unknown workflow" in out
 
 
@@ -182,17 +182,17 @@ async def test_workflow_command_runs_and_status_use_journal():
 
     mgr = _make_manager(_make_registry(), run_store=run_store)
 
-    runs = await mgr._command_router.dispatch("workflow", _ctx("runs"))
+    runs = await mgr._command_router.dispatch("workflows", _ctx("runs"))
     assert "echo:abc" in runs and "completed" in runs
 
-    status = await mgr._command_router.dispatch("workflow", _ctx("status", "echo:abc"))
+    status = await mgr._command_router.dispatch("workflows", _ctx("status", "echo:abc"))
     assert "completed" in status
 
 
 @pytest.mark.asyncio
 async def test_workflow_command_cancel_no_live_run():
     mgr = _make_manager(_make_registry())
-    out = await mgr._command_router.dispatch("workflow", _ctx("cancel", "missing:run"))
+    out = await mgr._command_router.dispatch("workflows", _ctx("cancel", "missing:run"))
     assert "No live run" in out
 
 
@@ -267,8 +267,8 @@ async def test_workflow_command_registered_when_enabled_but_empty():
     )
 
     names = [c.name for c in mgr._command_router.list_commands()]
-    assert "workflow" in names
-    out = await mgr._command_router.dispatch("workflow", _ctx("list"))
+    assert "workflows" in names
+    out = await mgr._command_router.dispatch("workflows", _ctx("list"))
     assert "No workflows registered" in out
 
 

@@ -465,7 +465,7 @@ class RoleConfig(BaseModel):
 
     workflows: StringList = Field(default_factory=list)
     """Workflow names this role may invoke — via the ``workflow_<name>`` tool,
-    a ``/workflow`` command, cron, or (Phase 2) ``tools.workflow.<name>`` inside
+    a ``/workflows`` command, cron, or (Phase 2) ``tools.workflow.<name>`` inside
     an interpreter script.  **Default-deny** like ``subagents`` — an empty list
     means the role may invoke no workflows.  Use ``["*"]`` to allow every
     registered workflow.  A third RBAC axis alongside ``tools`` and
@@ -558,12 +558,12 @@ class WorkflowsConfig(BaseModel):
 
     Opt-in and **off by default**.  When enabled, workflows registered with
     ``@app.workflow()`` become invocable three ways: the LLM calls the
-    ``workflow_<name>`` tool; an operator runs ``/workflow run <name>``; or a
+    ``workflow_<name>`` tool; an operator runs ``/workflows run <name>``; or a
     message with ``origin="workflow"`` (e.g. a cron-fired job) dispatches one
     through the gateway.  Each is typed, multi-step, and RBAC-gated by role.
 
     RBAC is enforced at the **invocation** boundary: the ``workflow_<name>`` tool
-    gate, the ``/workflow`` command, cron dispatch, and bus dispatch all consult
+    gate, the ``/workflows`` command, cron dispatch, and bus dispatch all consult
     the role's default-deny workflow allowlist.  A workflow's **steps**, however,
     run **in-process** by calling ``tool.ainvoke`` directly — they bypass the
     graph, so the per-request ``ToolPermissionMiddleware`` does not filter a

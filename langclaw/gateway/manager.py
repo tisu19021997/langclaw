@@ -94,8 +94,8 @@ class GatewayManager:
         self._cron_manager = cron_manager
         # Workflow-as-message-source (origin="workflow"): the runtime + registry
         # let the gateway run a named workflow directly (bus dispatch / cron),
-        # the run store backs `/workflow runs|status`, and the live-task map backs
-        # `/workflow cancel` for runs the gateway itself started.
+        # the run store backs `/workflows runs|status`, and the live-task map backs
+        # `/workflows cancel` for runs the gateway itself started.
         self._workflow_runtime = workflow_runtime
         self._workflow_registry = workflow_registry
         self._workflow_run_store = workflow_run_store
@@ -149,7 +149,7 @@ class GatewayManager:
         if self._named_agent_specs:
             self._setup_agent_command()
 
-        # Register /workflow whenever the feature is enabled (the app passes a
+        # Register /workflows whenever the feature is enabled (the app passes a
         # registry — possibly empty — in that case), so the command stays
         # discoverable even before any workflow is registered. It is hidden only
         # when the app author left workflows disabled.
@@ -391,15 +391,15 @@ class GatewayManager:
         self._command_router.register("agent", _cmd_agent, "send message to a named agent")
 
     def _setup_workflow_command(self) -> None:
-        """Register the built-in ``/workflow`` command (closure over the runtime).
+        """Register the built-in ``/workflows`` command (closure over the runtime).
 
         Subcommands:
-          - ``/workflow`` / ``/workflow list`` — registered workflows.
-          - ``/workflow runs`` — recent runs from the journal (needs the run store).
-          - ``/workflow status <run_id>`` — a run's status (journal + live tasks).
-          - ``/workflow run <name> [json]`` — start a run via the bus
+          - ``/workflows`` / ``/workflows list`` — registered workflows.
+          - ``/workflows runs`` — recent runs from the journal (needs the run store).
+          - ``/workflows status <run_id>`` — a run's status (journal + live tasks).
+          - ``/workflows run <name> [json]`` — start a run via the bus
             (``origin="workflow"``), mirroring ``/agent <name> <message>``.
-          - ``/workflow cancel <run_id>`` — cancel a gateway-started live run.
+          - ``/workflows cancel <run_id>`` — cancel a gateway-started live run.
         """
         registry = self._workflow_registry
         run_store = self._workflow_run_store
@@ -438,7 +438,7 @@ class GatewayManager:
 
             if sub == "status":
                 if len(ctx.args) < 2:
-                    return "Usage: /workflow status <run_id>"
+                    return "Usage: /workflows status <run_id>"
                 run_id = ctx.args[1]
                 live = " (live)" if run_id in live_runs else ""
                 if run_store is not None:
@@ -449,7 +449,7 @@ class GatewayManager:
 
             if sub == "run":
                 if len(ctx.args) < 2:
-                    return "Usage: /workflow run <name> [json-input]"
+                    return "Usage: /workflows run <name> [json-input]"
                 name = ctx.args[1]
                 if registry.get(name) is None:
                     return f"Unknown workflow {name!r}."
@@ -474,7 +474,7 @@ class GatewayManager:
 
             if sub == "cancel":
                 if len(ctx.args) < 2:
-                    return "Usage: /workflow cancel <run_id>"
+                    return "Usage: /workflows cancel <run_id>"
                 run_id = ctx.args[1]
                 task = live_runs.get(run_id)
                 if task is None:
@@ -486,11 +486,11 @@ class GatewayManager:
                 return f"Cancelling run {run_id}."
 
             return (
-                "Usage: /workflow [list | runs | status <run_id> | "
+                "Usage: /workflows [list | runs | status <run_id> | "
                 "run <name> [json] | cancel <run_id>]"
             )
 
-        self._command_router.register("workflow", _cmd_workflow, "list/run/inspect workflows")
+        self._command_router.register("workflows", _cmd_workflow, "list/run/inspect workflows")
 
     async def _resolve_agent_name(self, msg: InboundMessage) -> str:
         """Determine which named agent should handle this message.
@@ -860,7 +860,7 @@ class GatewayManager:
     def _parse_workflow_input(raw: Any) -> Any:
         """Decode a workflow input from message metadata.
 
-        Cron stamps a JSON string; the `/workflow run` command may pass a dict or
+        Cron stamps a JSON string; the `/workflows run` command may pass a dict or
         a JSON string.  A non-JSON string is passed through verbatim (the spec's
         input model validates it downstream).
         """
@@ -902,7 +902,7 @@ class GatewayManager:
             )
             return
 
-        # Workflow-axis RBAC: the bus / cron / `/workflow run` entry points honour
+        # Workflow-axis RBAC: the bus / cron / `/workflows run` entry points honour
         # the same default-deny allowlist the `workflow_<name>` tool gate applies
         # on the agent path (otherwise dispatching via the bus would bypass it).
         perms = self._config.permissions
@@ -1030,7 +1030,7 @@ class GatewayManager:
         # Workflow-as-message-source: a message with origin="workflow" runs the
         # named workflow directly (bypassing the LLM) and streams its progress +
         # final output to the channel. Published by cron-fired workflow jobs or
-        # the `/workflow run` command.
+        # the `/workflows run` command.
         if msg.origin == "workflow":
             await self._handle_workflow(msg, channel)
             return

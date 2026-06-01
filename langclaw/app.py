@@ -305,7 +305,7 @@ class Langclaw:
 
         Args:
             name:            Unique workflow handle (invoked as ``workflow_<name>``,
-                             ``/workflow <name>``, cron, or PTC).
+                             ``/workflows run <name>``, cron, or PTC).
             description:     Becomes the **tool description** the LLM reads to
                              decide *when* to call this workflow — exactly like a
                              ``@app.tool`` docstring. Write it as guidance ("Research
@@ -907,7 +907,7 @@ class Langclaw:
                     },
                     workflow_runtime=self._workflow_runtime,
                     # Pass the registry (even if empty) whenever workflows are
-                    # enabled so /workflow stays registered/discoverable; None
+                    # enabled so /workflows stays registered/discoverable; None
                     # when the feature is off so the command stays hidden.
                     workflow_registry=(self._workflows if cfg.workflows.enabled else None),
                     workflow_run_store=self._run_store,

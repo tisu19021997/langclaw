@@ -1,13 +1,13 @@
 """Prove workflows are now a first-class bus message source (#48) + the
-/workflow command surface (#47), end-to-end, with no LLM or network.
+/workflows command surface (#47), end-to-end, with no LLM or network.
 
 What it shows:
   1. Publishing an InboundMessage(origin="workflow") runs the named workflow
      through GatewayManager._handle and delivers the output to the channel —
-     the same path a cron-fired job or `/workflow run` takes.
+     the same path a cron-fired job or `/workflows run` takes.
   2. A cron job stamped with workflow_name fires origin="workflow" (no agent
      prompt wrapper).
-  3. /workflow list | run | runs | status against a live runtime + journal.
+  3. /workflows list | run | runs | status against a live runtime + journal.
 
     uv run python showboats/workflows-as-source/prove_bus_dispatch.py
 """
@@ -136,7 +136,7 @@ async def main() -> None:
     fired = captured[0]
     print(f"   origin={fired.origin!r}  workflow_name={fired.metadata['workflow_name']!r}")
 
-    print("\n3) /workflow command surface:")
+    print("\n3) /workflows command surface:")
 
     def ctx(*args):
         return CommandContext(
@@ -144,11 +144,11 @@ async def main() -> None:
         )
 
     for args in (("list",), ("run", "report", '{"topic":"ops"}'), ("runs",)):
-        out = await mgr._command_router.dispatch("workflow", ctx(*args))
-        print(f"   /workflow {' '.join(args)}\n     " + out.replace("\n", "\n     "))
+        out = await mgr._command_router.dispatch("workflows", ctx(*args))
+        print(f"   /workflows {' '.join(args)}\n     " + out.replace("\n", "\n     "))
     await asyncio.sleep(0.05)
 
-    print("\nDONE — workflows are reachable from the bus, cron, and /workflow.")
+    print("\nDONE — workflows are reachable from the bus, cron, and /workflows.")
 
 
 if __name__ == "__main__":

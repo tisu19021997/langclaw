@@ -92,7 +92,7 @@ flowchart TB
 
     subgraph WfPath["Workflow source — runs a whole workflow, no LLM"]
         direction LR
-        W1["cron _fire_job(workflow_name)<br/>or /workflow run &lt;name&gt;"] --> W2["publish InboundMessage<br/>origin='workflow'<br/>metadata: workflow_name, workflow_input"]
+        W1["cron _fire_job(workflow_name)<br/>or /workflows run &lt;name&gt;"] --> W2["publish InboundMessage<br/>origin='workflow'<br/>metadata: workflow_name, workflow_input"]
         W2 --> W3["_handle(): origin=='workflow'<br/>→ _handle_workflow()"]
         W3 --> W4["RBAC allowlist gate<br/>then runtime.run_registered()"]
     end
@@ -115,7 +115,7 @@ A workflow (`@app.workflow`) is a typed, multi-step orchestration. It is reachab
 flowchart TB
     subgraph Entry["Entry points"]
         T["LLM tool call<br/>workflow_&lt;name&gt;"]
-        CMD["/workflow run &lt;name&gt; [json]"]
+        CMD["/workflows run &lt;name&gt; [json]"]
         CR["cron _fire_job(workflow_name)"]
         RS["startup: resume_incomplete()<br/>(resume_on_startup)"]
     end
@@ -220,7 +220,7 @@ body (Mode 1) or an LLM-authored-once-then-frozen body (Mode 2, `llm_authored`).
   diagram above), so `uses_tools` — not per-role tool RBAC — bounds a workflow's
   reach.
 - **Reserved namespace.** A workflow generates a `workflow_<name>` tool and the
-  `/workflow` command into namespaces shared with `@app.tool` / `@app.command`.
+  `/workflows` command into namespaces shared with `@app.tool` / `@app.command`.
   `langclaw/naming.py` is the single source of truth for the reserved prefix and
   command names; `@app.tool`/`@app.command` reject a name that would collide, so
   a developer registration can never silently shadow (or be shadowed by) a

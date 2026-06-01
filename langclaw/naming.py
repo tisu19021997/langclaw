@@ -6,11 +6,11 @@ populated by developer registrations:
 
 - **Workflows** generate a LangChain tool named ``workflow_<name>`` (one per
   ``@app.workflow``), sharing the flat *tool* namespace with ``@app.tool``.
-- **Built-in commands** (``/start``, ``/help``, ``/agent``, ``/workflow`` …)
+- **Built-in commands** (``/start``, ``/help``, ``/agent``, ``/workflows`` …)
   share the *command* namespace with ``@app.command``.
 
 Left unguarded, a developer tool named ``workflow_x`` silently collides with a
-workflow's generated tool, and a developer command named ``workflow`` is silently
+workflow's generated tool, and a developer command named ``workflows`` is silently
 shadowed by the built-in. To keep these namespaces collision-free *as new
 primitives are added*, every reservation lives here — one declaration per
 primitive — and registration sites call the ``check_*`` guards.
@@ -52,7 +52,7 @@ RESERVED_COMMAND_NAMES: frozenset[str] = frozenset(
         "agentsmd",
         "logs",
         "file",
-        "workflow",
+        "workflows",
     }
 )
 

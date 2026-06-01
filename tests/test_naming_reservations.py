@@ -36,10 +36,11 @@ def test_check_tool_name_allowed_rejects_reserved_prefix():
 
 def test_check_command_name_allowed():
     with pytest.raises(ValueError, match="reserved"):
-        check_command_name_allowed("workflow")
+        check_command_name_allowed("workflows")
     with pytest.raises(ValueError, match="reserved"):
         check_command_name_allowed("start")
     check_command_name_allowed("ping")  # free name → no raise
+    check_command_name_allowed("workflow")  # singular is NOT reserved
 
 
 # --- app enforcement --------------------------------------------------------
@@ -75,7 +76,7 @@ def test_app_command_rejects_reserved_name():
 
     with pytest.raises(ValueError, match="reserved"):
 
-        @app.command("workflow")
+        @app.command("workflows")
         async def my_workflow_cmd(ctx) -> str:
             return "nope"
 
