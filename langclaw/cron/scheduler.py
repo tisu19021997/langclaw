@@ -78,6 +78,7 @@ async def _fire_job(
     agent_name: str = "",
     workflow_name: str = "",
     workflow_input: str = "",
+    job_id: str = "",
 ) -> None:
     """APScheduler job function — must stay at module level to be picklable.
 
@@ -125,6 +126,10 @@ async def _fire_job(
         metadata["workflow_name"] = workflow_name
         if workflow_input:
             metadata["workflow_input"] = workflow_input
+        # Carry the cron job id so the gateway can disarm a dangling schedule if
+        # the named workflow has since been deleted (self-disarm on fire).
+        if job_id:
+            metadata["cron_job_id"] = job_id
         await manager._bus.publish(
             InboundMessage(
                 channel=channel,
@@ -394,6 +399,9 @@ class CronManager:
             fire_kwargs["agent_name"] = agent_name
         if workflow_name:
             fire_kwargs["workflow_name"] = workflow_name
+            # Pass the job's own id so a fire can disarm itself if the workflow
+            # is gone. Only needed for workflow jobs (the gateway disarm path).
+            fire_kwargs["job_id"] = job_id
         if workflow_input:
             fire_kwargs["workflow_input"] = workflow_input
         await self._scheduler.add_schedule(

@@ -47,7 +47,7 @@ def _make_registry() -> WorkflowRegistry:
     return reg
 
 
-def _make_manager(registry, *, run_store=None):
+def _make_manager(registry, *, run_store=None, cron_manager=None, saved_reload_cb=None):
     runtime = WorkflowRuntime(WorkflowsConfig(enabled=True), run_store=run_store)
 
     async def _exec(req):  # echo/boom bodies issue no tool steps
@@ -69,6 +69,8 @@ def _make_manager(registry, *, run_store=None):
         workflow_runtime=runtime,
         workflow_registry=registry,
         workflow_run_store=run_store,
+        cron_manager=cron_manager,
+        saved_reload_cb=saved_reload_cb,
     )
     return mgr
 
@@ -111,6 +113,61 @@ async def test_handle_workflow_unknown_name_reports_error():
     await mgr._handle(_wf_msg("does_not_exist"))
 
     assert any("Unknown workflow" in m.content for m in channel.sent)
+
+
+@pytest.mark.asyncio
+async def test_handle_workflow_unknown_disarms_cron_job():
+    """A cron-fired workflow whose name no longer resolves removes its own job
+    so it stops re-firing (option-2: self-disarm on fire)."""
+    cron = AsyncMock()
+    cron.remove_job.return_value = True
+    mgr = _make_manager(_make_registry(), cron_manager=cron)
+    channel = mgr._channel_map["websocket"]
+
+    await mgr._handle(_wf_msg("gone", cron_job_id="job-1"))
+
+    cron.remove_job.assert_awaited_once()
+    assert cron.remove_job.await_args.args[0] == "job-1"
+    # The user is told the dangling schedule was cleaned up.
+    assert any("removed" in m.content.lower() for m in channel.sent)
+
+
+@pytest.mark.asyncio
+async def test_handle_workflow_unknown_without_job_id_does_not_disarm():
+    """A `/workflows run` style unknown (no cron job_id) keeps the plain error and
+    never touches the cron store."""
+    cron = AsyncMock()
+    mgr = _make_manager(_make_registry(), cron_manager=cron)
+    channel = mgr._channel_map["websocket"]
+
+    await mgr._handle(_wf_msg("gone"))
+
+    cron.remove_job.assert_not_awaited()
+    assert any("Unknown workflow" in m.content for m in channel.sent)
+
+
+@pytest.mark.asyncio
+async def test_handle_workflow_reconciles_from_disk_before_lookup():
+    """A manual folder delete/add is reflected: the reconcile callback runs before
+    the registry lookup, so a freshly-registered workflow is found and run."""
+    registry = _make_registry()
+
+    def reload_cb() -> bool:
+        # Simulate the disk reconcile registering a workflow that wasn't in the
+        # registry when the message arrived.
+        async def late_body(ctx, inp):
+            return {"late": True}
+
+        registry.register(WorkflowSpec(name="late", description="added on disk", fn=late_body))
+        return True
+
+    mgr = _make_manager(registry, saved_reload_cb=reload_cb)
+    channel = mgr._channel_map["websocket"]
+
+    await mgr._handle(_wf_msg("late"))
+
+    ai = [m for m in channel.sent if m.type == "ai"]
+    assert ai and '"late"' in ai[-1].content
 
 
 @pytest.mark.asyncio

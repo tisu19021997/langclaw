@@ -78,3 +78,26 @@ async def test_fire_job_without_workflow_is_still_agent_prompt(fake_manager):
     assert msg.origin == "cron"
     assert "workflow_name" not in msg.metadata
     assert "say hi" in msg.content  # wrapped, but contains the task
+
+
+@pytest.mark.asyncio
+async def test_fire_job_workflow_stamps_cron_job_id(fake_manager):
+    """A workflow fire carries its cron job_id so the gateway can disarm it if the
+    workflow has since been deleted."""
+    _, bus = fake_manager
+
+    await sched._fire_job(
+        manager_id="test-mgr",
+        message="run it",
+        channel="telegram",
+        user_id="u1",
+        context_id="default",
+        chat_id="c1",
+        job_name="daily digest",
+        workflow_name="hn-ai-digest",
+        job_id="job-42",
+    )
+
+    msg = bus.published[0]
+    assert msg.origin == "workflow"
+    assert msg.metadata["cron_job_id"] == "job-42"
