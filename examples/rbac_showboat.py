@@ -4,9 +4,11 @@ Unified Capability RBAC — architecture showboat (issue #37).
 A runnable, self-proving tour of langclaw's one-resolver / one-seam RBAC model.
 It exercises the *real* `langclaw.rbac` + `build_capability_filter_middleware`
 code (nothing is faked), then demonstrates the headline property — **a new
-capability axis plugs in with one declaration** — by bolting a fourth axis onto
-the live registry and showing the resolver and the enforcement filter pick it up
-with ZERO changes to either.
+capability axis is added by pure declaration** (an axis descriptor, a RoleConfig
+field, a reserved prefix), with ZERO changes to the resolver or the enforcement
+filter — by bolting a fourth axis onto the live registry and showing both pick
+it up. The startup guard `validate_capability_registry` keeps that promise honest:
+a half-declared axis raises instead of silently failing open.
 
 What it illustrates
 -------------------
@@ -15,8 +17,9 @@ What it illustrates
    default-deny-vs-pass-through decision is one boolean per axis.
 3. One enforcement seam — `build_capability_filter_middleware` filters the tool
    axis and every `*_<name>` axis in a single pass.
-4. Scalability — add a `datasets` axis (one `CapabilityAxis` + one `RoleConfig`
-   field) and watch it flow through the unchanged resolver and filter.
+4. Scalability — add a `datasets` axis (a `CapabilityAxis`, a `RoleConfig` field,
+   a reserved prefix) and watch it flow through the unchanged resolver and filter,
+   accepted by the startup validator.
 
 Run
 ---
@@ -33,6 +36,7 @@ from types import SimpleNamespace
 from loguru import logger
 from pydantic import Field
 
+from langclaw import naming
 from langclaw.config.schema import PermissionsConfig, RoleConfig
 from langclaw.middleware import permissions as perms_mod
 from langclaw.middleware.permissions import build_capability_filter_middleware
@@ -226,11 +230,18 @@ def show_scalability() -> None:
     print(f"{DIM}   declared: CapabilityAxis(name='datasets', role_field='datasets',")
     print(f"             unknown_role_grants_all=False, tool_prefix='dataset_'){RESET}")
 
-    # (b) Register it. In production this is appending DATASETS to CAPABILITY_AXES
-    #     in langclaw/rbac.py — a one-line edit. We mutate the live tuple the
-    #     filter reads, then restore it, so the demo leaves no global state behind.
+    # (b) Register it. In production the full recipe is THREE one-line edits:
+    #       1. append DATASETS to CAPABILITY_AXES in langclaw/rbac.py
+    #       2. add `datasets: StringList` to RoleConfig (so roles can grant it)
+    #       3. reserve the `dataset_` prefix in langclaw.naming.RESERVED_TOOL_PREFIXES
+    #     validate_capability_registry() enforces all three at startup — a
+    #     half-done axis raises rather than silently failing open. We simulate the
+    #     three edits here (RoleConfigV2 carries the field; the prefix is reserved)
+    #     and restore every global in `finally` so the demo leaves no state behind.
     original = perms_mod.CAPABILITY_AXES
+    original_reserved = naming.RESERVED_TOOL_PREFIXES
     perms_mod.CAPABILITY_AXES = (*original, DATASETS)
+    naming.RESERVED_TOOL_PREFIXES = {**original_reserved, "dataset_": "dataset"}
     try:
         cfg = PermissionsConfig(enabled=True, default_role="guest", roles={})
         # Inject roles carrying the new grant (bypass dict re-validation).
@@ -269,9 +280,11 @@ def show_scalability() -> None:
         )
     finally:
         perms_mod.CAPABILITY_AXES = original
+        naming.RESERVED_TOOL_PREFIXES = original_reserved
 
     print(f"\n{DIM}   The new axis flowed through the SAME resolve_capability and the")
-    print(f"   SAME filter. Net production cost: two declarations.{RESET}")
+    print("   SAME filter, and validate_capability_registry accepted it because all")
+    print(f"   three declarations were present. Net production cost: three one-liners.{RESET}")
 
 
 def main() -> None:
@@ -282,7 +295,8 @@ def main() -> None:
     show_filter()
     show_scalability()
     print(
-        f"\n{GREEN}{BOLD}✓ All invariants held — one resolver, one seam, one declaration.{RESET}\n"
+        f"\n{GREEN}{BOLD}✓ All invariants held — one resolver, one seam, "
+        f"axes added by declaration (no resolver/filter edits).{RESET}\n"
     )
 
 

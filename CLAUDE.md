@@ -32,7 +32,7 @@ uv run pre-commit run --all-files  # Full pre-commit suite
 | Add built-in tool | `langclaw/agents/tools/` + export in `__init__.py` |
 | Add channel | `langclaw/gateway/<name>.py` subclassing `BaseChannel` |
 | Add middleware | `langclaw/middleware/` + wire in `agents/builder.py` |
-| Add RBAC capability axis | `langclaw/rbac.py` (`CapabilityAxis` + `CAPABILITY_AXES` + `resolve_capability`) + a field on `RoleConfig` |
+| Add RBAC capability axis | `langclaw/rbac.py` (`CapabilityAxis` in `CAPABILITY_AXES`, pick an enforcement shape) + a field on `RoleConfig` + (if prefixed) reserve the prefix in `langclaw/naming.py`; `validate_capability_registry` checks all three at startup |
 | Add message bus | `langclaw/bus/<name>.py` + factory in `bus/__init__.py` |
 | Add checkpointer | `langclaw/checkpointer/<name>.py` + factory in `checkpointer/__init__.py` |
 | Choose agent backend | `langclaw/agents/backend.py` (`make_backend` factory + `backend_root_dir`) |
@@ -333,11 +333,23 @@ allowlist of tools — including `tools.task({subagent_type})` to orchestrate
 - **Unified RBAC seam** (`langclaw/rbac.py`) — tools, subagents, and workflows
   are three `CapabilityAxis` declarations in `CAPABILITY_AXES`, each binding a
   `RoleConfig` field to one default-deny-vs-pass-through flag; `resolve_capability`
-  is the single resolver. One `wrap_model_call` filter governs every
-  tool-name-mapped axis (tools + `workflow_<name>`); the subagent axis keeps a
-  dedicated `wrap_tool_call` gate because it maps to a tool *argument*
-  (`task`'s `subagent_type`), not a tool name. A new axis = one `CapabilityAxis`
-  + one `RoleConfig` field.
+  is the single resolver. Each axis declares its **enforcement shape**: a
+  `tool_prefix` (prefixed tool axis), `is_residual_tool_axis` (the bare tool
+  namespace), or `arg_gated` (enforced on a tool *argument*, like `subagents` on
+  `task`'s `subagent_type`). One `wrap_model_call` filter governs both
+  tool-name-mapped axes (tools + `workflow_<name>`); the arg-gated subagent axis
+  keeps its dedicated `wrap_tool_call` gate. **Adding an axis** = a `CapabilityAxis`
+  in `CAPABILITY_AXES` + a `RoleConfig` field + (for a prefixed axis) a reserved
+  prefix in `langclaw/naming.py`. `validate_capability_registry` enforces all of
+  this at startup (called from `build_capability_filter_middleware` and
+  `create_claw_agent`): an axis wired to **no** enforcement shape, a missing
+  `RoleConfig` field, or an unreserved prefix raises a `ValueError` instead of
+  silently failing open. See `examples/rbac_showboat.py` for a runnable tour.
+- **Subagents are governed by the same seam:** a subagent that inherits the
+  toolset (no `tools` in its spec) carries the unified filter, so the default-deny
+  **workflow** axis applies inside subagents too — a `workflow_<name>` tool is
+  reachable from a subagent only when the role explicitly grants that workflow
+  (consistent with the main agent; not a silent pass-through).
 - **Subagent gate:** `RoleConfig.subagents` is a per-role, default-deny allowlist
   of subagent types a script may reach via `tools.task`
   (`allowed_subagents` / `check_subagent_permission`).

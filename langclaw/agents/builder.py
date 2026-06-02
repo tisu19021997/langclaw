@@ -253,6 +253,14 @@ def create_claw_agent(
     except ImportError as exc:
         raise ImportError("deepagents is required. Install with: uv add deepagents") from exc
 
+    # Fail loud on a half-wired RBAC registry (an axis with no enforcement seam,
+    # a forgotten RoleConfig field, or an unreserved tool prefix) before building
+    # anything — a silent fail-open is far worse than a startup error.
+    from langclaw.config.schema import RoleConfig
+    from langclaw.rbac import validate_capability_registry
+
+    validate_capability_registry(role_config_cls=RoleConfig)
+
     from langclaw.agents.backend import backend_root_dir, make_backend
 
     # Per-agent workspace: named agents get an isolated subdirectory;

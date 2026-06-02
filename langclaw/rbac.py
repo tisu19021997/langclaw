@@ -61,6 +61,12 @@ class CapabilityAxis:
         is_residual_tool_axis: ``True`` for the one axis that owns every tool
             matched by *no* prefix (the bare tool namespace). Exactly one axis
             sets this.
+        arg_gated: ``True`` for an axis enforced by a dedicated *tool-argument*
+            gate rather than the tool-list filter — e.g. ``subagents`` is checked
+            on ``task``'s ``subagent_type`` argument. This is what makes such an
+            axis :attr:`enforceable` despite mapping to no tool name; declaring it
+            keeps the enforcement shape explicit (no hard-coded special cases in
+            the validator) so a new axis can't silently end up enforced *nowhere*.
     """
 
     name: str
@@ -68,6 +74,7 @@ class CapabilityAxis:
     unknown_role_grants_all: bool
     tool_prefix: str | None = None
     is_residual_tool_axis: bool = False
+    arg_gated: bool = False
 
     @property
     def maps_to_tools(self) -> bool:
@@ -77,6 +84,18 @@ class CapabilityAxis:
         checked per-argument on the ``task`` call, not by filtering a tool list.
         """
         return self.tool_prefix is not None or self.is_residual_tool_axis
+
+    @property
+    def enforceable(self) -> bool:
+        """Whether *some* seam actually enforces this axis.
+
+        An axis is enforceable iff it is wired to one of the three enforcement
+        shapes: a prefixed tool axis, the residual tool axis, or an arg-gated
+        axis. A declared-but-unenforceable axis would resolve to a default-deny
+        set that *nothing reads* — i.e. it would silently grant everyone
+        everything — so :func:`validate_capability_registry` rejects it.
+        """
+        return self.maps_to_tools or self.arg_gated
 
 
 #: The tool axis — every plain ``@app.tool``. **Pass-through** for unknown roles
@@ -91,11 +110,13 @@ TOOLS = CapabilityAxis(
 
 #: The subagent axis — ``tools.task({subagent_type})`` targets. **Default-deny**;
 #: enforced per-argument on the ``task`` call (and coarsely in the PTC surface),
-#: not by filtering a tool list, so it maps to no tool bucket.
+#: not by filtering a tool list, so it maps to no tool bucket — ``arg_gated``
+#: marks that dedicated enforcement shape.
 SUBAGENTS = CapabilityAxis(
     name="subagents",
     role_field="subagents",
     unknown_role_grants_all=False,
+    arg_gated=True,
 )
 
 #: The workflow axis — registered workflows exposed as ``workflow_<name>`` tools.
@@ -147,20 +168,109 @@ def resolve_capability(
         The allowed subset of *universe* (or the verbatim grants when
         *universe* is ``None``).
     """
+    # ``universe_set`` is a fresh set owned by this call, so it can be returned
+    # directly — no defensive copy needed.
     universe_set = None if universe is None else set(universe)
 
     role_cfg = config.roles.get(role)
     if role_cfg is None:
-        if axis.unknown_role_grants_all:
-            return set(universe_set) if universe_set is not None else set()
+        if axis.unknown_role_grants_all and universe_set is not None:
+            return universe_set
         return set()
 
     grants = set(getattr(role_cfg, axis.role_field, None) or ())
     if universe_set is None:
         return grants
     if "*" in grants:
-        return set(universe_set)
+        return universe_set
     return grants & universe_set
+
+
+def validate_capability_registry(
+    axes: tuple[CapabilityAxis, ...] | None = None,
+    role_config_cls: type | None = None,
+) -> None:
+    """Fail LOUD on a half-wired capability registry — never silently fail-open.
+
+    The whole point of the registry is "add one axis and every seam picks it up".
+    The failure mode that subverts that is an axis declared in the registry but
+    *not actually reachable by any enforcement seam*, or one whose backing
+    ``RoleConfig`` field was never added — both resolve to a default that no code
+    reads, silently granting or denying everyone. This guard converts those into a
+    startup ``ValueError`` instead. Called by
+    :func:`langclaw.middleware.permissions.build_capability_filter_middleware`
+    (structural checks, on every agent build) and by
+    :func:`langclaw.agents.builder.create_claw_agent` (full checks, incl. fields
+    and reserved prefixes).
+
+    Args:
+        axes: The registry to validate (defaults to :data:`CAPABILITY_AXES`).
+        role_config_cls: When given, also assert every axis's ``role_field`` is a
+            real attribute on it — so a forgotten ``RoleConfig`` field is caught
+            rather than silently resolving every role to no grant.
+
+    Raises:
+        ValueError: If an axis is unenforceable, the residual axis is not unique,
+            two axes share a ``tool_prefix``, a prefix is unreserved, or (with
+            *role_config_cls*) a ``role_field`` is missing.
+    """
+    from langclaw.naming import RESERVED_TOOL_PREFIXES
+
+    axes = CAPABILITY_AXES if axes is None else axes
+
+    residual = [a for a in axes if a.is_residual_tool_axis]
+    if len(residual) != 1:
+        raise ValueError(
+            "Capability registry must have exactly one residual tool axis "
+            f"(is_residual_tool_axis=True); found {[a.name for a in residual]}."
+        )
+
+    seen_prefixes: dict[str, str] = {}
+    for axis in axes:
+        if not axis.enforceable:
+            raise ValueError(
+                f"Capability axis {axis.name!r} is declared but enforced nowhere: it "
+                "is neither a prefixed tool axis (tool_prefix=...), the residual tool "
+                "axis (is_residual_tool_axis=True), nor arg-gated (arg_gated=True). "
+                "It would resolve to a permission set no seam reads — silently "
+                "granting everyone everything. Wire it to an enforcement seam or "
+                "drop it."
+            )
+        if axis.tool_prefix is not None:
+            if axis.tool_prefix in seen_prefixes:
+                raise ValueError(
+                    f"Capability axes {seen_prefixes[axis.tool_prefix]!r} and "
+                    f"{axis.name!r} share tool_prefix {axis.tool_prefix!r}; a tool "
+                    "would be classified into both."
+                )
+            seen_prefixes[axis.tool_prefix] = axis.name
+            if axis.tool_prefix not in RESERVED_TOOL_PREFIXES:
+                raise ValueError(
+                    f"Capability axis {axis.name!r} uses tool_prefix "
+                    f"{axis.tool_prefix!r}, which is not reserved in "
+                    "langclaw.naming.RESERVED_TOOL_PREFIXES — a developer tool could "
+                    "be registered with that prefix and silently fall under RBAC. "
+                    "Reserve the prefix there too."
+                )
+
+    if role_config_cls is None:
+        return
+
+    probe = role_config_cls()
+    for axis in axes:
+        if not hasattr(probe, axis.role_field):
+            raise ValueError(
+                f"Capability axis {axis.name!r} declares role_field "
+                f"{axis.role_field!r}, but {role_config_cls.__name__} has no such "
+                "field — add it so roles can grant this axis (otherwise every role "
+                "silently resolves to no grant)."
+            )
+
+
+# Validate the shipped registry's structure at import: a malformed built-in
+# registry (e.g. a new axis added without an enforcement shape) fails immediately
+# rather than at some later agent build.
+validate_capability_registry()
 
 
 __all__ = [
@@ -170,4 +280,5 @@ __all__ = [
     "WORKFLOWS",
     "CapabilityAxis",
     "resolve_capability",
+    "validate_capability_registry",
 ]

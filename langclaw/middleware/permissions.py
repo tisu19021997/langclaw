@@ -25,7 +25,15 @@ from loguru import logger
 
 # Unified capability resolution — every RBAC axis (tools, subagents, workflows)
 # routes through one descriptor-driven resolver so they cannot drift (issue #37).
-from langclaw.rbac import CAPABILITY_AXES, SUBAGENTS, TOOLS, WORKFLOWS, resolve_capability
+from langclaw.rbac import (
+    CAPABILITY_AXES,
+    SUBAGENTS,
+    TOOLS,
+    WORKFLOWS,
+    CapabilityAxis,
+    resolve_capability,
+    validate_capability_registry,
+)
 
 if TYPE_CHECKING:
     from langchain.agents.middleware import ModelRequest, ModelResponse, ToolCallRequest
@@ -210,6 +218,11 @@ def build_capability_filter_middleware(
     the live ``request.tools`` each call, a tool stripped here is also unreachable
     from a script (one gate covers both the direct call and the PTC call).
     """
+    # Refuse to build over a fail-open registry (an axis enforced nowhere would
+    # silently grant everyone everything). Structural-only here so this stays
+    # cheap on every agent build; create_claw_agent runs the fuller check.
+    validate_capability_registry(CAPABILITY_AXES)
+
     prefix_axes = [a for a in CAPABILITY_AXES if a.tool_prefix is not None]
     # Longest prefix first so nested prefixes classify deterministically.
     prefix_axes.sort(key=lambda a: len(a.tool_prefix or ""), reverse=True)
@@ -267,6 +280,7 @@ build_workflow_permission_middleware = build_capability_filter_middleware
 
 
 __all__ = [
+    "CapabilityAxis",
     "allowed_subagents",
     "allowed_tool_names",
     "allowed_workflow_names",
@@ -275,4 +289,5 @@ __all__ = [
     "build_tool_permission_middleware",
     "build_workflow_permission_middleware",
     "check_subagent_permission",
+    "validate_capability_registry",
 ]

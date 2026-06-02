@@ -264,3 +264,141 @@ def test_legacy_middleware_builders_alias_the_unified_seam(legacy):
     ]
     # Both aliases enforce *both* axes now (single seam).
     assert _run_filter(mw, tools, "power") == ["web_search", "workflow_digest"]
+
+
+# ---------------------------------------------------------------------------
+# Hardening — the registry fails LOUD, not open. (review follow-up to #37)
+#
+# An axis declared but wired to no enforcement seam, or whose RoleConfig field
+# was never added, used to resolve to a silent default (everyone denied, or —
+# worse — a tool-mapped-but-unreached axis granting everyone everything). These
+# pin the startup guards that turn those into a ValueError at build time.
+# ---------------------------------------------------------------------------
+
+
+def test_subagent_axis_is_explicitly_arg_gated():
+    """SUBAGENTS maps to a tool *argument*, so it declares arg_gated — that is what
+    makes it 'enforceable' despite mapping to no tool name."""
+    from langclaw.rbac import SUBAGENTS
+
+    assert SUBAGENTS.arg_gated is True
+    assert SUBAGENTS.maps_to_tools is False
+    assert SUBAGENTS.enforceable is True
+
+
+def test_every_registered_axis_is_enforceable():
+    from langclaw.rbac import CAPABILITY_AXES
+
+    for axis in CAPABILITY_AXES:
+        assert axis.enforceable, f"{axis.name} is declared but enforced nowhere"
+
+
+def test_validate_registry_accepts_the_builtin_registry():
+    from langclaw.config.schema import RoleConfig
+    from langclaw.rbac import validate_capability_registry
+
+    # Must not raise for the shipped registry.
+    validate_capability_registry(role_config_cls=RoleConfig)
+
+
+def test_validate_registry_rejects_an_unenforceable_axis(monkeypatch):
+    """An axis that is neither prefixed, residual, nor arg-gated would silently
+    grant everyone everything — it must be rejected at startup (finding #2)."""
+    import langclaw.rbac as rbac
+
+    ghost = rbac.CapabilityAxis(name="ghost", role_field="ghost", unknown_role_grants_all=False)
+    monkeypatch.setattr(rbac, "CAPABILITY_AXES", (*rbac.CAPABILITY_AXES, ghost))
+    with pytest.raises(ValueError, match="enforced nowhere"):
+        rbac.validate_capability_registry()
+
+
+def test_validate_registry_rejects_missing_role_config_field(monkeypatch):
+    """Add an axis but forget its RoleConfig field → loud error, not a silent
+    default-deny for every role (finding #5)."""
+    import langclaw.rbac as rbac
+    from langclaw.config.schema import RoleConfig
+
+    orphan = rbac.CapabilityAxis(
+        name="connectors",
+        role_field="connectors",  # not a field on RoleConfig
+        unknown_role_grants_all=False,
+        arg_gated=True,  # enforceable, so it reaches the field check
+    )
+    monkeypatch.setattr(rbac, "CAPABILITY_AXES", (*rbac.CAPABILITY_AXES, orphan))
+    with pytest.raises(ValueError, match="connectors"):
+        rbac.validate_capability_registry(role_config_cls=RoleConfig)
+
+
+def test_validate_registry_rejects_unreserved_tool_prefix(monkeypatch):
+    """A prefixed RBAC axis whose prefix is not reserved in langclaw.naming would
+    let a developer tool collide into a gated namespace (finding #3)."""
+    import langclaw.rbac as rbac
+
+    bad = rbac.CapabilityAxis(
+        name="reports",
+        role_field="reports",
+        unknown_role_grants_all=False,
+        tool_prefix="report_",  # not in naming.RESERVED_TOOL_PREFIXES
+    )
+    monkeypatch.setattr(rbac, "CAPABILITY_AXES", (*rbac.CAPABILITY_AXES, bad))
+    with pytest.raises(ValueError, match="reserv"):
+        rbac.validate_capability_registry()
+
+
+def test_capability_filter_build_rejects_unenforceable_axis(monkeypatch):
+    """The enforcement seam itself refuses to build over a fail-open registry."""
+    from langclaw.middleware import permissions as P
+
+    ghost = P.CapabilityAxis(name="ghost", role_field="ghost", unknown_role_grants_all=False)
+    monkeypatch.setattr(P, "CAPABILITY_AXES", (*P.CAPABILITY_AXES, ghost))
+    with pytest.raises(ValueError, match="enforced nowhere"):
+        P.build_capability_filter_middleware(_perms({}))
+
+
+def test_create_claw_agent_validates_registry(monkeypatch):
+    """create_claw_agent runs the full validation (fields + reserved prefixes)."""
+    import langclaw.rbac as rbac
+    from langclaw.agents.builder import create_claw_agent
+    from langclaw.config.schema import LangclawConfig
+
+    orphan = rbac.CapabilityAxis(
+        name="connectors", role_field="connectors", unknown_role_grants_all=False, arg_gated=True
+    )
+    monkeypatch.setattr(rbac, "CAPABILITY_AXES", (*rbac.CAPABILITY_AXES, orphan))
+    with pytest.raises(ValueError, match="connectors"):
+        create_claw_agent(LangclawConfig(interpreter={"enabled": False}), model=object())
+
+
+# ---------------------------------------------------------------------------
+# Subagents are governed by the unified seam — pins the #1 behaviour decision:
+# the workflow axis (default-deny) applies inside subagents too, consistently.
+# ---------------------------------------------------------------------------
+
+
+def test_subagents_carry_the_unified_capability_filter():
+    from langclaw.agents.builder import _build_deepagent_subagents
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.context import LangclawContext
+
+    cfg = LangclawConfig(interpreter={"enabled": False})
+    cfg.permissions.enabled = True
+    # A subagent that inherits the toolset (no `tools` key).
+    specs = [{"name": "helper", "description": "d", "system_prompt": "s"}]
+    tools = [_tool("web_search"), _tool("workflow_digest")]
+
+    built = _build_deepagent_subagents(specs, tools, cfg, LangclawContext)
+    mw_names = [type(m).__name__ for m in built[0]["middleware"]]
+    # The subagent is governed by the same single seam → its workflow tools are
+    # subject to the default-deny workflow axis, not silently passed through.
+    assert "_capability_filter" in mw_names
+
+
+def test_subagent_filter_default_denies_inherited_workflow_tool():
+    """A subagent under a role with tools=['*'] but no workflow grant cannot reach
+    an inherited workflow_<name> tool — consistent with the main agent."""
+    from langclaw.middleware.permissions import build_capability_filter_middleware
+
+    cfg = _perms({"power": _role(tools=["*"])})  # no workflows granted
+    mw = build_capability_filter_middleware(cfg)
+    tools = [_tool("web_search"), _tool("workflow_digest")]
+    assert _run_filter(mw, tools, "power") == ["web_search"]
