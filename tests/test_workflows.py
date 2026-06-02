@@ -2260,3 +2260,47 @@ def test_workflow_system_prompt_authoring_with_registered_lists_and_authors():
     prompt = workflow_system_prompt(reg, authoring=True)
     assert "workflow_report" in prompt
     assert "workflows/" in prompt
+
+
+# ---------------------------------------------------------------------------
+# 6 — Saved/authored tool narrowing: @uses (camelCase PTC surface) must match
+#     live tool .name (often snake_case). Regression: webFetch != web_fetch.
+# ---------------------------------------------------------------------------
+
+
+def test_select_workflow_tools_matches_camelcase_uses_to_snake_name():
+    """A `@uses webFetch` entry resolves the live `web_fetch` tool (the body calls
+    `tools.webFetch`, so dropping it breaks the workflow with 'not a function')."""
+    from langclaw.workflows import select_workflow_tools
+
+    tools = [
+        SimpleNamespace(name="web_fetch"),
+        SimpleNamespace(name="web_search"),
+        SimpleNamespace(name="task"),
+        SimpleNamespace(name="write_file"),
+        SimpleNamespace(name="unused"),
+    ]
+
+    selected = select_workflow_tools(tools, ["webFetch", "webSearch", "task", "write_file"])
+    names = {t.name for t in selected}
+
+    assert names == {"web_fetch", "web_search", "task", "write_file"}
+    assert "unused" not in names
+
+
+def test_select_workflow_tools_also_accepts_snake_case_uses():
+    """Backward/forward tolerant: a snake_case `@uses web_fetch` still matches."""
+    from langclaw.workflows import select_workflow_tools
+
+    tools = [SimpleNamespace(name="web_fetch"), SimpleNamespace(name="task")]
+    selected = select_workflow_tools(tools, ["web_fetch"])
+
+    assert {t.name for t in selected} == {"web_fetch"}
+
+
+def test_select_workflow_tools_empty_uses_selects_nothing():
+    from langclaw.workflows import select_workflow_tools
+
+    tools = [SimpleNamespace(name="web_fetch")]
+    assert select_workflow_tools(tools, []) == []
+    assert select_workflow_tools(tools, None) == []

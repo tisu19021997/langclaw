@@ -262,6 +262,35 @@ def _camel(name: str) -> str:
     return re.sub(r"[-_]+(\w)", lambda m: m.group(1).upper(), name)
 
 
+def select_workflow_tools(
+    tools: Sequence[BaseTool], uses_tools: Sequence[str] | None
+) -> list[BaseTool]:
+    """Pick the live tools a workflow's ``@uses`` (or ``uses_tools``) declares.
+
+    ``uses_tools`` names the **sandbox surface** — the camelCase identifiers the
+    body actually calls (``tools.webFetch``) — while a live tool's ``.name`` is its
+    registered, often snake_case, name (``web_fetch``). Matching the two naïvely
+    (``name in wanted``) silently drops every tool whose camelCase differs from its
+    snake_case name, so the body fails with ``TypeError: not a function`` on the
+    first such call. Match on **either** spelling so ``@uses`` is tolerant of both.
+
+    Args:
+        tools:      The live toolset to narrow (already role-filtered).
+        uses_tools: The workflow's declared tool names (camelCase or snake_case).
+
+    Returns:
+        The subset of *tools* the workflow declared, preserving input order.
+    """
+    wanted = set(uses_tools or [])
+    if not wanted:
+        return []
+    return [
+        t
+        for t in tools
+        if (getattr(t, "name", None) in wanted) or (_camel(getattr(t, "name", "") or "") in wanted)
+    ]
+
+
 def _to_jsonable(value: Any) -> Any:
     """Render the run input as a JSON-injectable value for the ``inp`` global."""
     if value is None:
