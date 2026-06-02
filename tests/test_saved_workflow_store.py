@@ -108,6 +108,18 @@ def test_save_rejects_hyphenated_name(tmp_path: Path) -> None:
         store.save("hn-ai-digest", script="await tools.output({ result: 1 });")
 
 
+def test_load_skips_legacy_hyphenated_file(tmp_path: Path) -> None:
+    """A pre-restriction hyphenated file is no longer loaded (must be renamed to
+    snake_case); a valid sibling still loads."""
+    root = tmp_path / "workflows"
+    root.mkdir(parents=True)
+    body = "await tools.output({ result: 1 });"
+    (root / "hn-ai-digest.js").write_text(body, encoding="utf-8")
+    (root / "hn_ai_digest.js").write_text(body, encoding="utf-8")
+    names = [wf.name for wf in SavedWorkflowStore(root).load_all()]
+    assert names == ["hn_ai_digest"]
+
+
 def test_load_skips_unsafe_filenames(tmp_path: Path) -> None:
     root = tmp_path / "workflows"
     root.mkdir(parents=True)

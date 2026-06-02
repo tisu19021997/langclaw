@@ -158,8 +158,9 @@ class SavedWorkflowStore:
     def load_all(self) -> list[SavedWorkflow]:
         """Return every ``*.js`` workflow, sorted by name. Empty if dir missing.
 
-        A file whose stem is not a safe name is skipped with a warning (it could
-        never have been a valid ``workflow_<name>`` tool anyway).
+        A file whose stem is not a valid name is skipped with a warning that
+        carries the reason — e.g. a legacy hyphenated ``my-flow.js`` is now
+        invalid and the warning tells you to rename it to ``my_flow.js``.
         """
         if not self._dir.is_dir():
             return []
@@ -168,8 +169,8 @@ class SavedWorkflowStore:
             name = js.stem
             try:
                 validate_saved_name(name)
-            except ValueError:
-                logger.warning(f"Skipping saved workflow with unsafe filename: {js.name}")
+            except ValueError as exc:
+                logger.warning(f"Skipping saved workflow file {js.name!r}: {exc}")
                 continue
             script = js.read_text(encoding="utf-8")
             description, uses_tools = parse_metadata(script)

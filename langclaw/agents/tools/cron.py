@@ -112,8 +112,8 @@ CRON_TOOL_DOC = """Schedule, list, view, or remove recurring jobs.
 
         cron(action='add',
              type='task',
-             message='Run the hn-ai-digest workflow',
-             workflow_name='hn-ai-digest',
+             message='Run the hn_ai_digest workflow',
+             workflow_name='hn_ai_digest',
              cron_expr='0 10 * * *')
 
     List active jobs::

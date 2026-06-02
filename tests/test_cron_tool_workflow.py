@@ -38,19 +38,19 @@ async def test_cron_add_forwards_workflow_name():
     out = await cron(
         action="add",
         type="task",
-        message="Run the hn-ai-digest workflow",
-        workflow_name="hn-ai-digest",
+        message="Run the hn_ai_digest workflow",
+        workflow_name="hn_ai_digest",
         cron_expr="0 10 * * *",
         runtime=_runtime(),
     )
 
     mgr.add_job.assert_awaited_once()
     kwargs = mgr.add_job.await_args.kwargs
-    assert kwargs["workflow_name"] == "hn-ai-digest"
+    assert kwargs["workflow_name"] == "hn_ai_digest"
     assert kwargs["cron_expr"] == "0 10 * * *"
     assert "job-123" in out
     # The confirmation should make the deterministic routing obvious.
-    assert "hn-ai-digest" in out
+    assert "hn_ai_digest" in out
 
 
 @pytest.mark.asyncio

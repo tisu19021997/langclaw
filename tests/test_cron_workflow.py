@@ -94,7 +94,7 @@ async def test_fire_job_workflow_stamps_cron_job_id(fake_manager):
         context_id="default",
         chat_id="c1",
         job_name="daily digest",
-        workflow_name="hn-ai-digest",
+        workflow_name="hn_ai_digest",
         job_id="job-42",
     )
 
