@@ -294,7 +294,7 @@ def create_claw_agent(
     if fs_root is not None:
         builtin_tools += build_fs_tools(config, fs_root)
     if cron_manager is not None:
-        builtin_tools += build_cron_tools(config, cron_manager)
+        builtin_tools += build_cron_tools(config, cron_manager, workflow_registry)
 
     # Process extra_tools: resolve string names to actual tools, keep tool objects as-is.
     extra_tool_objects: list[Any] = []

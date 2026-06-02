@@ -28,6 +28,11 @@ def _runtime(role: str = "admin"):
     )
 
 
+def _registry(*names: str):
+    """A minimal stand-in for WorkflowRegistry exposing names()."""
+    return SimpleNamespace(names=lambda: list(names))
+
+
 @pytest.mark.asyncio
 async def test_cron_add_forwards_workflow_name():
     """``workflow_name`` is forwarded to ``add_job`` so the job runs the workflow."""
@@ -92,6 +97,70 @@ async def test_cron_add_without_workflow_name_stays_agent_prompt():
 
     kwargs = mgr.add_job.await_args.kwargs
     assert kwargs.get("workflow_name", "") == ""
+
+
+@pytest.mark.asyncio
+async def test_cron_add_rejects_unknown_workflow_name():
+    """With a registry available, scheduling an unknown workflow fails fast (so a
+    typo'd job isn't created only to self-disarm on first fire)."""
+    mgr = AsyncMock()
+    cron = make_cron_tool(
+        mgr, timezone="UTC", workflow_registry=_registry("hn_ai_digest")
+    ).coroutine
+
+    out = await cron(
+        action="add",
+        type="task",
+        message="Run the digest",
+        workflow_name="hn_ai_digst",  # typo
+        cron_expr="0 10 * * *",
+        runtime=_runtime(),
+    )
+
+    mgr.add_job.assert_not_awaited()
+    assert "hn_ai_digst" in out
+    # Lists the real ones so the user can correct the typo.
+    assert "hn_ai_digest" in out
+
+
+@pytest.mark.asyncio
+async def test_cron_add_accepts_known_workflow_name():
+    """A workflow_name present in the registry schedules normally."""
+    mgr = AsyncMock()
+    mgr.add_job.return_value = "job-9"
+    cron = make_cron_tool(
+        mgr, timezone="UTC", workflow_registry=_registry("hn_ai_digest")
+    ).coroutine
+
+    await cron(
+        action="add",
+        type="task",
+        message="Run it",
+        workflow_name="hn_ai_digest",
+        cron_expr="0 10 * * *",
+        runtime=_runtime(),
+    )
+
+    mgr.add_job.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_cron_add_skips_workflow_validation_without_registry():
+    """No registry wired (workflows off) → forward verbatim, don't block."""
+    mgr = AsyncMock()
+    mgr.add_job.return_value = "job-1"
+    cron = make_cron_tool(mgr, timezone="UTC").coroutine  # no workflow_registry
+
+    await cron(
+        action="add",
+        type="task",
+        message="Run it",
+        workflow_name="anything",
+        cron_expr="0 10 * * *",
+        runtime=_runtime(),
+    )
+
+    mgr.add_job.assert_awaited_once()
 
 
 @pytest.mark.asyncio

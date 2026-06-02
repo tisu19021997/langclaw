@@ -7,7 +7,7 @@ so jobs are automatically routed back to the conversation that created them.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from langchain.tools import ToolRuntime
 from langchain_core.tools import BaseTool, tool
@@ -130,7 +130,12 @@ CRON_TOOL_DOC = """Schedule, list, view, or remove recurring jobs.
 """
 
 
-def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool:
+def make_cron_tool(
+    cron_manager: CronManager,
+    timezone: str = "UTC",
+    *,
+    workflow_registry: Any | None = None,
+) -> BaseTool:
     """Return a ``cron`` tool wired to *cron_manager*.
 
     The returned tool is a single LangChain ``BaseTool`` that exposes four
@@ -149,6 +154,10 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
         timezone:     Timezone string from ``config.cron.timezone``
                       (e.g. ``"Europe/Amsterdam"``). Baked into the tool
                       description so the LLM reasons in the correct timezone.
+        workflow_registry: The live ``WorkflowRegistry`` (or ``None`` when
+                      workflows are off). When provided, a ``workflow_name`` is
+                      validated against it at schedule time so a typo fails fast
+                      instead of creating a job that self-disarms on first fire.
 
     Returns:
         A LangChain ``BaseTool`` named ``"cron"``.
@@ -190,6 +199,19 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
                 )
             if every_seconds is None and cron_expr is None:
                 return "Error: either every_seconds or cron_expr is required."
+            # Validate a workflow job against the live registry at schedule time —
+            # otherwise a typo'd name creates a job that only self-disarms on its
+            # first fire (silent until then). Skipped when no registry is wired
+            # (workflows disabled): nothing to check against.
+            if workflow_name and workflow_registry is not None:
+                known = sorted(workflow_registry.names())
+                if workflow_name not in known:
+                    available = ", ".join(known) if known else "(none saved yet)"
+                    return (
+                        f"Error: no saved workflow named {workflow_name!r}. "
+                        f"Available: {available}. Save it first "
+                        f"(write workflows/{workflow_name}.js) or fix the name."
+                    )
 
             name = f"{message[:40].strip()}..."
             # Tasks get their own isolated thread; reminders share the current one.
