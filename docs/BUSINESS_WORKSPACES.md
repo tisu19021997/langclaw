@@ -77,6 +77,8 @@ So `SOUL.md` exists at **both** org and employee scope — the org one is brand 
 
 ## 4. Prompt Assembly & Precedence
 
+> **Update — assembly engine landed (read path).** `langclaw/agents/workspace_layers.py:assemble_system_prompt` implements the full two-phase merge-then-validate below and is wired into `builder.py` behind `agents.workspace_layers.enabled` (off by default → byte-for-byte the flat `AGENTS.md`). What's **wired today** is the **org layer** (sealed ▸ authoritative) + the `policy.yaml` sealed validate pass; `team_dir`/`user_dir` overlays and `masks.yaml` are **implemented and tested** in the function but not yet fed by the builder — the default agent builds without a request `user_id`, so per-employee wiring waits on the per-`(agent, user)` instance seam (§5, Phase 1 cont.). Employee memories are bounded by file count, not yet semantic top-k. See `tests/test_workspace_layers.py`.
+
 All layering attaches at the single concatenation point in `builder.py` (~337), where today `base = workspace/AGENTS.md`. Replace the lone read with `assemble_system_prompt(layers, user_id)`, a **two-phase merge-then-validate** (Kubernetes mutating→validating model):
 
 **Phase 1 — merge (mutating).** Read in precedence order, each block emitted with its authority-tag header:
@@ -194,6 +196,8 @@ When enabled with no `org/` present, first build treats the existing flat tree a
 **Phase 0 — de-risk (day one).** ~~Spike the deepagents backend-root question: does it expose any request-time backend selection?~~ **Answered:** yes — `create_deep_agent(backend=...)` takes a `Callable[[ToolRuntime], BackendProtocol]` factory, and langclaw now threads a `backend=` param through `create_claw_agent` / `Langclaw` (see §5 update note). This unlocks the cheaper single-instance path; the remaining spike is confirming the factory can read `user_id` from the `ToolRuntime` context to re-root per request.
 
 **Phase 1 — layered read-only.** `WorkspaceLayerConfig`, `org/`+`users/` tree, two-phase `assemble_system_prompt`, `org_read` tool, employee-writable `users/` fs root, hardened SessionManager namespace, migration command. Ships the org/employee split and privacy without governance.
+
+> **Landed (PR 1):** `WorkspaceLayerConfig` + `AgentConfig` layer-path props, the two-phase `assemble_system_prompt` (org/team/employee merge, `masks.yaml`, `policy.yaml` sealed validate), and builder wiring for the **org layer** (opt-in, backward-compatible). **Still open in Phase 1:** the per-`(agent, user)` instance seam that feeds `user_dir`/`team_dir` at request time, the `org_read`/`org_ls` tools + employee-writable `users/` fs root (§5 `fs.py` three-roots), the hardened SessionManager namespace, and the `langclaw migrate-workspace` command.
 
 **Phase 2 — governance.** `_proposals/` store, `/propose` `/review` `/approve` `/reject`, `policy.yaml` approver map + `can_approve_memory`, audit log, hot-reload propagation.
 

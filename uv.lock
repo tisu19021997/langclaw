@@ -1772,6 +1772,7 @@ dependencies = [
     { name = "loguru" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pyyaml" },
     { name = "tenacity" },
     { name = "typer" },
 ]
@@ -1897,6 +1898,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "python-telegram-bot", marker = "extra == 'telegram'", specifier = ">=21" },
+    { name = "pyyaml", specifier = ">=6" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
     { name = "slack-bolt", marker = "extra == 'slack'", specifier = ">=1.18" },
     { name = "slackify-markdown", marker = "extra == 'slack'", specifier = ">=0.2.0" },

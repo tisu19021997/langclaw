@@ -36,6 +36,7 @@ uv run pre-commit run --all-files  # Full pre-commit suite
 | Add checkpointer | `langclaw/checkpointer/<name>.py` + factory in `checkpointer/__init__.py` |
 | Choose agent backend | `langclaw/agents/backend.py` (`make_backend` factory + `backend_root_dir`) |
 | Modify config schema | `langclaw/config/schema.py` (Pydantic Settings) |
+| Business Workspaces (org/team/employee layering) | `langclaw/agents/workspace_layers.py` (`assemble_system_prompt`) + `WorkspaceLayerConfig` in `config/schema.py`, wired at `agents/builder.py` prompt assembly. Design: [docs/BUSINESS_WORKSPACES.md](docs/BUSINESS_WORKSPACES.md) |
 | Code interpreter (RLM) | `langclaw/interpreter/__init__.py` (PTC resolver + middleware factory) |
 | Runtime workflow authoring | `langclaw/workflows/saved_store.py` (parse/load) + `app._reload_saved_workflows` + gateway folder-watch |
 | CLI commands | `langclaw/cli/app.py` (Typer) |

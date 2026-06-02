@@ -400,6 +400,24 @@ def create_claw_agent(
     else:
         agents_md = _DEFAULT_AGENTS_MD
     base_prompt = agents_md.read_text("utf-8") if agents_md.exists() else ""
+
+    # Business Workspaces (opt-in): when layering is enabled and the agent has a
+    # host filesystem, assemble the base prompt from the layered ``org/`` tree
+    # (sealed ▸ authoritative, then team/personal once the per-user seam lands)
+    # instead of the flat ``AGENTS.md``. The flat read above becomes the
+    # zero-disruption fallback when no ``org/`` tree exists yet. ``team_dir`` /
+    # ``user_dir`` are omitted here: the default agent builds without a request
+    # ``user_id``, so per-employee overlay wiring waits on the per-(agent,user)
+    # instance work — see docs/BUSINESS_WORKSPACES.md §5.
+    if config.agents.workspace_layers.enabled and fs_root is not None:
+        from langclaw.agents.workspace_layers import assemble_system_prompt
+
+        base_prompt = assemble_system_prompt(
+            layers=config.agents.workspace_layers,
+            org_dir=fs_root / "org",
+            legacy_prompt=base_prompt,
+        )
+
     if system_prompt:
         system_prompt = f"{base_prompt}\n\n{system_prompt}"
     else:
