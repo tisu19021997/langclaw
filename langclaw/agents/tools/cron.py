@@ -34,6 +34,15 @@ CRON_TOOL_DOC = """Schedule, list, view, or remove recurring jobs.
       - include defaults for optional choices
       - avoid open questions unless truly required to run
 
+    SCHEDULING A SAVED WORKFLOW (deterministic)
+    -------------------------------------------
+    If a saved workflow exists (a ``workflow_<name>`` tool, e.g. saved earlier
+    to ``workflows/<name>.js``), schedule it by passing ``workflow_name`` instead
+    of re-describing the whole task in ``message``. The frozen script then runs
+    verbatim on every fire — no LLM re-authoring, deterministic, cheaper. Do NOT
+    paste the workflow's steps into ``message``; that defeats the saved workflow
+    and makes the agent improvise the task freehand each time.
+
     TIMEZONE
     --------
     The active timezone is {timezone}.
@@ -66,6 +75,12 @@ CRON_TOOL_DOC = """Schedule, list, view, or remove recurring jobs.
                        e.g. ``'0 9 * * *'`` = daily at 09:00 {timezone}.
                        Mutually exclusive with ``every_seconds``.
         job_id:        ID of the job to view or remove. Required for ``view`` and ``remove``.
+        workflow_name: Name of a saved workflow to run on fire (the ``<name>`` of a
+                       ``workflow_<name>`` tool). When set, the job runs that frozen
+                       workflow verbatim instead of injecting ``message`` as a prompt.
+                       Prefer this over re-describing a saved workflow in ``message``.
+        workflow_input: Optional JSON string passed as input to the workflow.
+                        Only meaningful together with ``workflow_name``.
 
     Examples
     --------
@@ -92,6 +107,14 @@ CRON_TOOL_DOC = """Schedule, list, view, or remove recurring jobs.
                       NSFW.',
              type='task',
              cron_expr='30 13 * * *')
+
+    Run a saved workflow every day at 10:00 (deterministic, no re-authoring)::
+
+        cron(action='add',
+             type='task',
+             message='Run the hn-ai-digest workflow',
+             workflow_name='hn-ai-digest',
+             cron_expr='0 10 * * *')
 
     List active jobs::
 
@@ -138,6 +161,8 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
         every_seconds: int | None = None,
         cron_expr: str | None = None,
         job_id: str | None = None,
+        workflow_name: str | None = None,
+        workflow_input: str | None = None,
         *,
         runtime: ToolRuntime[LangclawContext],
     ) -> str:
@@ -182,6 +207,8 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
                     every_seconds=every_seconds,
                     user_role=user_role,
                     agent_name=agent_name,
+                    workflow_name=workflow_name or "",
+                    workflow_input=workflow_input or "",
                 )
             except Exception as exc:
                 import traceback
@@ -192,6 +219,12 @@ def make_cron_tool(cron_manager: CronManager, timezone: str = "UTC") -> BaseTool
             schedule_desc = (
                 f"every {every_seconds}s" if every_seconds is not None else f'cron "{cron_expr}"'
             )
+            if workflow_name:
+                return (
+                    f"Workflow job scheduled ({schedule_desc}).\n"
+                    f"Job ID: {job_id_new}\n"
+                    f"Runs workflow: {workflow_name} (verbatim, no re-authoring on fire)."
+                )
             return f"Job scheduled ({schedule_desc}).\nJob ID: {job_id_new}\nMessage: {message}"
 
         # ── list ───────────────────────────────────────────────────────────
