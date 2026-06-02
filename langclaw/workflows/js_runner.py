@@ -31,6 +31,7 @@ import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
+from langclaw.naming import reject_camel_collisions, to_camel_case
 from langclaw.workflows.context import WorkflowStepError
 
 if TYPE_CHECKING:
@@ -232,7 +233,7 @@ def _render_tool_signature(tool: BaseTool) -> str:
     arg_str = "{ " + ", ".join(args) + " }" if args else ""
     desc = (getattr(tool, "description", "") or "").strip().splitlines()
     first_line = desc[0] if desc else ""
-    sig = f"tools.{_camel(name)}({arg_str})"
+    sig = f"tools.{to_camel_case(name)}({arg_str})"
     return f"{sig} — {first_line}" if first_line else sig
 
 
@@ -261,11 +262,6 @@ def _extract_js(text: str) -> str:
     return text.strip()
 
 
-def _camel(name: str) -> str:
-    """``snake_case`` / ``kebab-case`` → ``camelCase`` (matches the PTC surface)."""
-    return re.sub(r"[-_]+(\w)", lambda m: m.group(1).upper(), name)
-
-
 def select_workflow_tools(
     tools: Sequence[BaseTool], uses_tools: Sequence[str] | None
 ) -> list[BaseTool]:
@@ -276,7 +272,9 @@ def select_workflow_tools(
     registered, often snake_case, name (``web_fetch``). Matching the two naïvely
     (``name in wanted``) silently drops every tool whose camelCase differs from its
     snake_case name, so the body fails with ``TypeError: not a function`` on the
-    first such call. Match on **either** spelling so ``@uses`` is tolerant of both.
+    first such call. Match on **either** spelling — the camelCase form via the
+    canonical :func:`~langclaw.naming.to_camel_case` (the same mapping PTC installs
+    with, so the match cannot drift from the live sandbox surface).
 
     Args:
         tools:      The live toolset to narrow (already role-filtered).
@@ -284,15 +282,22 @@ def select_workflow_tools(
 
     Returns:
         The subset of *tools* the workflow declared, preserving input order.
+
+    Raises:
+        ValueError: if two selected tools map to the same JS identifier (one would
+            silently shadow the other in the sandbox).
     """
     wanted = set(uses_tools or [])
     if not wanted:
         return []
-    return [
+    selected = [
         t
         for t in tools
-        if (getattr(t, "name", None) in wanted) or (_camel(getattr(t, "name", "") or "") in wanted)
+        if (getattr(t, "name", None) in wanted)
+        or (to_camel_case(getattr(t, "name", "") or "") in wanted)
     ]
+    reject_camel_collisions([getattr(t, "name", "") for t in selected])
+    return selected
 
 
 def _to_jsonable(value: Any) -> Any:

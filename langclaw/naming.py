@@ -25,6 +25,9 @@ and gets enforcement everywhere for free.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
+
 #: Tool-name prefix the Workflow primitive owns: ``@app.workflow("x")`` →
 #: tool ``workflow_x``. Single source of truth — the bridge, the permission
 #: middleware, and the reservation guard all read it from here.
@@ -60,6 +63,58 @@ RESERVED_COMMAND_NAMES: frozenset[str] = frozenset(
 def workflow_tool_name(workflow_name: str) -> str:
     """Return the LangChain tool name a workflow is exposed under."""
     return f"{WORKFLOW_TOOL_PREFIX}{workflow_name}"
+
+
+# --- camelCase tool surface (the JS/PTC namespace) --------------------------
+#
+# A tool's registered ``.name`` is snake_case (``web_fetch``), but inside the
+# QuickJS sandbox the code interpreter (``eval``) and saved/authored workflows
+# reach it as ``tools.<camelCase>`` (``tools.webFetch``). That snake→camel
+# mapping is the boundary between the Python tool registry and the JS surface,
+# and it MUST be computed the same way everywhere a name crosses it — otherwise
+# one site (e.g. a workflow's ``@uses`` allowlist) can disagree with what PTC
+# actually installs and silently drop a tool. So the mapping lives here, once.
+
+_CAMEL_SEP = re.compile(r"[-_]+(\w)")
+
+
+def to_camel_case(name: str) -> str:
+    """``snake_case`` / ``kebab-case`` → ``camelCase`` — the canonical JS tool name.
+
+    Prefers ``langchain_quickjs``'s own implementation when the extra is installed,
+    so the result always matches the identifier PTC actually exposes in the
+    sandbox; falls back to a local regex so this dependency-free module stays
+    importable without the ``interpreter`` extra.
+    """
+    try:
+        from langchain_quickjs import _ptc
+
+        return _ptc.to_camel_case(name)
+    except Exception:
+        return _CAMEL_SEP.sub(lambda m: m.group(1).upper(), name)
+
+
+def reject_camel_collisions(names: Iterable[str]) -> None:
+    """Raise ``ValueError`` if two distinct names camelCase to the same identifier.
+
+    Inside a script tools are reached as ``tools.<camelCaseName>``; if two tool
+    names collapse to the same identifier one silently shadows the other, so we
+    fail loudly at resolution time instead. Shared by the interpreter PTC
+    allowlist and the workflow ``@uses`` allowlist.
+    """
+    by_camel: dict[str, list[str]] = {}
+    for name in names:
+        by_camel.setdefault(to_camel_case(name), []).append(name)
+    collisions = {camel: src for camel, src in by_camel.items() if len(set(src)) > 1}
+    if collisions:
+        details = "; ".join(
+            f"{sorted(set(src))} → tools.{camel}" for camel, src in sorted(collisions.items())
+        )
+        raise ValueError(
+            "PTC tool name collision — these tools map to the same JavaScript "
+            f"identifier and would shadow each other: {details}. "
+            "Rename one of the colliding tools."
+        )
 
 
 def reserved_prefix_owner(tool_name: str) -> str | None:
@@ -104,6 +159,8 @@ __all__ = [
     "WORKFLOW_TOOL_PREFIX",
     "check_command_name_allowed",
     "check_tool_name_allowed",
+    "reject_camel_collisions",
     "reserved_prefix_owner",
+    "to_camel_case",
     "workflow_tool_name",
 ]

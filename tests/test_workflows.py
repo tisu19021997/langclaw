@@ -2304,3 +2304,24 @@ def test_select_workflow_tools_empty_uses_selects_nothing():
     tools = [SimpleNamespace(name="web_fetch")]
     assert select_workflow_tools(tools, []) == []
     assert select_workflow_tools(tools, None) == []
+
+
+def test_select_workflow_tools_rejects_camel_collision():
+    """Two selected tools mapping to the same JS identifier would shadow each other
+    in the sandbox — fail loudly rather than silently drop one."""
+    from langclaw.workflows import select_workflow_tools
+
+    tools = [SimpleNamespace(name="read_file"), SimpleNamespace(name="readFile")]
+    with pytest.raises(ValueError, match="collision"):
+        select_workflow_tools(tools, ["readFile", "read_file"])
+
+
+def test_select_workflow_tools_uses_canonical_camelizer():
+    """The @uses match goes through the same camelizer PTC installs with, so it
+    cannot drift from the live sandbox surface."""
+    from langclaw.naming import to_camel_case
+    from langclaw.workflows import select_workflow_tools
+
+    name = "web_fetch"
+    tool = SimpleNamespace(name=name)
+    assert select_workflow_tools([tool], [to_camel_case(name)]) == [tool]
