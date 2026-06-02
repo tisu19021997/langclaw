@@ -17,9 +17,10 @@ a single, valid script:
     const posts = await tools.webFetch({ url: "https://news.ycombinator.com" });
     await tools.output({ result: posts });
 
-- ``name`` is the filename stem; it must match ``[A-Za-z0-9_-]+`` (also the
-  ``workflow_<name>`` tool suffix), which keeps it a single path segment that
-  can never escape the folder.
+- ``name`` is the filename stem; it must match ``[A-Za-z0-9_]+`` (snake_case,
+  also the ``workflow_<name>`` tool suffix), which keeps it a single path segment
+  that can never escape the folder *and* a clean camelCase identifier inside the
+  sandbox (``tools.workflowMyFlow``). Hyphens are rejected — see ``_SAFE_NAME``.
 - ``@description`` (optional) becomes the tool description the LLM reads.
 - ``@uses`` (optional, comma/space separated) narrows the sandbox capability set;
   omitted ⇒ the body inherits the same read-only ``eval`` PTC allowlist.
@@ -38,8 +39,12 @@ from pathlib import Path
 from loguru import logger
 
 #: A saved workflow name must be a safe single path segment (also a valid
-#: ``workflow_<name>`` tool suffix): letters, digits, underscore, hyphen.
-_SAFE_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+#: ``workflow_<name>`` tool suffix). Restricted to snake_case — letters, digits,
+#: and underscore — *no hyphen*: a hyphenated name is un-callable inside a script
+#: (``tools.workflow_my-flow`` parses as subtraction) and ``my-flow``/``my_flow``
+#: would collapse to the same camelCase identifier. Underscore-only keeps the
+#: in-sandbox name (``tools.workflowMyFlow``) unambiguous.
+_SAFE_NAME = re.compile(r"^[A-Za-z0-9_]+$")
 
 #: Inline metadata directives, matched on leading ``// @key value`` comment lines.
 _DESCRIPTION_RE = re.compile(r"^\s*//\s*@description\s+(.*?)\s*$", re.MULTILINE)
@@ -73,8 +78,10 @@ def validate_saved_name(name: str) -> str:
     """
     if not name or not _SAFE_NAME.match(name):
         raise ValueError(
-            f"Invalid workflow name {name!r}: use only letters, digits, '_' or '-' "
-            "(no spaces, slashes, or '..')."
+            f"Invalid workflow name {name!r}: use snake_case — letters, digits and "
+            "underscores only (e.g. 'hn_ai_digest'). No hyphens, spaces, slashes, or "
+            "'..': a hyphen makes the in-sandbox name 'tools.workflow_my-flow' "
+            "un-callable."
         )
     return name
 
@@ -151,8 +158,9 @@ class SavedWorkflowStore:
     def load_all(self) -> list[SavedWorkflow]:
         """Return every ``*.js`` workflow, sorted by name. Empty if dir missing.
 
-        A file whose stem is not a safe name is skipped with a warning (it could
-        never have been a valid ``workflow_<name>`` tool anyway).
+        A file whose stem is not a valid name is skipped with a warning that
+        carries the reason — e.g. a legacy hyphenated ``my-flow.js`` is now
+        invalid and the warning tells you to rename it to ``my_flow.js``.
         """
         if not self._dir.is_dir():
             return []
@@ -161,8 +169,8 @@ class SavedWorkflowStore:
             name = js.stem
             try:
                 validate_saved_name(name)
-            except ValueError:
-                logger.warning(f"Skipping saved workflow with unsafe filename: {js.name}")
+            except ValueError as exc:
+                logger.warning(f"Skipping saved workflow file {js.name!r}: {exc}")
                 continue
             script = js.read_text(encoding="utf-8")
             description, uses_tools = parse_metadata(script)

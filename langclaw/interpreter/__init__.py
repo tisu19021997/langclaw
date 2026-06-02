@@ -20,13 +20,13 @@ mutating/egress tools require explicit operator opt-in via
 
 from __future__ import annotations
 
-import re
 import warnings
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
 from langclaw.middleware.permissions import allowed_subagents, allowed_tool_names
+from langclaw.naming import reject_camel_collisions, to_camel_case
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -64,44 +64,11 @@ RUNTIME_INJECTED_TOOLS: frozenset[str] = frozenset(
     {"ls", "read_file", "glob", "grep", "write_file", "edit_file", "task"}
 )
 
-_CAMEL_SEP = re.compile(r"[-_]+(\w)")
-
-
-def _to_camel_case(name: str) -> str:
-    """``snake_case`` / ``kebab-case`` → ``camelCase``.
-
-    Prefers ``langchain_quickjs``'s implementation when the extra is installed
-    so collision detection matches what the REPL actually does; falls back to a
-    local copy so this pure module stays importable without the extra.
-    """
-    try:
-        from langchain_quickjs import _ptc
-
-        return _ptc.to_camel_case(name)
-    except Exception:
-        return _CAMEL_SEP.sub(lambda m: m.group(1).upper(), name)
-
-
-def _reject_ptc_name_collisions(names: Iterable[str]) -> None:
-    """Raise ``ValueError`` if two distinct names camelCase to the same id.
-
-    Inside a script, tools are reached as ``tools.<camelCaseName>``; if two
-    tool names collapse to the same identifier one would silently shadow the
-    other, so we fail loudly at resolution time instead.
-    """
-    by_camel: dict[str, list[str]] = {}
-    for name in names:
-        by_camel.setdefault(_to_camel_case(name), []).append(name)
-    collisions = {camel: src for camel, src in by_camel.items() if len(set(src)) > 1}
-    if collisions:
-        details = "; ".join(
-            f"{sorted(set(src))} → tools.{camel}" for camel, src in sorted(collisions.items())
-        )
-        raise ValueError(
-            "PTC tool name collision — these tools map to the same JavaScript "
-            f"identifier and would shadow each other: {details}. "
-            "Rename one of the colliding tools."
-        )
+# The snake→camel tool-surface mapping and its collision guard are owned by
+# langclaw.naming (the dependency-free naming seam) so the interpreter's PTC
+# allowlist and the workflow @uses allowlist compute them identically.
+_to_camel_case = to_camel_case
+_reject_ptc_name_collisions = reject_camel_collisions
 
 
 def resolve_ptc_allowlist(

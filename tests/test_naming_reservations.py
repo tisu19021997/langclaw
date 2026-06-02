@@ -134,3 +134,33 @@ def test_both_guards_keep_workflow_tool_namespace_disjoint():
             return x
 
     assert workflow_tool_name("report") == "workflow_report"
+
+
+# --- canonical camelCase mapping (the JS/PTC tool surface) ------------------
+
+
+def test_to_camel_case_conversions():
+    """snake_case / kebab-case → camelCase; already-camel and single words pass."""
+    from langclaw.naming import to_camel_case
+
+    assert to_camel_case("web_fetch") == "webFetch"
+    assert to_camel_case("web_search") == "webSearch"
+    assert to_camel_case("read-file") == "readFile"
+    assert to_camel_case("task") == "task"
+    assert to_camel_case("alreadyCamel") == "alreadyCamel"
+
+
+def test_reject_camel_collisions_passes_distinct_names():
+    from langclaw.naming import reject_camel_collisions
+
+    # No exception — distinct camel identifiers.
+    reject_camel_collisions(["web_fetch", "web_search", "task"])
+
+
+def test_reject_camel_collisions_raises_on_shadow():
+    """Two distinct names mapping to the same JS identifier must fail loudly."""
+    from langclaw.naming import reject_camel_collisions
+
+    # "read_file" and "readFile" both → "readFile".
+    with pytest.raises(ValueError, match="collision"):
+        reject_camel_collisions(["read_file", "readFile"])

@@ -52,6 +52,7 @@ from langclaw.workflows.context import (
 from langclaw.workflows.js_runner import (
     build_workflow_author,
     build_workflow_script_runner,
+    select_workflow_tools,
 )
 from langclaw.workflows.progress import (
     emit_progress,
@@ -112,6 +113,7 @@ __all__ = [
     "render_workflow_progress",
     "reset_progress_sink",
     "resolve_workflow_ptc_names",
+    "select_workflow_tools",
     "set_progress_sink",
     "validate_saved_name",
     "workflow_system_prompt",

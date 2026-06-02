@@ -294,7 +294,7 @@ def create_claw_agent(
     if fs_root is not None:
         builtin_tools += build_fs_tools(config, fs_root)
     if cron_manager is not None:
-        builtin_tools += build_cron_tools(config, cron_manager)
+        builtin_tools += build_cron_tools(config, cron_manager, workflow_registry)
 
     # Process extra_tools: resolve string names to actual tools, keep tool objects as-is.
     extra_tool_objects: list[Any] = []
@@ -332,6 +332,7 @@ def create_claw_agent(
             build_workflow_script_runner,
             make_workflow_tools,
             resolve_workflow_ptc_names,
+            select_workflow_tools,
         )
 
         _live_tools = tools
@@ -340,9 +341,11 @@ def create_claw_agent(
             return build_toolset_executor(_live_tools)
 
         def _tools_for_spec(spec: Any) -> list[Any]:
-            # Mode 2 allowlist: spec.uses_tools ∩ live toolset (none → none).
-            wanted = set(spec.uses_tools or [])
-            return [t for t in _live_tools if getattr(t, "name", None) in wanted]
+            # Mode 2 / saved allowlist: spec.uses_tools ∩ live toolset (none → none).
+            # uses_tools names the camelCase sandbox surface (e.g. "webFetch"); the
+            # live tool name is snake_case ("web_fetch"), so match on either form —
+            # otherwise web_fetch/web_search silently drop out of the sandbox.
+            return select_workflow_tools(_live_tools, spec.uses_tools)
 
         def _workflow_author_factory(spec: Any) -> Any:
             return build_workflow_author(resolved_model, tools=_tools_for_spec(spec))

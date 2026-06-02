@@ -344,9 +344,10 @@ filesystem-rooted (`local_shell` default / `filesystem`). Flow:
    `<code_interpreter>` nudge routes "run a workflow"/"orchestrate" phrasing here).
 2. User: *"Save that workflow as hn_digest"* → the agent calls
    `write_file("workflows/hn_digest.js", <the same JS>)`. The convention (taught
-   in the `<workflows>` nudge): name `[A-Za-z0-9_-]+`; optional `// @description`
-   and `// @uses a, b` header comments; body gets `inp`, emits via
-   `tools.output({result})`.
+   in the `<workflows>` nudge): name `[A-Za-z0-9_]+` (snake_case, no hyphens — a
+   hyphen makes the in-sandbox `tools.workflow_my-flow` un-callable); optional
+   `// @description` and `// @uses a, b` header comments; body gets `inp`, emits
+   via `tools.output({result})`.
 3. **Same-session liveness:** `GatewayManager._ensure_agent_fresh` hashes the
    `workflows/` folder (alongside the AGENTS.md content hash). On change it calls
    the `saved_reload_cb` → `app._reload_saved_workflows()`, which reconciles files
@@ -360,6 +361,18 @@ filesystem-rooted (`local_shell` default / `filesystem`). Flow:
 verbatim via `build_workflow_script_runner` (same QuickJS path as `llm_authored`,
 minus the per-run authoring step) — `runtime._run_saved`. Saved workflows are
 global (default agent only); named agents don't carry workflow tools.
+
+**Scheduling a saved workflow:** the agent `cron` tool takes `workflow_name`
+(+ optional JSON `workflow_input`) → `CronManager.add_job` → fires
+`origin="workflow"` → `GatewayManager._handle_workflow` runs the frozen script
+**without** the LLM (deterministic). Prefer this over a prose `task` job that
+re-describes the steps (the LLM would re-author it freehand every fire).
+**Self-disarm:** the cron job references the workflow by string name. If the
+`.js` is deleted (via the agent *or* straight in the folder), `_handle_workflow`
+reconciles from disk first (so manual deletes are seen), then — when the name no
+longer resolves and the fire carries its `cron_job_id` — removes its own schedule
+so it stops re-firing. `/workflows run` (no `cron_job_id`) just reports the
+unknown name.
 
 **Parsing/format:** `langclaw/workflows/saved_store.py` — `parse_metadata` reads
 the `// @` header; `render_saved_file` writes the canonical form (used by

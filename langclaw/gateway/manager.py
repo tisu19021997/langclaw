@@ -972,15 +972,39 @@ class GatewayManager:
         """
         meta = msg.metadata or {}
         name = meta.get("workflow_name", "")
+        # Reconcile saved workflows/<name>.js from disk *before* the lookup so a
+        # delete done straight in the folder (not via the agent) is reflected —
+        # otherwise a stale in-memory spec would still run on this fire.
+        if self._saved_reload_cb is not None:
+            try:
+                self._saved_reload_cb()
+            except Exception as exc:
+                logger.error("Saved-workflow reconcile failed: {}", exc)
         spec = self._workflow_registry.get(name) if self._workflow_registry else None
         if self._workflow_runtime is None or spec is None:
+            content = f"Unknown workflow {name!r}." if name else "No workflow specified."
+            # Self-disarm: a cron-fired workflow whose name no longer resolves
+            # removes its own schedule so it stops re-firing every interval.
+            cron_job_id = meta.get("cron_job_id", "")
+            if name and cron_job_id and self._cron_manager is not None:
+                removed = await self._cron_manager.remove_job(
+                    cron_job_id, channel=msg.channel, user_id=msg.user_id
+                )
+                if removed:
+                    logger.info(
+                        f"Disarmed cron job {cron_job_id} — workflow {name!r} no longer exists."
+                    )
+                    content = (
+                        f"Workflow {name!r} no longer exists — removed the scheduled "
+                        f"job so it won't keep firing."
+                    )
             await channel.send(
                 OutboundMessage(
                     channel=msg.channel,
                     user_id=msg.user_id,
                     context_id=msg.context_id,
                     chat_id=msg.chat_id,
-                    content=f"Unknown workflow {name!r}." if name else "No workflow specified.",
+                    content=content,
                     type="ai",
                 )
             )
