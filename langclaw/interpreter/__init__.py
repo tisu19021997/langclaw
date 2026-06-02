@@ -98,8 +98,9 @@ def resolve_ptc_allowlist(
        ``ToolNode``, so this coarse gate is the script-side counterpart to the
        per-type ``task`` gate enforced for model-invoked calls by
        :func:`~langclaw.middleware.permissions.build_subagent_permission_middleware`.
-       Both read :func:`~langclaw.middleware.permissions.allowed_subagents` so
-       they cannot drift (finer per-type PTC gating is tracked in #37).
+       Both resolve through the same
+       :func:`~langclaw.rbac.resolve_capability` (via ``allowed_subagents``) so
+       they cannot drift; finer per-type PTC gating remains a known limitation.
     5. Reject camelCase identifier collisions.
 
     Args:
@@ -190,10 +191,10 @@ def build_interpreter_middleware(
 
     # Mode 1: registered workflows are exposed to scripts as
     # ``tools.workflow<Name>``. Their names are pre-gated by the workflow RBAC
-    # axis (build_workflow_permission_middleware), and the interpreter recomputes
-    # its surface from the live ``request.tools`` each call, so a role-stripped
-    # workflow tool is also unreachable from PTC. Union here so the build-time
-    # allowlist advertises them; reject any camelCase collision as usual.
+    # axis (the unified build_capability_filter_middleware), and the interpreter
+    # recomputes its surface from the live ``request.tools`` each call, so a
+    # role-stripped workflow tool is also unreachable from PTC. Union here so the
+    # build-time allowlist advertises them; reject any camelCase collision as usual.
     extra = [n for n in extra_ptc_tool_names if n]
     if extra:
         merged = sorted(set(ptc) | set(extra))

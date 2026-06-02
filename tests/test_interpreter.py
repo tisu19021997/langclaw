@@ -423,7 +423,7 @@ def test_builder_appends_interpreter_after_permissions(monkeypatch):
     assert "CodeInterpreterMiddleware" in names
     # PTC surface depends on the role-filtered toolset → interpreter must run
     # after the permission filter.
-    assert names.index("_tool_permission_filter") < names.index("CodeInterpreterMiddleware")
+    assert names.index("_capability_filter") < names.index("CodeInterpreterMiddleware")
 
 
 def test_builder_injects_interpreter_prompt_nudge(monkeypatch):

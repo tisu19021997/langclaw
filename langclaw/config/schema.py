@@ -533,7 +533,9 @@ class RoleConfig(BaseModel):
     an interpreter script.  **Default-deny** like ``subagents`` — an empty list
     means the role may invoke no workflows.  Use ``["*"]`` to allow every
     registered workflow.  A third RBAC axis alongside ``tools`` and
-    ``subagents``; their unification is tracked in issue #37."""
+    ``subagents`` — all three resolve through the one descriptor-driven
+    :func:`langclaw.rbac.resolve_capability` (a new axis = one
+    :class:`~langclaw.rbac.CapabilityAxis` + one field here)."""
 
 
 class PermissionsConfig(BaseModel):

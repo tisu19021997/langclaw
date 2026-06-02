@@ -232,9 +232,10 @@ def test_builder_wires_subagent_gate_after_tool_permissions(monkeypatch):
     create_claw_agent(cfg, model=object())
 
     names = [type(m).__name__ for m in captured["middleware"]]
-    # The gate is registered as a wrap_tool_call middleware named after its fn.
+    # The gate is registered as a wrap_tool_call middleware named after its fn,
+    # after the unified capability filter (issue #37).
     assert "_subagent_gate" in names
-    assert names.index("_tool_permission_filter") < names.index("_subagent_gate")
+    assert names.index("_capability_filter") < names.index("_subagent_gate")
 
 
 def test_builder_omits_subagent_gate_when_permissions_disabled(monkeypatch):

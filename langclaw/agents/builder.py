@@ -27,9 +27,8 @@ from langclaw.context import LangclawContext
 from langclaw.middleware.channel_context import ChannelContextMiddleware
 from langclaw.middleware.guardrails import ContentFilterMiddleware, PIIMiddleware
 from langclaw.middleware.permissions import (
+    build_capability_filter_middleware,
     build_subagent_permission_middleware,
-    build_tool_permission_middleware,
-    build_workflow_permission_middleware,
 )
 from langclaw.middleware.rate_limit import RateLimitMiddleware
 from langclaw.utils import to_virtual_path  # for extra_skills conversion
@@ -109,7 +108,7 @@ def _build_deepagent_subagents(
         sa_middleware: list[Any] = [ChannelContextMiddleware()]
         if config.permissions.enabled:
             sa_middleware.append(
-                build_tool_permission_middleware(config.permissions),
+                build_capability_filter_middleware(config.permissions),
             )
             sa_middleware.append(
                 build_subagent_permission_middleware(config.permissions),
@@ -154,7 +153,7 @@ def _prepare_external_subagents(
         sa_middleware: list[Any] = [ChannelContextMiddleware()]
         if config.permissions.enabled:
             sa_middleware.append(
-                build_tool_permission_middleware(config.permissions),
+                build_capability_filter_middleware(config.permissions),
             )
             sa_middleware.append(
                 build_subagent_permission_middleware(config.permissions),
@@ -435,7 +434,8 @@ def create_claw_agent(
 
     # Built-in middleware stack (order matters):
     #   1. ChannelContextMiddleware  — inject channel metadata first
-    #   2. ToolPermission middleware — filter tools per-user role
+    #   2. Capability filter         — one seam filtering every tool-mapped RBAC
+    #                                  axis (tools + workflow_<name>) per role
     #   3. Subagent gate             — enforce RoleConfig.subagents on `task`
     #   4. RateLimitMiddleware       — rate-check early
     #   5. ContentFilterMiddleware   — block banned content
@@ -446,22 +446,22 @@ def create_claw_agent(
     ]
 
     if config.permissions.enabled:
+        # One unified filter governs the tool axis AND the workflow axis
+        # (``workflow_<name>``) in a single pass (issue #37) — it self-adapts to
+        # whatever tools are present, so no ``_workflows_active`` guard is needed,
+        # and a new prefixed axis plugs in via langclaw.rbac.CAPABILITY_AXES alone.
+        # Runs before the interpreter so a role-stripped tool is unreachable from
+        # PTC too (Mode 1).
         middleware.append(
-            build_tool_permission_middleware(config.permissions),
+            build_capability_filter_middleware(config.permissions),
         )
         # Enforce the per-role subagent allowlist on model-invoked `task` calls.
-        # The tool-permission filter governs *which tools* are visible; this
-        # governs *which subagent_type* a visible `task` tool may target.
+        # The capability filter governs *which tools* are visible; this governs
+        # *which subagent_type* a visible `task` tool may target — a per-argument
+        # gate, the one axis that maps to no tool name.
         middleware.append(
             build_subagent_permission_middleware(config.permissions),
         )
-        # Enforce the per-role workflow allowlist on `workflow_<name>` tools
-        # (the third RBAC axis). Runs before the interpreter so a role-stripped
-        # workflow tool is unreachable from PTC too (Mode 1).
-        if _workflows_active:
-            middleware.append(
-                build_workflow_permission_middleware(config.permissions),
-            )
 
     # Code interpreter (opt-in). Placed *after* the permission filter so the
     # PTC surface only ever sees the role-filtered live toolset — per-call RBAC

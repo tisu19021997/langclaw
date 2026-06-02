@@ -905,37 +905,39 @@ def _run_model_call(mw, tools, user_role):
     return {t.name for t in captured["tools"]}
 
 
-def test_workflow_permission_middleware_filters_by_workflow_axis():
+def test_capability_filter_governs_workflow_axis():
+    """The unified seam (issue #37) filters the workflow axis in the same pass."""
     from langclaw.config.schema import PermissionsConfig, RoleConfig
-    from langclaw.middleware.permissions import build_workflow_permission_middleware
+    from langclaw.middleware.permissions import build_capability_filter_middleware
 
     cfg = PermissionsConfig(
         enabled=True,
         roles={"power": RoleConfig(tools=["*"], workflows=["digest"])},
     )
-    mw = build_workflow_permission_middleware(cfg)
+    mw = build_capability_filter_middleware(cfg)
 
     tools = [_wf_tool("web_search"), _wf_tool("workflow_digest"), _wf_tool("workflow_secret")]
     names = _run_model_call(mw, tools, "power")
-    # non-workflow tools untouched; only the permitted workflow remains
+    # tool axis (tools=["*"]) keeps web_search; workflow axis keeps only digest.
     assert "web_search" in names
     assert "workflow_digest" in names
     assert "workflow_secret" not in names
 
 
-def test_tool_permission_filter_passes_workflow_tools_through():
-    """The tool-axis filter must NOT strip workflow_* tools (workflow axis owns them)."""
+def test_capability_filter_handles_tool_and_workflow_axes_together():
+    """One filter applies both axes: viewer keeps only web_search; default-deny
+    strips the un-granted workflow even though the tool axis is separate."""
     from langclaw.config.schema import PermissionsConfig, RoleConfig
-    from langclaw.middleware.permissions import build_tool_permission_middleware
+    from langclaw.middleware.permissions import build_capability_filter_middleware
 
-    # viewer may use only web_search on the tool axis — but workflow_* tools
-    # are governed by the workflow axis, so they must pass through here.
     cfg = PermissionsConfig(enabled=True, roles={"viewer": RoleConfig(tools=["web_search"])})
-    mw = build_tool_permission_middleware(cfg)
+    mw = build_capability_filter_middleware(cfg)
 
     tools = [_wf_tool("web_search"), _wf_tool("delete_file"), _wf_tool("workflow_digest")]
     names = _run_model_call(mw, tools, "viewer")
-    assert names == {"web_search", "workflow_digest"}  # delete_file stripped, workflow passed
+    # delete_file stripped (tool axis); workflow_digest stripped (workflow axis,
+    # default-deny — viewer was granted no workflows).
+    assert names == {"web_search"}
 
 
 def test_builder_exposes_workflows_to_ptc_when_interpreter_and_workflows_enabled(monkeypatch):
@@ -967,7 +969,7 @@ def test_builder_exposes_workflows_to_ptc_when_interpreter_and_workflows_enabled
     assert "workflow_digest" in interp._ptc
 
 
-def test_builder_wires_workflow_permission_middleware(monkeypatch):
+def test_builder_wires_capability_filter_for_workflow_axis(monkeypatch):
     from langclaw.agents.builder import create_claw_agent
     from langclaw.config.schema import LangclawConfig
     from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
@@ -987,7 +989,9 @@ def test_builder_wires_workflow_permission_middleware(monkeypatch):
     captured = _capture_deep_agent(monkeypatch)
     create_claw_agent(cfg, model=object(), workflow_registry=reg, workflow_runtime=rt)
     names = [type(m).__name__ for m in captured["middleware"]]
-    assert "_workflow_permission_filter" in names
+    # The single unified seam (issue #37) governs the workflow axis — there is no
+    # longer a separate workflow-only filter to wire.
+    assert "_capability_filter" in names
 
 
 # ---------------------------------------------------------------------------

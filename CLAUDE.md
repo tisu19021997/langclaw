@@ -32,6 +32,7 @@ uv run pre-commit run --all-files  # Full pre-commit suite
 | Add built-in tool | `langclaw/agents/tools/` + export in `__init__.py` |
 | Add channel | `langclaw/gateway/<name>.py` subclassing `BaseChannel` |
 | Add middleware | `langclaw/middleware/` + wire in `agents/builder.py` |
+| Add RBAC capability axis | `langclaw/rbac.py` (`CapabilityAxis` + `CAPABILITY_AXES` + `resolve_capability`) + a field on `RoleConfig` |
 | Add message bus | `langclaw/bus/<name>.py` + factory in `bus/__init__.py` |
 | Add checkpointer | `langclaw/checkpointer/<name>.py` + factory in `checkpointer/__init__.py` |
 | Choose agent backend | `langclaw/agents/backend.py` (`make_backend` factory + `backend_root_dir`) |
@@ -325,9 +326,18 @@ allowlist of tools — including `tools.task({subagent_type})` to orchestrate
   read-only; mutating/egress tools require explicit `interpreter.allow_tools`
   opt-in.
 - **Per-call RBAC falls out of middleware ordering** — the interpreter middleware
-  is appended *after* `ToolPermissionMiddleware` in `agents/builder.py`, so PTC
-  only ever sees the role-filtered live toolset. `resolve_ptc_allowlist` and the
-  permission middleware share `allowed_tool_names` so they cannot drift.
+  is appended *after* the unified capability filter (`build_capability_filter_middleware`)
+  in `agents/builder.py`, so PTC only ever sees the role-filtered live toolset.
+  `resolve_ptc_allowlist` and the filter both resolve through the one
+  `langclaw/rbac.py:resolve_capability` so they cannot drift.
+- **Unified RBAC seam** (`langclaw/rbac.py`) — tools, subagents, and workflows
+  are three `CapabilityAxis` declarations in `CAPABILITY_AXES`, each binding a
+  `RoleConfig` field to one default-deny-vs-pass-through flag; `resolve_capability`
+  is the single resolver. One `wrap_model_call` filter governs every
+  tool-name-mapped axis (tools + `workflow_<name>`); the subagent axis keeps a
+  dedicated `wrap_tool_call` gate because it maps to a tool *argument*
+  (`task`'s `subagent_type`), not a tool name. A new axis = one `CapabilityAxis`
+  + one `RoleConfig` field.
 - **Subagent gate:** `RoleConfig.subagents` is a per-role, default-deny allowlist
   of subagent types a script may reach via `tools.task`
   (`allowed_subagents` / `check_subagent_permission`).

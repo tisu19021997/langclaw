@@ -22,7 +22,7 @@ from loguru import logger
 from langclaw.bus.base import InboundMessage
 from langclaw.context import LangclawContext
 from langclaw.middleware.channel_context import ChannelContextMiddleware
-from langclaw.middleware.permissions import build_tool_permission_middleware
+from langclaw.middleware.permissions import build_capability_filter_middleware
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -135,7 +135,7 @@ def build_channel_routed_subagent(
     sa_middleware: list[Any] = [ChannelContextMiddleware()]
     if config.permissions.enabled:
         sa_middleware.append(
-            build_tool_permission_middleware(config.permissions),
+            build_capability_filter_middleware(config.permissions),
         )
 
     inner_agent = create_agent(
