@@ -23,10 +23,17 @@ from typing import TYPE_CHECKING
 from langchain.agents.middleware import wrap_model_call, wrap_tool_call
 from loguru import logger
 
-# Prefix carried by every workflow tool. Sourced from langclaw.naming (the single
-# source of truth shared with the bridge + reservation guard); that module imports
-# nothing from langclaw, so there is no cycle.
-from langclaw.naming import WORKFLOW_TOOL_PREFIX as _WORKFLOW_TOOL_PREFIX
+# Unified capability resolution — every RBAC axis (tools, subagents, workflows)
+# routes through one descriptor-driven resolver so they cannot drift (issue #37).
+from langclaw.rbac import (
+    CAPABILITY_AXES,
+    SUBAGENTS,
+    TOOLS,
+    WORKFLOWS,
+    CapabilityAxis,
+    resolve_capability,
+    validate_capability_registry,
+)
 
 if TYPE_CHECKING:
     from langchain.agents.middleware import ModelRequest, ModelResponse, ToolCallRequest
@@ -35,8 +42,11 @@ if TYPE_CHECKING:
 
 
 # ---------------------------------------------------------------------------
-# Pure RBAC helpers — shared by the middleware *and* the interpreter PTC
-# allowlist resolver so the two can never drift.
+# Pure RBAC helpers — named, readable façades over the unified
+# :func:`langclaw.rbac.resolve_capability` resolver. Kept as the public API the
+# interpreter PTC resolver, the bridge, and the gateway call; each is a thin
+# delegation, so a script can never reach a capability the requesting role
+# lacks and the per-axis semantics cannot drift from the registry.
 # ---------------------------------------------------------------------------
 
 
@@ -47,47 +57,23 @@ def allowed_tool_names(
 ) -> set[str]:
     """Return the set of tool names *role* may invoke, given the live toolset.
 
-    This is the single source of truth for tool-level RBAC.  Both
-    :func:`build_tool_permission_middleware` and the interpreter PTC allowlist
-    resolver call it, so a script can never reach a tool the requesting user
-    is not permitted to call.
-
-    Semantics mirror the middleware exactly:
-
-    - An **unknown role** (not in ``config.roles``) is *not* filtered — it
-      yields the full toolset (matching the middleware's pass-through).
-    - A role whose ``tools`` contains ``"*"`` yields the full toolset.
-    - Otherwise the role's listed tool names, intersected with what is
-      actually available.
-
-    Args:
-        config:         RBAC definitions.
-        role:           Resolved user role.
-        all_tool_names: Names of the tools currently on offer.
-
-    Returns:
-        The allowed subset of ``all_tool_names``.
+    The tool axis is **pass-through** for unknown roles (an unrecognised role
+    sees the full toolset); ``"*"`` grants all; otherwise the role's listed
+    names intersected with what is on offer. See
+    :func:`langclaw.rbac.resolve_capability`.
     """
-    universe = set(all_tool_names)
-    role_cfg = config.roles.get(role)
-    if role_cfg is None or "*" in role_cfg.tools:
-        return universe
-    return set(role_cfg.tools) & universe
+    return resolve_capability(TOOLS, config, role, all_tool_names)
 
 
 def allowed_subagents(config: PermissionsConfig, role: str) -> set[str]:
     """Return the subagent types *role* may invoke via ``tools.task``.
 
     **Default-deny**: a role that lists no ``subagents`` (or an unknown role)
-    yields the empty set.  This is a separate axis from ``tools`` — a role with
-    ``tools=["*"]`` still gets ``set()`` here unless it explicitly lists
-    subagents.  A ``"*"`` entry is preserved verbatim (interpreted as
-    "all subagents" by :func:`check_subagent_permission`).
+    yields the empty set, even with ``tools=["*"]``. A ``"*"`` entry is
+    preserved verbatim (interpreted as "all subagents" by
+    :func:`check_subagent_permission`).
     """
-    role_cfg = config.roles.get(role)
-    if role_cfg is None:
-        return set()
-    return set(role_cfg.subagents)
+    return resolve_capability(SUBAGENTS, config, role)
 
 
 def allowed_workflow_names(
@@ -97,37 +83,15 @@ def allowed_workflow_names(
 ) -> set[str]:
     """Return the set of workflow names *role* may invoke, given the registry.
 
-    The third RBAC axis, alongside :func:`allowed_tool_names` and
-    :func:`allowed_subagents`.  Semantics mirror ``allowed_subagents``
-    (**default-deny**), not ``allowed_tool_names`` (pass-through):
-
-    - An **unknown role** (not in ``config.roles``) yields the empty set.
-    - A role whose ``workflows`` contains ``"*"`` yields every registered
-      workflow.
-    - Otherwise the role's listed workflow names, intersected with what is
-      actually registered.
-
-    Default-deny is deliberate: a workflow can compose tools and subagents, so
-    a role with ``tools=["*"]`` should still not reach a workflow unless it is
-    explicitly granted.  Shared by the ``workflow_<name>`` tool gate, the
-    ``/workflows`` command, cron dispatch, and the PTC workflow-namespace
-    resolver so the axis cannot drift (unification tracked in #37).
-
-    Args:
-        config:             RBAC definitions.
-        role:               Resolved user role.
-        all_workflow_names: Names of the workflows currently registered.
-
-    Returns:
-        The allowed subset of ``all_workflow_names``.
+    **Default-deny** (like ``subagents``): an unknown role yields the empty set;
+    ``"*"`` grants every registered workflow; otherwise the role's listed names
+    intersected with what is registered. Default-deny is deliberate — a workflow
+    composes tools and subagents, so ``tools=["*"]`` must not implicitly grant
+    it. Shared by the ``workflow_<name>`` tool gate, the ``/workflows`` command,
+    cron dispatch, and the PTC workflow-namespace resolver via
+    :func:`langclaw.rbac.resolve_capability`.
     """
-    universe = set(all_workflow_names)
-    role_cfg = config.roles.get(role)
-    if role_cfg is None:
-        return set()
-    if "*" in role_cfg.workflows:
-        return universe
-    return set(role_cfg.workflows) & universe
+    return resolve_capability(WORKFLOWS, config, role, all_workflow_names)
 
 
 def check_subagent_permission(
@@ -165,13 +129,17 @@ def build_subagent_permission_middleware(
     instead of letting the subagent run — and without raising into the agent
     loop.
 
-    Per-type granularity lives here.  The *PTC* path (``tools.task(...)`` inside
-    an ``eval`` script) bypasses the ``ToolNode``, so it is gated more coarsely
-    in :func:`langclaw.interpreter.resolve_ptc_allowlist` (``task`` is dropped
-    from the script surface entirely when the role may use zero subagents).
-    Both paths read the same :func:`allowed_subagents` /
-    :func:`check_subagent_permission` helpers so they cannot drift.  Unifying
-    the two enforcement seams is tracked in issue #37.
+    The subagent axis is the one capability that maps to a tool *argument*
+    (``task``'s ``subagent_type``) rather than a tool *name*, so it keeps this
+    dedicated ``wrap_tool_call`` seam instead of riding the
+    :func:`build_capability_filter_middleware` list-filter. The *PTC* path
+    (``tools.task(...)`` inside an ``eval`` script) bypasses the ``ToolNode``, so
+    it is gated more coarsely in
+    :func:`langclaw.interpreter.resolve_ptc_allowlist` (``task`` is dropped from
+    the script surface entirely when the role may use zero subagents; finer
+    per-type PTC gating is a known limitation). All three paths *resolve* through
+    the same :func:`langclaw.rbac.resolve_capability` (via :func:`allowed_subagents`)
+    plus :func:`check_subagent_permission`, so the axis cannot drift.
     """
 
     @wrap_tool_call
@@ -185,9 +153,7 @@ def build_subagent_permission_middleware(
 
         subagent_type = (tool_call.get("args") or {}).get("subagent_type", "")
 
-        runtime = getattr(request, "runtime", None)
-        ctx = getattr(runtime, "context", None) if runtime else None
-        role = getattr(ctx, "user_role", config.default_role) if ctx else config.default_role
+        role = _resolve_role(request, config.default_role)
 
         allowed = allowed_subagents(config, role)
         error = check_subagent_permission(subagent_type, allowed)
@@ -219,110 +185,109 @@ async def _maybe_await(value):
     return value
 
 
-def build_tool_permission_middleware(
+def _resolve_role(request, default_role: str) -> str:
+    """Read the caller's role off the model/tool request runtime context."""
+    runtime = getattr(request, "runtime", None)
+    ctx = getattr(runtime, "context", None) if runtime else None
+    if ctx is None:
+        return default_role
+    return getattr(ctx, "user_role", default_role)
+
+
+def build_capability_filter_middleware(
     config: PermissionsConfig,
 ) -> Callable:
-    """Return a ``@wrap_model_call`` middleware closed over *config*.
+    """Return the single ``@wrap_model_call`` seam enforcing every tool-mapped axis.
 
-    Filters the tool list on every model call based on the user's
-    role (from ``request.runtime.context.user_role``).
+    The unified enforcement seam (issue #37). It governs **every** RBAC axis that
+    maps to a tool name — the tool axis (residual, un-prefixed names) and the
+    workflow axis (``workflow_<name>``) — in one pass, replacing the two separate
+    ``wrap_model_call`` filters that previously had to coordinate by hand (the
+    tool filter explicitly skipping ``workflow_*``, the workflow filter only
+    touching them).
+
+    Each tool in ``request.tools`` is classified to an axis by
+    :attr:`~langclaw.rbac.CapabilityAxis.tool_prefix` (longest-match), or to the
+    residual tool axis when it matches no prefix. Per axis, the role's allowed
+    set is resolved via :func:`~langclaw.rbac.resolve_capability` and the kept
+    names unioned; original tool order is preserved.
+
+    A new prefixed capability axis becomes enforced here automatically the moment
+    it is declared in :data:`langclaw.rbac.CAPABILITY_AXES` — no edit to this
+    function. Because the interpreter middleware recomputes its PTC surface from
+    the live ``request.tools`` each call, a tool stripped here is also unreachable
+    from a script (one gate covers both the direct call and the PTC call).
     """
+    # Refuse to build over a fail-open registry (an axis enforced nowhere would
+    # silently grant everyone everything). Structural-only here so this stays
+    # cheap on every agent build; create_claw_agent runs the fuller check.
+    validate_capability_registry(CAPABILITY_AXES)
+
+    prefix_axes = [a for a in CAPABILITY_AXES if a.tool_prefix is not None]
+    # Longest prefix first so nested prefixes classify deterministically.
+    prefix_axes.sort(key=lambda a: len(a.tool_prefix or ""), reverse=True)
+    residual_axis = next((a for a in CAPABILITY_AXES if a.is_residual_tool_axis), None)
 
     @wrap_model_call
-    async def _tool_permission_filter(
+    async def _capability_filter(
         request: ModelRequest,
         handler: Callable[[ModelRequest], ModelResponse],
     ) -> ModelResponse:
-        runtime = request.runtime
-        ctx = getattr(runtime, "context", None) if runtime else None
-        if ctx is not None:
-            user_role = getattr(ctx, "user_role", config.default_role)
+        role = _resolve_role(request, config.default_role)
+
+        # Bucket tools by axis (residual = matched no prefix).
+        buckets: dict[str, list] = {a.name: [] for a in prefix_axes}
+        residual_tools: list = []
+        for t in request.tools:
+            for axis in prefix_axes:
+                if t.name.startswith(axis.tool_prefix):
+                    buckets[axis.name].append(t)
+                    break
+            else:
+                residual_tools.append(t)
+
+        allowed_names: set[str] = set()
+        if residual_axis is not None:
+            names = [t.name for t in residual_tools]
+            allowed_names |= resolve_capability(residual_axis, config, role, names)
         else:
-            user_role = config.default_role
+            allowed_names |= {t.name for t in residual_tools}
 
-        # ``workflow_<name>`` tools are governed by the *workflow* RBAC axis
-        # (build_workflow_permission_middleware), not the tool axis — exclude
-        # them here so the two axes don't double-gate or fight each other.
-        gated = [t for t in request.tools if not t.name.startswith(_WORKFLOW_TOOL_PREFIX)]
-        all_names = [t.name for t in gated]
-        allowed = allowed_tool_names(config, user_role, all_names)
-        if allowed == set(all_names):
-            logger.debug(
-                f"Permissions: role={user_role} allowed all tools for this call",
-            )
-            return await handler(request)
+        for axis in prefix_axes:
+            group = buckets[axis.name]
+            plen = len(axis.tool_prefix)
+            bare = [t.name[plen:] for t in group]
+            permitted = resolve_capability(axis, config, role, bare)
+            allowed_names |= {f"{axis.tool_prefix}{n}" for n in permitted}
 
-        # Keep allowed tool-axis tools AND all workflow_* tools (passed through).
-        filtered = [
-            t
-            for t in request.tools
-            if t.name in allowed or t.name.startswith(_WORKFLOW_TOOL_PREFIX)
-        ]
-        logger.debug(
-            f"Permissions: role={user_role} allowed tools {allowed} for this call",
-        )
-
-        return await handler(request.override(tools=filtered))
-
-    return _tool_permission_filter
-
-
-def build_workflow_permission_middleware(
-    config: PermissionsConfig,
-) -> Callable:
-    """Return a ``@wrap_model_call`` middleware enforcing ``RoleConfig.workflows``.
-
-    The third RBAC axis.  Registered workflows are exposed to the agent as
-    ``workflow_<name>`` tools; this filter removes any whose bare name the
-    caller's role is not granted via
-    :func:`allowed_workflow_names` (**default-deny**).  Non-workflow tools pass
-    through untouched — the tool axis owns those.
-
-    Because the interpreter middleware recomputes its PTC surface from the live
-    ``request.tools`` on every call, stripping a ``workflow_<name>`` tool here
-    also removes it from a script's ``tools.workflow<Name>`` reach (Mode 1) — one
-    gate covers both the direct tool call and the PTC call.
-    """
-
-    @wrap_model_call
-    async def _workflow_permission_filter(
-        request: ModelRequest,
-        handler: Callable[[ModelRequest], ModelResponse],
-    ) -> ModelResponse:
-        runtime = request.runtime
-        ctx = getattr(runtime, "context", None) if runtime else None
-        user_role = getattr(ctx, "user_role", config.default_role) if ctx else config.default_role
-
-        wf_tools = [t for t in request.tools if t.name.startswith(_WORKFLOW_TOOL_PREFIX)]
-        if not wf_tools:
-            return await handler(request)
-
-        bare_names = [t.name[len(_WORKFLOW_TOOL_PREFIX) :] for t in wf_tools]
-        permitted = allowed_workflow_names(config, user_role, bare_names)
-        permitted_full = {f"{_WORKFLOW_TOOL_PREFIX}{n}" for n in permitted}
-
-        kept = [
-            t
-            for t in request.tools
-            if not t.name.startswith(_WORKFLOW_TOOL_PREFIX) or t.name in permitted_full
-        ]
+        kept = [t for t in request.tools if t.name in allowed_names]
         if len(kept) == len(request.tools):
+            logger.debug(f"Permissions: role={role} allowed all capabilities for this call")
             return await handler(request)
 
         logger.debug(
-            f"Workflow permissions: role={user_role} allowed workflows {permitted}",
+            f"Permissions: role={role} kept {sorted(allowed_names)} for this call",
         )
         return await handler(request.override(tools=kept))
 
-    return _workflow_permission_filter
+    return _capability_filter
+
+
+# Back-compat aliases — the per-axis builders were unified into one filter
+# (issue #37). Existing imports keep working; both now return the all-axis seam.
+build_tool_permission_middleware = build_capability_filter_middleware
+build_workflow_permission_middleware = build_capability_filter_middleware
 
 
 __all__ = [
+    "CapabilityAxis",
     "allowed_subagents",
     "allowed_tool_names",
     "allowed_workflow_names",
+    "build_capability_filter_middleware",
     "build_subagent_permission_middleware",
     "build_tool_permission_middleware",
     "build_workflow_permission_middleware",
     "check_subagent_permission",
+    "validate_capability_registry",
 ]

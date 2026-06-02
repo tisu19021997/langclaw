@@ -70,7 +70,7 @@ def resolve_workflow_ptc_names(
        role's :func:`~langclaw.middleware.permissions.allowed_workflow_names`
        (**default-deny**) — so a script can never reach a workflow the role lacks
        and the PTC surface cannot drift from the live ``workflow_<name>`` tool
-       gate (both read ``allowed_workflow_names``; unification tracked in #37).
+       gate (both resolve through :func:`langclaw.rbac.resolve_capability`).
 
     Returns:
         Sorted ``workflow_<name>`` tool names to merge into the interpreter's
