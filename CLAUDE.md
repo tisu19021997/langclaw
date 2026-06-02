@@ -344,9 +344,10 @@ filesystem-rooted (`local_shell` default / `filesystem`). Flow:
    `<code_interpreter>` nudge routes "run a workflow"/"orchestrate" phrasing here).
 2. User: *"Save that workflow as hn_digest"* → the agent calls
    `write_file("workflows/hn_digest.js", <the same JS>)`. The convention (taught
-   in the `<workflows>` nudge): name `[A-Za-z0-9_-]+`; optional `// @description`
-   and `// @uses a, b` header comments; body gets `inp`, emits via
-   `tools.output({result})`.
+   in the `<workflows>` nudge): name `[A-Za-z0-9_]+` (snake_case, no hyphens — a
+   hyphen makes the in-sandbox `tools.workflow_my-flow` un-callable); optional
+   `// @description` and `// @uses a, b` header comments; body gets `inp`, emits
+   via `tools.output({result})`.
 3. **Same-session liveness:** `GatewayManager._ensure_agent_fresh` hashes the
    `workflows/` folder (alongside the AGENTS.md content hash). On change it calls
    the `saved_reload_cb` → `app._reload_saved_workflows()`, which reconciles files

@@ -13,6 +13,7 @@ from langclaw.workflows.saved_store import (
     SavedWorkflow,
     SavedWorkflowStore,
     parse_metadata,
+    validate_saved_name,
 )
 
 
@@ -88,6 +89,23 @@ def test_save_rejects_unsafe_name(tmp_path: Path) -> None:
     for bad in ("../escape", "a/b", "with space", ""):
         with pytest.raises(ValueError):
             store.save(bad, script="x")
+
+
+def test_validate_name_requires_snake_case_no_hyphen() -> None:
+    """Best practice: snake_case with underscores. Hyphens are rejected so the
+    in-sandbox name (`tools.workflowHnAiDigest`) stays unambiguous and collision-free."""
+    # Hyphenated kebab-case is no longer allowed.
+    with pytest.raises(ValueError, match="snake_case|underscore"):
+        validate_saved_name("hn-ai-digest")
+    # snake_case with underscores is the blessed form.
+    assert validate_saved_name("hn_ai_digest") == "hn_ai_digest"
+    assert validate_saved_name("digest2") == "digest2"
+
+
+def test_save_rejects_hyphenated_name(tmp_path: Path) -> None:
+    store = SavedWorkflowStore(tmp_path / "workflows")
+    with pytest.raises(ValueError):
+        store.save("hn-ai-digest", script="await tools.output({ result: 1 });")
 
 
 def test_load_skips_unsafe_filenames(tmp_path: Path) -> None:
