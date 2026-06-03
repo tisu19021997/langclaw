@@ -214,11 +214,131 @@ async def _run_repl(agent: object, config: dict) -> None:
 
 
 @app.command()
-def gateway() -> None:
+def gateway(
+    probe: Annotated[
+        bool,
+        typer.Option(
+            "--probe",
+            help="Run a WebSocket-only, isolated gateway for the probe harness "
+            "(all other channels forced off, so test traffic never reaches a "
+            "real Telegram/Discord chat).",
+        ),
+    ] = False,
+    probe_port: Annotated[
+        int | None,
+        typer.Option("--probe-port", help="WebSocket port to use in --probe mode."),
+    ] = None,
+) -> None:
     """Start the multi-channel gateway (all enabled channels)."""
     from langclaw.app import Langclaw
 
-    Langclaw.from_env().run()
+    Langclaw.from_env().run(probe=probe, probe_port=probe_port)
+
+
+# ---------------------------------------------------------------------------
+# langclaw probe
+# ---------------------------------------------------------------------------
+
+
+@app.command()
+def probe(
+    message: Annotated[str, typer.Argument(help="The user message to inject.")],
+    transport: Annotated[
+        str,
+        typer.Option("--transport", "-t", help="Transport: 'ws' or 'telegram'."),
+    ] = "ws",
+    url: Annotated[
+        str,
+        typer.Option("--url", help="Gateway WebSocket URL (ws transport)."),
+    ] = "ws://127.0.0.1:18789",
+    agent: Annotated[
+        str | None,
+        typer.Option("--agent", "-a", help="Target a named agent (ws transport)."),
+    ] = None,
+    reset: Annotated[
+        bool,
+        typer.Option("--reset", help="Send /reset first so prior history is cleared."),
+    ] = False,
+    timeout: Annotated[
+        float,
+        typer.Option("--timeout", help="Per-turn safety-net timeout (seconds)."),
+    ] = 60.0,
+    bot: Annotated[
+        str | None,
+        typer.Option("--bot", help="Target bot @username (telegram transport)."),
+    ] = None,
+    idle: Annotated[
+        float,
+        typer.Option("--idle", help="Idle-timeout marking turn complete (telegram)."),
+    ] = 10.0,
+) -> None:
+    """Inject a user turn through a running gateway and print the response events.
+
+    Drives the real ``gateway → bus → agent → channel`` pipeline. Start the
+    gateway first, e.g. ``langclaw gateway --probe`` in another terminal.
+    """
+    asyncio.run(
+        _probe_async(
+            message=message,
+            transport_name=transport,
+            url=url,
+            agent=agent,
+            reset=reset,
+            timeout=timeout,
+            bot=bot,
+            idle=idle,
+        )
+    )
+
+
+async def _probe_async(
+    *,
+    message: str,
+    transport_name: str,
+    url: str,
+    agent: str | None,
+    reset: bool,
+    timeout: float,
+    bot: str | None,
+    idle: float,
+) -> None:
+    from langclaw.testing import format_events
+    from langclaw.testing import probe as run_probe
+
+    if transport_name == "ws":
+        from langclaw.testing import WebSocketProbeTransport
+
+        transport: object = WebSocketProbeTransport(url)
+    elif transport_name == "telegram":
+        if not bot:
+            typer.echo("--bot @username is required for the telegram transport.", err=True)
+            raise typer.Exit(1)
+        from langclaw.testing import TelegramProbeTransport
+
+        transport = TelegramProbeTransport(bot, idle_timeout=idle)
+    else:
+        typer.echo(f"Unknown transport '{transport_name}' (use 'ws' or 'telegram').", err=True)
+        raise typer.Exit(1)
+
+    try:
+        events = await run_probe(
+            message,
+            transport=transport,  # type: ignore[arg-type]
+            agent=agent,
+            reset=reset,
+            timeout=timeout,
+        )
+    except (ConnectionError, OSError) as exc:
+        typer.echo(
+            f"Could not reach the gateway at {url}: {exc}\n"
+            "Start it first, e.g.: langclaw gateway --probe",
+            err=True,
+        )
+        raise typer.Exit(1) from exc
+
+    typer.echo(format_events(events))
+    if any(e.type == "error" for e in events):
+        raise typer.Exit(1)
 
 
 # ---------------------------------------------------------------------------
