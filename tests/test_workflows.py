@@ -1123,7 +1123,7 @@ async def test_runtime_mode2_authors_then_runs_script():
         seen["author"] = (s.name, inp)
         return "return 'BODY';"
 
-    async def script_runner(script, inp):
+    async def script_runner(script, inp, **_):
         seen["run"] = (script, inp)
         return f"ran:{script}"
 
@@ -1152,7 +1152,7 @@ async def test_runtime_mode2_resume_replays_without_reauthoring():
         author_calls += 1
         return next(versions)
 
-    async def script_runner(script, inp):
+    async def script_runner(script, inp, **_):
         return script
 
     o1 = await rt.start_run(spec, None, run_id="r1", author=author, script_runner=script_runner)
@@ -1196,7 +1196,7 @@ async def test_runtime_saved_mode_runs_frozen_script():
     rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
     seen: dict = {}
 
-    async def script_runner(script, inp):
+    async def script_runner(script, inp, **_):
         seen["run"] = (script, inp)
         return {"echo": inp}
 
@@ -1230,7 +1230,7 @@ async def test_run_registered_saved_uses_script_runner_factory():
     )
     rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
 
-    async def script_runner(script, inp):
+    async def script_runner(script, inp, **_):
         return f"ran:{script}"
 
     rt.set_authoring_factories(
@@ -1239,6 +1239,50 @@ async def test_run_registered_saved_uses_script_runner_factory():
     )
     out = await rt.run_registered(spec, None, run_id="r1")
     assert out == "ran:BODY"
+
+
+async def test_runtime_saved_mode_emits_phase_and_log_progress():
+    """A saved workflow's tools.phase/tools.log calls surface as phase/log
+    progress events — the same stream a python workflow's ctx.phase/ctx.log
+    produces, tagged with the workflow name and run_id."""
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.config.schema import WorkflowsConfig
+    from langclaw.workflows import (
+        WorkflowRuntime,
+        WorkflowSpec,
+        build_workflow_script_runner,
+    )
+    from langclaw.workflows.progress import reset_progress_sink, set_progress_sink
+
+    spec = WorkflowSpec(
+        name="hn",
+        fn=lambda c, i: None,
+        description="d",
+        mode="saved",
+        script=(
+            "await tools.phase({ name: 'gather' });\n"
+            "await tools.log({ message: 'fetched 3' });\n"
+            "await tools.output({ result: inp.n });"
+        ),
+    )
+    rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
+    rt.set_authoring_factories(
+        author_factory=lambda s: None,
+        script_runner_factory=lambda s: build_workflow_script_runner([]),
+    )
+
+    events: list = []
+    token = set_progress_sink(events.append)
+    try:
+        out = await rt.run_registered(spec, {"n": 9}, run_id="run-abc")
+    finally:
+        reset_progress_sink(token)
+
+    assert out == 9
+    phases = [(e["workflow"], e["phase"], e["run_id"]) for e in events if e["kind"] == "phase"]
+    msgs = [(e["workflow"], e["message"], e["run_id"]) for e in events if e["kind"] == "log"]
+    assert phases == [("hn", "gather", "run-abc")]
+    assert msgs == [("hn", "fetched 3", "run-abc")]
 
 
 async def test_runtime_python_mode_still_requires_executor():
@@ -1323,6 +1367,44 @@ async def test_script_runner_disallowed_tool_is_unavailable():
     runner = build_workflow_script_runner([])  # no tools exposed
     with pytest.raises(WorkflowStepError):
         await runner("await tools.webSearch({query: 'x'});", None)
+
+
+async def test_script_runner_exposes_phase_and_log_sinks():
+    """The sandbox surfaces tools.phase/tools.log — the JS counterpart of
+    ctx.phase/ctx.log — wired to the injected progress callbacks, so a saved or
+    authored body can narrate progress just like a Python workflow."""
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    phases: list[str] = []
+    logs: list[str] = []
+    runner = build_workflow_script_runner([])
+    script = (
+        "await tools.phase({ name: 'gather' });\n"
+        "await tools.log({ message: '1/2 done' });\n"
+        "await tools.phase({ name: 'synthesize' });\n"
+        "await tools.output({ result: inp.n });"
+    )
+    out = await runner(script, {"n": 7}, phase_cb=phases.append, log_cb=logs.append)
+    assert out == 7
+    assert phases == ["gather", "synthesize"]
+    assert logs == ["1/2 done"]
+
+
+async def test_script_runner_phase_log_are_optional_noops():
+    """Without callbacks, tools.phase/tools.log are harmless no-ops — a body can
+    narrate freely without caring whether anyone is listening (ctx.log parity)."""
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    runner = build_workflow_script_runner([])
+    out = await runner(
+        "await tools.phase({ name: 'x' });\n"
+        "await tools.log({ message: 'y' });\n"
+        "await tools.output({ result: 'ok' });",
+        None,
+    )
+    assert out == "ok"
 
 
 # ---------------------------------------------------------------------------
@@ -1427,7 +1509,7 @@ async def test_make_workflow_tools_routes_llm_authored_to_author_and_runner():
         calls["authored"] = spec.name
         return "SCRIPT"
 
-    async def script_runner(script, inp):
+    async def script_runner(script, inp, **_):
         calls["ran"] = script
         return "DONE"
 
@@ -1646,7 +1728,7 @@ async def test_runtime_emits_authored_script_progress():
         async def author(s, i):
             return "BODY-SCRIPT"
 
-        async def runner(s, i):
+        async def runner(s, i, **_):
             return "done"
 
         await rt.start_run(spec, None, run_id="r1", author=author, script_runner=runner)
@@ -2130,7 +2212,7 @@ async def test_run_registered_llm_authored_uses_authoring_factories():
     async def _author(spec, inp):
         return "SCRIPT_BODY"
 
-    async def _runner(script, inp):
+    async def _runner(script, inp, **_):
         return {"ran": script}
 
     rt = WorkflowRuntime(WorkflowsConfig(enabled=True))
@@ -2180,7 +2262,7 @@ async def test_resume_incomplete_resumes_llm_authored_with_script_store():
 
     runs: list[str] = []
 
-    async def _runner(script, inp):
+    async def _runner(script, inp, **_):
         runs.append(script)
         return {"body": script}
 
