@@ -56,3 +56,6 @@ tisu.py
 examples/photography/*
 examples/rentagent_vn/memories/*
 .cursor/memories/*
+
+# Probe demo (isolated, throwaway state)
+.probe_demo/
