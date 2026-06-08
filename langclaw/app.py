@@ -148,6 +148,9 @@ class Langclaw:
         self._startup_hooks: list[Callable] = []
         self._shutdown_hooks: list[Callable] = []
         self._bus: BaseMessageBus | None = None
+        # Probe mode: force a WebSocket-only, isolated channel set (set by run()).
+        self._probe_ws_only: bool = False
+        self._probe_port: int | None = None
         self._context_defaults: dict[str, Any] = {}
         self._context_factory: (
             Callable[[InboundMessage, dict[str, Any]], Awaitable[LangclawContext]] | None
@@ -893,12 +896,23 @@ class Langclaw:
     # Gateway (high-level API)
     # ------------------------------------------------------------------
 
-    def run(self) -> None:
+    def run(self, *, probe: bool = False, probe_port: int | None = None) -> None:
         """Start the multi-channel gateway (blocking).
 
         Wires up the message bus, checkpointer, channels, cron manager,
         and agent, then runs ``GatewayManager`` until cancelled.
+
+        Args:
+            probe: When True, run a **WebSocket-only** gateway with every other
+                channel disabled regardless of config. This isolates the surface
+                for the probe harness so test traffic never reaches a real
+                Telegram/Discord chat. Applied at the channel-assembly seam — the
+                user's config file is never mutated.
+            probe_port: Override the WebSocket port in probe mode (defaults to the
+                configured ``channels.websocket.port``).
         """
+        self._probe_ws_only = probe
+        self._probe_port = probe_port
         asyncio.run(self._run_async())
 
     async def _run_async(self) -> None:
@@ -1116,6 +1130,22 @@ class Langclaw:
         channels: list[BaseChannel] = []
 
         ch_cfg = self._config.channels
+
+        # Probe mode: WebSocket-only, every other channel forced off. Built from a
+        # config *copy* so the user's config file is untouched; extra programmatic
+        # channels are excluded too, to guarantee an isolated test surface.
+        if self._probe_ws_only:
+            from langclaw.gateway.websocket import WebSocketChannel
+
+            # Force the loopback host. Probe mode is an isolated test surface — the
+            # full toolset + LLM behind a channel with no auth by default — so it
+            # must never bind a public interface, even if the user configured
+            # channels.websocket.host (e.g. 0.0.0.0) for a real deployment.
+            updates: dict[str, Any] = {"enabled": True, "host": "127.0.0.1"}
+            if self._probe_port is not None:
+                updates["port"] = self._probe_port
+            ws_cfg = ch_cfg.websocket.model_copy(update=updates)
+            return [WebSocketChannel(ws_cfg)]
 
         if ch_cfg.telegram.enabled:
             try:

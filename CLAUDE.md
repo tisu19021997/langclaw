@@ -38,6 +38,7 @@ uv run pre-commit run --all-files  # Full pre-commit suite
 | Choose agent backend | `langclaw/agents/backend.py` (`make_backend` factory + `backend_root_dir`) |
 | Modify config schema | `langclaw/config/schema.py` (Pydantic Settings) |
 | Code interpreter (RLM) | `langclaw/interpreter/__init__.py` (PTC resolver + middleware factory) |
+| Probe harness (E2E feature testing) | `langclaw/testing/` (`probe()` core + `ProbeTransport` + WS/Telegram drivers); `langclaw gateway --probe` (WS-only seam in `app.py:_build_all_channels`) + `langclaw probe` CLI. Design: [docs/PROBE.md](docs/PROBE.md) |
 | Runtime workflow authoring | `langclaw/workflows/saved_store.py` (parse/load) + `app._reload_saved_workflows` + gateway folder-watch |
 | CLI commands | `langclaw/cli/app.py` (Typer) |
 | Agent construction | `langclaw/agents/builder.py` |

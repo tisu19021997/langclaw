@@ -50,6 +50,7 @@ dependencies = [
 
 [project.optional-dependencies]
 telegram = ["python-telegram-bot>=21"]
+telegram-e2e = ["telethon>=1.36"]
 discord  = ["discord.py>=2"]
 websocket = [
     "websockets>=14",
