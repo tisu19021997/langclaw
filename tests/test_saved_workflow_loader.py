@@ -49,6 +49,25 @@ def test_loader_noop_when_interpreter_disabled(tmp_path: Path) -> None:
     assert app._workflows.get("x") is None
 
 
+def test_loader_reconciles_when_interpreter_enabled_via_constructor_flag(tmp_path: Path) -> None:
+    # `Langclaw(enable_interpreter=True)` must enable saved-workflow reconcile
+    # exactly like `interpreter.enabled=True` in config. The reconcile gated on the
+    # RAW config flag, so the constructor flag silently skipped it — `/workflows`
+    # stayed empty and no `workflow_<name>` tools appeared, with no error.
+    cfg = LangclawConfig()
+    cfg.agents.root_dir = str(tmp_path)
+    cfg.workflows.enabled = True
+    cfg.interpreter.enabled = False  # NOT set in raw config...
+    app = Langclaw(config=cfg, enable_interpreter=True)  # ...only via the constructor flag
+
+    SavedWorkflowStore(app._config.agents.workflows_dir).save(
+        "flagged", script="await tools.output({ result: 1 });", description="via flag"
+    )
+
+    assert app._reload_saved_workflows() is True
+    assert app._workflows.get("flagged") is not None
+
+
 def test_loader_skips_name_colliding_with_registered_workflow(tmp_path: Path) -> None:
     app = _app_with_workspace(tmp_path)
 

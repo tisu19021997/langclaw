@@ -798,7 +798,10 @@ class Langclaw:
         reserved name) always wins, so a file can never shadow or evict it.
         """
         cfg = self._config
-        if not (cfg.workflows.enabled and cfg.interpreter.enabled):
+        # Gate on _interpreter_active() (not raw cfg.interpreter.enabled) so the
+        # `Langclaw(enable_interpreter=True)` constructor flag enables reconcile too —
+        # consistent with how the agent builder decides the interpreter is active.
+        if not (cfg.workflows.enabled and self._interpreter_active()):
             return False
         desired = {sw.name: sw for sw in self._saved_workflow_store().load_all()}
         reserved = self._reserved_names()
@@ -1033,9 +1036,11 @@ class Langclaw:
                     workflow_registry=(self._workflows if cfg.workflows.enabled else None),
                     workflow_run_store=self._run_store,
                     # Reconcile saved workflow files on folder change → live tools.
+                    # _interpreter_active() (not raw cfg) so the enable_interpreter=True
+                    # constructor flag wires the folder-watch reload too.
                     saved_reload_cb=(
                         self._reload_saved_workflows
-                        if (cfg.workflows.enabled and cfg.interpreter.enabled)
+                        if (cfg.workflows.enabled and self._interpreter_active())
                         else None
                     ),
                 )

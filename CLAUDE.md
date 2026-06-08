@@ -411,5 +411,11 @@ source of truth (editable, version-controllable).
 loader, so file-authoring is gated off there. The folder is rooted at the backend
 fs root (`workflows_dir`) so it matches where `write_file` lands. A saved body is
 JS in the eval sandbox; its capability surface is the workflow step toolset
-narrowed by `@uses`. Saved-mode resume is at-least-once / non-idempotent (no
-per-step memoization), like `llm_authored`.
+narrowed by `@uses` — **langclaw-registered tools only**. The deepagents *backend*
+file tools (`read_file`/`write_file`/`ls`/`glob`/`grep`/`edit_file`) are injected
+inside `create_deep_agent` bound to an injected `ToolRuntime` the workflow PTC
+bridge can't supply, so a workflow can't `@uses` them (the `eval` interpreter can,
+because it bridges the live per-call toolset). Declaring one fails fast at run
+start with a clear error (`resolve_workflow_tools`) instead of `TypeError: not a
+function` in the sandbox; use `web_fetch` to read a URL/file. Saved-mode resume is
+at-least-once / non-idempotent (no per-step memoization), like `llm_authored`.

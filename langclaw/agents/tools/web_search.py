@@ -12,7 +12,8 @@ Supported backends
 
 ``"duckduckgo"``
     DuckDuckGo via ``langchain_community.tools.DuckDuckGoSearchResults``.
-    No API key needed; requires ``duckduckgo-search`` package.
+    No API key needed; requires the ``ddgs`` package (the renamed
+    ``duckduckgo-search``, which ``langchain_community`` now imports as ``ddgs``).
 """
 
 from __future__ import annotations
@@ -145,8 +146,8 @@ def _make_duckduckgo_tool() -> BaseTool:
             from langchain_community.tools import DuckDuckGoSearchResults
         except ImportError as exc:
             raise ImportError(
-                "langchain-community and duckduckgo-search are required. "
-                "Install with: uv add langchain-community duckduckgo-search"
+                "langchain-community and ddgs are required. "
+                "Install with: uv add langchain-community ddgs"
             ) from exc
 
         logger.debug('DuckDuckGo search: "{}" (n={})', query, n)
