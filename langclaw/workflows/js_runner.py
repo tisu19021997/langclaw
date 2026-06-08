@@ -355,6 +355,99 @@ def select_workflow_tools(
     return selected
 
 
+# Deepagents injects these backend file tools *inside* ``create_deep_agent``, bound
+# to an injected LangGraph ``ToolRuntime`` the workflow PTC bridge can't supply.
+# They are reachable from the ``eval`` interpreter (it bridges the live per-call
+# ``request.tools`` together with that runtime) but NOT from a saved/authored
+# workflow, whose ``@uses`` resolves only the langclaw-registered live toolset.
+_BACKEND_FILE_TOOLS: frozenset[str] = frozenset(
+    {"read_file", "write_file", "edit_file", "ls", "glob", "grep", "execute"}
+)
+
+
+def _available_uses_names(tools: Sequence[BaseTool]) -> set[str]:
+    """Every spelling an ``@uses`` entry may use to name a live tool.
+
+    A tool is nameable by its registered ``.name`` (snake_case) *or* its canonical
+    camelCase sandbox surface — the two forms :func:`select_workflow_tools` matches.
+    """
+    names: set[str] = set()
+    for t in tools:
+        name = getattr(t, "name", "") or ""
+        if name:
+            names.add(name)
+            names.add(to_camel_case(name))
+    return names
+
+
+def _is_backend_file_tool(name: str) -> bool:
+    """Whether *name* (snake_case or camelCase) is a deepagents backend file tool."""
+    return name in _BACKEND_FILE_TOOLS or name in {to_camel_case(n) for n in _BACKEND_FILE_TOOLS}
+
+
+def unresolved_workflow_tools(
+    tools: Sequence[BaseTool], uses_tools: Sequence[str] | None
+) -> list[str]:
+    """Names a workflow ``@uses``-declares that match no live tool (declaration order).
+
+    The complement of :func:`select_workflow_tools` (which returns the *selected*
+    tools): this returns the *declared-but-missing* names, so a caller can fail fast
+    instead of letting the body hit ``TypeError: not a function`` in the sandbox.
+    """
+    wanted = list(uses_tools or [])
+    if not wanted:
+        return []
+    available = _available_uses_names(tools)
+    return [w for w in wanted if w not in available]
+
+
+def resolve_workflow_tools(
+    tools: Sequence[BaseTool],
+    uses_tools: Sequence[str] | None,
+    *,
+    workflow_name: str = "",
+) -> list[BaseTool]:
+    """Select a workflow's ``@uses`` tools, failing fast if any don't resolve.
+
+    Same selection as :func:`select_workflow_tools`, but a declared name that
+    resolves to nothing raises a clear, actionable ``ValueError`` (naming the
+    workflow and the offending tools) instead of the cryptic in-sandbox
+    ``TypeError: not a function``. The common mistake is declaring a deepagents
+    backend file tool (``read_file`` / ``write_file`` / …), which a workflow cannot
+    reach — those get a specific hint pointing at ``web_fetch``.
+
+    Args:
+        tools:         The live toolset to narrow (already role-filtered).
+        uses_tools:    The workflow's declared tool names (camelCase or snake_case).
+        workflow_name: The workflow's name, woven into the error message.
+
+    Returns:
+        The subset of *tools* the workflow declared, preserving input order.
+
+    Raises:
+        ValueError: if any declared name resolves to no live tool.
+    """
+    missing = unresolved_workflow_tools(tools, uses_tools)
+    if not missing:
+        return select_workflow_tools(tools, uses_tools)
+
+    label = f"Workflow {workflow_name!r}" if workflow_name else "Workflow"
+    if any(_is_backend_file_tool(m) for m in missing):
+        hint = (
+            " The deepagents backend file tools "
+            "(read_file / write_file / edit_file / ls / glob / grep) are NOT reachable "
+            "from a workflow's @uses — only langclaw-registered tools are (e.g. "
+            "web_search, web_fetch, cron, move_file, delete_file). Use web_fetch to "
+            "read a URL or file, or drop the @uses entry."
+        )
+    else:
+        hint = (
+            " @uses must name a langclaw-registered tool; check the spelling "
+            "(snake_case or camelCase)."
+        )
+    raise ValueError(f"{label} declares @uses {missing} but they resolve to no live tool.{hint}")
+
+
 def _to_jsonable(value: Any) -> Any:
     """Render the run input as a JSON-injectable value for the ``inp`` global."""
     if value is None:

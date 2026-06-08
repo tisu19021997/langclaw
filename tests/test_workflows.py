@@ -208,6 +208,52 @@ def test_app_create_agent_wires_registered_workflows(monkeypatch):
     assert "workflow_digest" in tool_names
 
 
+async def test_saved_workflow_uses_backend_file_tool_fails_clearly(monkeypatch):
+    """A saved workflow that ``@uses`` a deepagents backend file tool (which a
+    workflow can't reach — it needs an injected ToolRuntime the PTC bridge lacks)
+    fails fast at run-start with a clear error naming the tool, not the cryptic
+    in-sandbox ``TypeError: not a function``."""
+    import deepagents
+
+    from langclaw import Langclaw
+    from langclaw.config.schema import LangclawConfig
+    from langclaw.workflows import WorkflowSpec
+
+    captured: dict = {}
+
+    def fake_create_deep_agent(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(deepagents, "create_deep_agent", fake_create_deep_agent)
+
+    async def _noop(ctx, inp):
+        return None
+
+    app = Langclaw(
+        config=LangclawConfig(interpreter={"enabled": True}, workflows={"enabled": True})
+    )
+    app._workflows.register(
+        WorkflowSpec(
+            name="reads_file",
+            fn=_noop,
+            description="reads a file it cannot reach",
+            mode="saved",
+            script="await tools.output({ result: await tools.readFile({ file_path: 'a' }) });",
+            uses_tools=["read_file"],
+        )
+    )
+    app.create_agent(model=object())
+
+    tool = next(t for t in captured["tools"] if getattr(t, "name", "") == "workflow_reads_file")
+    out = await tool.ainvoke({list(tool.args)[0]: {}})
+
+    text = out if isinstance(out, str) else str(out)
+    assert "read_file" in text  # names the offending tool
+    assert "backend file tools" in text.lower()  # the specific, actionable hint
+    assert "not a function" not in text.lower()  # not the cryptic in-sandbox failure
+
+
 def test_authoring_nudge_present_when_interpreter_and_workflows_enabled(monkeypatch):
     """With both flags on (and the default filesystem-rooted backend), the system
     prompt teaches the agent to author workflows by writing workflows/<name>.js —

@@ -339,7 +339,7 @@ def create_claw_agent(
             build_workflow_script_runner,
             make_workflow_tools,
             resolve_workflow_ptc_names,
-            select_workflow_tools,
+            resolve_workflow_tools,
         )
 
         _live_tools = tools
@@ -351,8 +351,13 @@ def create_claw_agent(
             # Mode 2 / saved allowlist: spec.uses_tools ∩ live toolset (none → none).
             # uses_tools names the camelCase sandbox surface (e.g. "webFetch"); the
             # live tool name is snake_case ("web_fetch"), so match on either form —
-            # otherwise web_fetch/web_search silently drop out of the sandbox.
-            return select_workflow_tools(_live_tools, spec.uses_tools)
+            # otherwise web_fetch/web_search silently drop out of the sandbox. A
+            # declared name that resolves to nothing (e.g. a deepagents backend file
+            # tool, unreachable from a workflow) fails fast here with a clear error
+            # rather than `TypeError: not a function` deep in the sandbox.
+            return resolve_workflow_tools(
+                _live_tools, spec.uses_tools, workflow_name=getattr(spec, "name", "")
+            )
 
         def _workflow_author_factory(spec: Any) -> Any:
             return build_workflow_author(resolved_model, tools=_tools_for_spec(spec))
