@@ -1137,7 +1137,11 @@ class Langclaw:
         if self._probe_ws_only:
             from langclaw.gateway.websocket import WebSocketChannel
 
-            updates: dict[str, Any] = {"enabled": True}
+            # Force the loopback host. Probe mode is an isolated test surface — the
+            # full toolset + LLM behind a channel with no auth by default — so it
+            # must never bind a public interface, even if the user configured
+            # channels.websocket.host (e.g. 0.0.0.0) for a real deployment.
+            updates: dict[str, Any] = {"enabled": True, "host": "127.0.0.1"}
             if self._probe_port is not None:
                 updates["port"] = self._probe_port
             ws_cfg = ch_cfg.websocket.model_copy(update=updates)

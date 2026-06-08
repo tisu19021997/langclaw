@@ -287,6 +287,7 @@ def test_probe_mode_assembles_websocket_only():
     cfg = LangclawConfig()
     cfg.channels.telegram.enabled = True  # would normally add a Telegram channel
     cfg.channels.websocket.enabled = False  # off in config...
+    cfg.channels.websocket.host = "0.0.0.0"  # ...and a public bind in the real config
 
     lc = Langclaw(config=cfg)
     lc._probe_ws_only = True
@@ -297,6 +298,10 @@ def test_probe_mode_assembles_websocket_only():
     assert [c.name for c in channels] == ["websocket"]  # ...but probe forces WS-only
     assert channels[0]._config.port == 19999
     assert channels[0]._config.enabled is True
+    # probe forces loopback even when the user configured a public host, so the
+    # isolated test surface (full tools + LLM, no auth) is never network-exposed.
+    assert channels[0]._config.host == "127.0.0.1"
     # user config object untouched
     assert cfg.channels.websocket.enabled is False
+    assert cfg.channels.websocket.host == "0.0.0.0"
     assert cfg.channels.telegram.enabled is True
