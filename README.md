@@ -8,24 +8,37 @@
 
 ---
 
-**Repository**: [github.com/tisu19021997/langclaw](https://github.com/tisu19021997/langclaw)
+**Langclaw is a Python framework for building production-grade, multi-channel AI agent systems:**
 
----
+- **RBAC** — declarative, three-axis (tools · subagents · workflows)
+- **Durable workflows** — typed, multi-step, resumable
+- **Scheduled jobs** — cron through the same agent pipeline
+- **Persistent memory** — conversation state across sessions
+- **Subagent delegation** — specialists in isolated contexts
+- **Pluggable tool ecosystem** — bring any LangChain tool
 
-**Langclaw is a Python framework for building production-grade, multi-channel AI agent systems — with RBAC, scheduled tasks, persistent memory, subagent delegation, and a pluggable tool ecosystem — on top of [LangChain](https://github.com/langchain-ai/langchain), [LangGraph](https://github.com/langchain-ai/langgraph), and [deepagents](https://github.com/tisu19021997/deepagents).**
+Built on [LangChain](https://github.com/langchain-ai/langchain), [LangGraph](https://github.com/langchain-ai/langgraph), and [deepagents](https://github.com/tisu19021997/deepagents).
 
-FastAPI gave web developers a declarative, decorator-driven way to build APIs. Langclaw brings that same feeling to multi-channel agentic systems. Define tools, roles, subagents, and channels on a single app object — langclaw handles the wiring, middleware, message routing, and state persistence so you can focus on what your agent actually does.
+**Like FastAPI, but for agents** — define everything on one app object (tools, roles, subagents, workflows, channels), and langclaw handles the wiring, middleware, message routing, and state persistence. Bring your own LangChain tools, models, and agents.
+
+Think OpenClaw or Hermes — a personal AI that:
+
+- lives in your chat apps
+- remembers across sessions
+- runs jobs on a schedule
+- respects who's allowed to do what
 
 ## Why Use Langclaw
 
 1. **Framework, not a fork**: `uv add langclaw` and build on top of it — like Flask/FastAPI for agentic systems. No repo cloning, no boilerplate.
 2. **Multi-channel from day one**: Telegram, Discord, Slack, WebSocket out of the box. Add custom channels with a single `app.add_channel()` call.
-3. **Declarative RBAC**: `app.role("analyst", tools=["*"])` — one line to define who can use what. Permissions are enforced as middleware before the LLM sees anything.
+3. **Declarative RBAC, three axes**: `app.role("analyst", tools=["*"], subagents=["researcher"], workflows=["digest"])` — gate tools, subagents, *and* workflows per role. Subagents and workflows are default-deny; permissions run as middleware before the LLM sees anything.
 4. **Subagent delegation**: Register specialist subagents that run in isolated contexts. The main agent delegates via a built-in `task` tool; results flow back cleanly or stream directly to the channel.
-5. **Scheduled jobs**: Users can ask the agent to schedule recurring tasks. Cron jobs publish to the same message bus and flow through the same pipeline as user messages.
-6. **Pluggable everything**: Message bus (asyncio / RabbitMQ / Kafka), checkpointer (SQLite / Postgres), agent filesystem/shell backend (local-shell / filesystem / state / store), LLM providers — swap backends via config, not code changes.
-7. **Middleware pipeline**: Content filtering, PII redaction, rate limiting, and RBAC run as composable middleware before every LLM call.
-8. **Built on LangChain + LangGraph**: Not a wrapper — langclaw compiles down to a real LangGraph `CompiledStateGraph`. Bring any LangChain tool, model, or integration.
+5. **Durable workflows**: Register typed, multi-step routines with `@app.workflow()`. Bounded parallelism, live progress, and crash-resume are handled for you — and the agent, a user, or a cron job can run them. ([jump ↓](#workflows))
+6. **Scheduled jobs**: Ask the agent to schedule recurring tasks, or fire a saved workflow on cron — both publish to the same message bus and flow through the same pipeline as user messages.
+7. **Guardrails middleware**: Content filtering, PII redaction, and rate limiting run as composable middleware before every LLM call.
+8. **Pluggable everything**: Message bus (asyncio / RabbitMQ / Kafka), checkpointer (SQLite / Postgres), agent filesystem/shell backend (local-shell / filesystem / state / store), LLM providers — swap backends via config, not code changes.
+9. **Built on LangChain + LangGraph**: Not a wrapper — langclaw compiles down to a real LangGraph `CompiledStateGraph`. Bring any LangChain tool, model, or integration.
 
 ## Hello World
 
@@ -106,6 +119,63 @@ if __name__ == "__main__":
 ```
 
 See [`examples/`](examples/) for complete, runnable versions.
+
+## Workflows
+
+A **workflow** is a durable, typed, multi-step routine you register once and run many ways — the agent calls it as a `workflow_<name>` tool, a user runs `/workflows run`, or a cron job fires it. You write the control flow; langclaw validates input and output, bounds parallelism, streams progress to the channel, and resumes after a crash.
+
+```python
+from pydantic import BaseModel
+from langclaw import Langclaw
+
+app = Langclaw()
+
+class Brief(BaseModel):
+    topic: str
+    angles: list[str] = ["overview", "risks", "recent news"]
+
+@app.workflow("research", input=Brief, max_concurrency=4,
+              description="Search several angles in parallel, then synthesize.")
+async def research(ctx, inp: Brief) -> str:
+    ctx.phase("gather")                      # named progress, shown live in-channel
+
+    def search(angle: str):                  # one search per angle...
+        return lambda c: c.tool("web_search", query=f"{inp.topic} {angle}")
+
+    findings = await ctx.parallel([search(a) for a in inp.angles])   # ...run in parallel
+
+    ctx.phase("synthesize")
+    return "\n\n".join(f"## {a}\n{r}" for a, r in zip(inp.angles, findings))
+```
+
+```bash
+LANGCLAW__WORKFLOWS__ENABLED=true    # workflows are off by default
+```
+
+Now the agent sees a `workflow_research` tool, and users can drive it directly:
+
+```
+/workflows run research {"topic": "solid-state batteries"}
+/workflows runs                      # recent runs from the journal
+/workflows status <run_id>
+```
+
+**Three ways to author the body:**
+
+| Mode | Who writes it | Reach for it when |
+|---|---|---|
+| `python` *(recommended)* | You | You want typed, testable, deterministic control flow — `ctx.parallel` / `ctx.phase` / `ctx.tool` / `ctx.subagent`. |
+| `saved` | The agent, once | The agent invents a repeatable job: it writes a sandboxed JS body via the `eval` interpreter, saves it to `workflows/<name>.js`, and it loads as a tool. |
+| `llm_authored` *(experimental)* | The model, per run | Low-stakes, supervised work where you declare only the typed contract and let the model write the body fresh each run. |
+
+**Put it on a schedule.** A saved workflow fired by cron re-runs with **zero LLM cost** — the frozen body executes verbatim — and delivers to the channel that scheduled it (e.g. a daily digest to your Telegram). Saved + cron is validated end-to-end; see [`examples/workflow_research.py`](examples/workflow_research.py) and [`examples/hn_digest_eval.py`](examples/hn_digest_eval.py).
+
+> **How `saved` and `llm_authored` actually run** — programmatic tool calling (PTC):
+>
+> - The model writes a small JS program in the `langchain-quickjs` code-interpreter sandbox.
+> - It calls tools, loops, branches, retries — and can hand off to deepagents subagents via `tools.task`.
+> - Same approach as [Claude Code's dynamic workflows](https://claude.com/blog/introducing-dynamic-workflows-in-claude-code). The honest difference is **scale**: langclaw's sandbox is tuned for scripted control flow and a few subagents, not the tens-to-hundreds-of-agents parallel fan-out Claude's targets.
+> - Needs `uv add "langclaw[interpreter]"`; capability-scoped to the tools you allow via `uses_tools` — no filesystem, network, or ambient host APIs.
 
 ## Message Flow
 
@@ -201,6 +271,8 @@ Available extras: `telegram`, `discord`, `slack`, `websocket`, `postgres`, `rabb
 | `gateway/` | Channel orchestration (`GatewayManager`), command routing, message dispatch |
 | `bus/` | Message bus abstraction — asyncio (dev), RabbitMQ / Kafka (prod) |
 | `middleware/` | Request pipeline: RBAC, rate limit, content filter, PII redaction |
+| `workflows/` | Durable, typed, multi-step routines — registry, runtime, saved-workflow store, crash-resume |
+| `interpreter/` | Opt-in sandboxed code interpreter (RLM) — PTC tool allowlist + middleware |
 | `config/` | Pydantic Settings with `LANGCLAW__` env prefix (nested `__` delimiter) |
 | `cron/` | Scheduled jobs via APScheduler v4 |
 | `session/` | Maps (channel, user, context) to LangGraph thread IDs |
@@ -208,23 +280,57 @@ Available extras: `telegram`, `discord`, `slack`, `websocket`, `postgres`, `rabb
 | `providers/` | LLM model resolution via `init_chat_model` |
 | `cli/` | Typer CLI: `langclaw init`, `langclaw gateway`, `langclaw agent`, `langclaw cron`, `langclaw status` |
 
+## Business Workspaces (preview)
+
+> [!note] Status: designed, not yet on `main`
+> The groundwork — per-request, re-rootable agent backends — is in `main`. The layered prompt assembly lives on `feat/business-workspaces-layered-prompt` and isn't merged yet. Full design: [docs/BUSINESS_WORKSPACES.md](docs/BUSINESS_WORKSPACES.md).
+
+One agent, many employees. A single `marketing` agent should serve every marketer from **one shared playbook**, while each person keeps **their own private memory**. That's two layers with two owners:
+
+- **Org layer** — shared and authoritative: brand voice, operating rules, compliance. The agent reads it but can't edit it from below.
+- **Employee layer** — personal memory and preferences, owned by that one person and invisible to everyone else.
+
+What the design gives you:
+
+- **Org is immutable from below** — an employee's agent reads org rules but can't rewrite them through tool use.
+- **Promotion path** — a good personal tactic can be *proposed* up into the org playbook, reviewed, then it reaches everyone with no fan-out.
+- **Privacy by construction** — one person's memory never enters another's prompt (scoped per `(channel, user_id)`).
+- **Zero disruption** — off by default; today's single-workspace setups keep working unchanged.
+
+Target layout — one agent, layered:
+
+```
+workspace/marketing/
+├── org/         # shared, authoritative, agent-read-only (persona, playbook, policy)
+├── teams/<id>/  # optional middle tier
+└── users/<id>/  # private per-employee memory, owner read/write
+```
+
+This is the open-core path to running claw-like agents across a team or a whole company.
+
 ## Roadmap
 
 ### Shipped
 
-- **Subagent delegation** — `app.subagent()` registers child agents with isolated context and per-subagent model/tool sets
-- **Channel-routed subagents** — subagents can publish results directly to the originating channel (`output="channel"`)
+- **Workflows** — durable, typed, multi-step routines (`@app.workflow()`); python / saved / llm-authored modes; runnable by the agent, a user (`/workflows`), or cron
+- **Three-axis RBAC** — `app.role(tools=…, subagents=…, workflows=…)`; subagents and workflows are default-deny; enforced as middleware before the LLM
+- **Named agents** — `app.agent()` registers independent agents (own model, tools, and history); switch with `/agent` (auto-routing still planned)
+- **Code interpreter (opt-in)** — sandboxed JS `eval` so the agent can script tool loops, branches, and fan-out over an allowlist
+- **Subagent delegation** — `app.subagent()` with isolated context and per-subagent model/tool sets; can stream results to the originating channel (`output="channel"`)
 - **Guardrails middleware** — `ContentFilterMiddleware` (keyword/regex) and `PIIMiddleware` (redaction) in the built-in stack
 - **Heartbeat / proactive wake-up** — event-driven condition checks that fire messages through the agent pipeline
 - **Pluggable agent backend** — deepagents filesystem/shell backend selectable via `config.agents.backend` (local-shell / filesystem / state / store); defaults to `local_shell` for the `execute` tool
 
+### In progress
+
+- **Business workspaces** — one agent for many employees: a shared, immutable **org** layer + private per-**employee** memory, with a promotion path for good tactics. Design final; backend groundwork in `main`, layered read-path on a branch ([details ↑](#business-workspaces-preview))
+
 ### Planned
 
-- **Multi-agent routing** — named agents with distinct models, routed by channel or user intent
-- **More channels** — Slack, WhatsApp, REST API gateway
+- **Multi-agent auto-routing** — route to a named agent automatically by channel or detected intent
+- **More channels** — WhatsApp, REST API gateway
 - **Plugin ecosystem** — `langclaw-*` tool packs installable via `uv add`
 - **Observability** — OpenTelemetry tracing for the full message flow
-- **Test coverage** — comprehensive tests across all modules
 
 ## Contributing
 

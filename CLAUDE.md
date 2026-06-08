@@ -370,7 +370,11 @@ filesystem-rooted (`local_shell` default / `filesystem`). Flow:
    in the `<workflows>` nudge): name `[A-Za-z0-9_]+` (snake_case, no hyphens — a
    hyphen makes the in-sandbox `tools.workflow_my-flow` un-callable); optional
    `// @description` and `// @uses a, b` header comments; body gets `inp`, emits
-   via `tools.output({result})`.
+   via `tools.output({result})`, and may narrate progress via
+   `tools.phase({name})` / `tools.log({message})` — the sandbox counterparts of a
+   Python workflow's `ctx.phase` / `ctx.log`, surfaced through the same
+   `emit_progress` → `render_workflow_progress` channel stream (wired in
+   `runtime._progress_callbacks`, exposed by `js_runner.build_workflow_script_runner`).
 3. **Same-session liveness:** `GatewayManager._ensure_agent_fresh` hashes the
    `workflows/` folder (alongside the AGENTS.md content hash). On change it calls
    the `saved_reload_cb` → `app._reload_saved_workflows()`, which reconciles files

@@ -39,8 +39,11 @@ if TYPE_CHECKING:
 
     from langclaw.workflows.registry import WorkflowSpec
 
-#: A script runner executes a resolved body against the validated input.
-ScriptRunnerFn = Callable[[str, Any], Awaitable[Any]]
+#: A script runner executes a resolved body against the validated input. It
+#: accepts optional keyword-only ``phase_cb`` / ``log_cb`` progress callbacks
+#: (the JS ``tools.phase`` / ``tools.log`` counterparts of ``ctx.phase`` /
+#: ``ctx.log``); a runner that ignores progress may accept ``**_``.
+ScriptRunnerFn = Callable[..., Awaitable[Any]]
 #: An author produces a workflow's JS body from its spec + validated input.
 ScriptAuthorFn = Callable[["WorkflowSpec", Any], Awaitable[str]]
 
@@ -55,6 +58,15 @@ _DEFAULT_MAX_STDOUT = 16 * 1024
 #: validation happens against a captured Python value, not a marshalled blob.
 OUTPUT_SINK_NAME = "output"
 OUTPUT_SINK_ARG = "result"
+
+#: Progress sinks — the JS counterpart of ``ctx.phase`` / ``ctx.log`` (Mode 1).
+#: A saved or authored body narrates via ``tools.phase({ name })`` /
+#: ``tools.log({ message })``; the runner wires them to the injected callbacks,
+#: which the runtime turns into the same progress events a python workflow emits.
+PHASE_SINK_NAME = "phase"
+PHASE_SINK_ARG = "name"
+LOG_SINK_NAME = "log"
+LOG_SINK_ARG = "message"
 
 
 def build_workflow_script_runner(
@@ -93,7 +105,13 @@ def build_workflow_script_runner(
     )
     tool_list = list(tools)
 
-    async def run(script: str, validated_input: Any) -> Any:
+    async def run(
+        script: str,
+        validated_input: Any,
+        *,
+        phase_cb: Callable[[str], None] | None = None,
+        log_cb: Callable[[str], None] | None = None,
+    ) -> Any:
         thread_id = f"workflow-eval-{uuid.uuid4().hex}"
         repl = registry.get(thread_id)
 
@@ -117,8 +135,40 @@ def build_workflow_script_runner(
             ),
         )
 
+        # Per-run progress sinks — ctx.phase / ctx.log parity. Best-effort: a
+        # narrating body must not fail just because no one is listening, so when
+        # a callback is absent the sink is a no-op (and a callback that raises is
+        # swallowed — progress is never fatal to the run).
+        async def _phase(name: str = "") -> str:
+            if phase_cb is not None and name:
+                try:
+                    phase_cb(name)
+                except Exception:  # noqa: BLE001 — progress is best-effort
+                    pass
+            return "ok"
+
+        async def _log(message: str = "") -> str:
+            if log_cb is not None and message:
+                try:
+                    log_cb(message)
+                except Exception:  # noqa: BLE001 — progress is best-effort
+                    pass
+            return "ok"
+
+        phase_tool = StructuredTool.from_function(
+            coroutine=_phase,
+            name=PHASE_SINK_NAME,
+            description=f"Start a named progress phase: {{ {PHASE_SINK_ARG}: <string> }}.",
+        )
+        log_tool = StructuredTool.from_function(
+            coroutine=_log,
+            name=LOG_SINK_NAME,
+            description=f"Emit a free-text progress line: {{ {LOG_SINK_ARG}: <string> }}.",
+        )
+
         try:
-            repl.install_tools([*tool_list, output_tool])
+            # Sinks install last so the reserved names win over any same-named tool.
+            repl.install_tools([*tool_list, output_tool, phase_tool, log_tool])
             payload = json.dumps(_to_jsonable(validated_input))
             code = f"const inp = {payload};\n{script}"
             outcome = await repl.eval_async(code)
@@ -218,6 +268,11 @@ def _render_authoring_prompt(
         f"- `await tools.{OUTPUT_SINK_NAME}({{ {OUTPUT_SINK_ARG}: ... }})` is how you "
         "return — pass a plain JSON value (object/array/string/number), no "
         "`JSON.stringify` needed.\n"
+        f"- Optional progress (shown live to the user): "
+        f"`await tools.{PHASE_SINK_NAME}({{ {PHASE_SINK_ARG}: 'gather' }})` to start a "
+        f"named phase, `await tools.{LOG_SINK_NAME}({{ {LOG_SINK_ARG}: '3/10 done' }})` "
+        "for a free-text line. Both are safe no-ops if unobserved — use them to narrate "
+        "long runs.\n"
         "- You are writing this BLIND — you cannot run it or inspect intermediate "
         "values. Do NOT assume a tool's exact result field names; if a result "
         "shape is uncertain, include the whole value rather than guessing a field, "

@@ -277,6 +277,30 @@ class WorkflowRuntime:
             resumed.append(run_id)
         return resumed
 
+    def _progress_callbacks(
+        self, spec: WorkflowSpec, run_id: str
+    ) -> tuple[Callable[[str], None], Callable[[str], None]]:
+        """Build the ``(phase_cb, log_cb)`` pair shared by every run mode.
+
+        Each callback projects a progress event onto the request-scoped sink
+        (rendered to the invoking channel) so a phase/log narration looks the
+        same whether it came from a python body's ``ctx.phase``/``ctx.log`` or a
+        saved/authored body's ``tools.phase``/``tools.log``.
+        """
+        factory_cb = self._phase_cb_factory(run_id) if self._phase_cb_factory else None
+
+        def phase_cb(name: str) -> None:
+            emit_progress({"kind": "phase", "workflow": spec.name, "run_id": run_id, "phase": name})
+            if factory_cb is not None:
+                factory_cb(name)
+
+        def log_cb(message: str) -> None:
+            emit_progress(
+                {"kind": "log", "workflow": spec.name, "run_id": run_id, "message": message}
+            )
+
+        return phase_cb, log_cb
+
     async def _run_python(
         self,
         spec: WorkflowSpec,
@@ -293,17 +317,7 @@ class WorkflowRuntime:
         memoize = None
         if self._step_store is not None:
             memoize = StepMemoizer(self._step_store, run_id).wrap
-        factory_cb = self._phase_cb_factory(run_id) if self._phase_cb_factory else None
-
-        def phase_cb(name: str) -> None:
-            emit_progress({"kind": "phase", "workflow": spec.name, "run_id": run_id, "phase": name})
-            if factory_cb is not None:
-                factory_cb(name)
-
-        def log_cb(message: str) -> None:
-            emit_progress(
-                {"kind": "log", "workflow": spec.name, "run_id": run_id, "message": message}
-            )
+        phase_cb, log_cb = self._progress_callbacks(spec, run_id)
 
         ctx = WorkflowContext(
             executor=executor,
@@ -359,7 +373,8 @@ class WorkflowRuntime:
             # The body is a Mode-2 run's audit artifact — at DEBUG normally, and
             # at WARNING on failure so a broken body is visible without DEBUG.
             logger.debug(f"Workflow {spec.name!r} run {run_id} body:\n{script}")
-            coro = script_runner(script, validated_input)
+            phase_cb, log_cb = self._progress_callbacks(spec, run_id)
+            coro = script_runner(script, validated_input, phase_cb=phase_cb, log_cb=log_cb)
             try:
                 if spec.timeout_s is not None:
                     output = await asyncio.wait_for(coro, timeout=spec.timeout_s)
@@ -403,7 +418,8 @@ class WorkflowRuntime:
             emit_progress(
                 {"kind": "authored", "workflow": spec.name, "run_id": run_id, "script": script}
             )
-            coro = script_runner(script, validated_input)
+            phase_cb, log_cb = self._progress_callbacks(spec, run_id)
+            coro = script_runner(script, validated_input, phase_cb=phase_cb, log_cb=log_cb)
             try:
                 if spec.timeout_s is not None:
                     output = await asyncio.wait_for(coro, timeout=spec.timeout_s)
