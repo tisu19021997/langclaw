@@ -180,7 +180,7 @@ Now the agent sees a `workflow_research` tool, and users can drive it directly:
 > **How `saved` and `llm_authored` actually run** — programmatic tool calling (PTC):
 >
 > - The model writes a small JS program in the `langchain-quickjs` code-interpreter sandbox.
-> - It calls tools, loops, branches, retries — and can hand off to deepagents subagents via `tools.task`.
+> - It calls tools, loops, branches, retries — makes one-shot model calls via `tools.llm({ prompt })` (the JS sibling of `ctx.llm`), and can hand off to deepagents subagents via `tools.task`.
 > - Same approach as [Claude Code's dynamic workflows](https://claude.com/blog/introducing-dynamic-workflows-in-claude-code). The honest difference is **scale**: langclaw's sandbox is tuned for scripted control flow and a few subagents, not the tens-to-hundreds-of-agents parallel fan-out Claude's targets.
 > - Needs `uv add "langclaw[interpreter]"`; capability-scoped to the tools you allow via `uses_tools` — no filesystem, network, or ambient host APIs.
 

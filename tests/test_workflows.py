@@ -1605,6 +1605,43 @@ async def test_script_runner_raises_workflowsteperror_on_js_error():
         await runner("nonexistentFunction();", None)
 
 
+async def test_script_runner_tools_llm_calls_model():
+    """A saved/authored JS body reaches a one-shot model call via tools.llm — the
+    ctx.llm parity sibling for the sandbox."""
+    pytest.importorskip("langchain_quickjs")
+    from langchain_core.messages import AIMessage
+
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    class _Model:
+        def __init__(self):
+            self.seen = None
+
+        async def ainvoke(self, messages, *a, **k):
+            self.seen = messages
+            return AIMessage(content="MODEL_SAID_HI")
+
+    model = _Model()
+    runner = build_workflow_script_runner([], default_model=model)
+    script = (
+        "const r = await tools.llm({ prompt: 'classify: ' + inp.text });\n"
+        "await tools.output({ result: r });"
+    )
+    out = await runner(script, {"text": "the export button is broken"})
+    assert out == "MODEL_SAID_HI"
+    assert any("classify: the export button is broken" in str(m) for m in model.seen)
+
+
+async def test_script_runner_tools_llm_without_model_raises():
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.workflows.context import WorkflowStepError
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    runner = build_workflow_script_runner([])  # no model configured
+    with pytest.raises(WorkflowStepError):
+        await runner("await tools.output({ result: await tools.llm({ prompt: 'x' }) });", None)
+
+
 async def test_script_runner_disallowed_tool_is_unavailable():
     """A tool NOT in the runner's list is not on `tools` — the list IS the
     capability allowlist (the workflow's uses_tools, role-filtered upstream)."""
