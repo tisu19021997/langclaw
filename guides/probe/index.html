@@ -10,13 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://langclaw.dev/guides/rbac/">
+        <link rel="canonical" href="https://langclaw.dev/guides/probe/">
       
       
-        <link rel="prev" href="../subagents/">
+        <link rel="prev" href="../cron/">
       
       
-        <link rel="next" href="../cron/">
+        <link rel="next" href="../architecture/">
       
       
         
@@ -27,7 +27,7 @@
     
     
       
-        <title>RBAC - langclaw</title>
+        <title>Probe Harness - langclaw</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#rbac" class="md-skip">
+        <a href="#probe-harness" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              RBAC
+              Probe Harness
             
           </span>
         </div>
@@ -623,37 +623,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    RBAC
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../rbac/" class="md-nav__link">
         
   
   
@@ -669,81 +642,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#define-roles" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Define roles
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#three-axes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Three axes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#assign-roles-to-users" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Assign roles to users
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-enforcement-works" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How enforcement works
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#startup-validation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Startup validation
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -781,10 +679,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../probe/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Probe Harness
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -800,6 +725,131 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-matters-for-agentic-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this matters for agentic development
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#three-ways-to-use-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three ways to use it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Three ways to use it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-cli-interactive-or-scripted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. CLI — interactive or scripted
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-script-notebook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Script / notebook
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-pytest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. pytest
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#probeevent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ProbeEvent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-probe-does-differently-from-a-normal-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What --probe does differently from a normal gateway
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transports
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#honest-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Honest limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1067,10 +1117,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#define-roles" class="md-nav__link">
+  <a href="#why-this-matters-for-agentic-development" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Define roles
+        Why this matters for agentic development
       
     </span>
   </a>
@@ -1078,10 +1128,60 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#three-axes" class="md-nav__link">
+  <a href="#three-ways-to-use-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Three axes
+        Three ways to use it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Three ways to use it">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-cli-interactive-or-scripted" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. CLI — interactive or scripted
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-script-notebook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Script / notebook
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-pytest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. pytest
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#probeevent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ProbeEvent
       
     </span>
   </a>
@@ -1089,10 +1189,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#assign-roles-to-users" class="md-nav__link">
+  <a href="#what-probe-does-differently-from-a-normal-gateway" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Assign roles to users
+        What --probe does differently from a normal gateway
       
     </span>
   </a>
@@ -1100,10 +1200,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#how-enforcement-works" class="md-nav__link">
+  <a href="#transports" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How enforcement works
+        Transports
       
     </span>
   </a>
@@ -1111,10 +1211,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#startup-validation" class="md-nav__link">
+  <a href="#honest-limits" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Startup validation
+        Honest limits
       
     </span>
   </a>
@@ -1189,57 +1289,190 @@
   
 
 
-<h1 id="rbac">RBAC<a class="headerlink" href="#rbac" title="Permanent link">&para;</a></h1>
-<p>Langclaw's RBAC is three-axis and default-deny on two of them: tools are default-pass-through (a role with <code>tools=["*"]</code> sees everything), while subagents and workflows are default-deny (a role must explicitly list the ones it can reach).</p>
-<h2 id="define-roles">Define roles<a class="headerlink" href="#define-roles" title="Permanent link">&para;</a></h2>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">app</span><span class="o">.</span><span class="n">role</span><span class="p">(</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span>    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>            <span class="n">subagents</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>            <span class="n">workflows</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">])</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">app</span><span class="o">.</span><span class="n">role</span><span class="p">(</span><span class="s2">&quot;analyst&quot;</span><span class="p">,</span>  <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>            <span class="n">subagents</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;researcher&quot;</span><span class="p">],</span>   <span class="n">workflows</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;digest&quot;</span><span class="p">])</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">app</span><span class="o">.</span><span class="n">role</span><span class="p">(</span><span class="s2">&quot;free&quot;</span><span class="p">,</span>     <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;web_search&quot;</span><span class="p">],</span>   <span class="n">subagents</span><span class="o">=</span><span class="p">[],</span>               <span class="n">workflows</span><span class="o">=</span><span class="p">[])</span>
-</span></code></pre></div>
-<h2 id="three-axes">Three axes<a class="headerlink" href="#three-axes" title="Permanent link">&para;</a></h2>
+<h1 id="probe-harness">Probe Harness<a class="headerlink" href="#probe-harness" title="Permanent link">&para;</a></h1>
+<p>The probe harness lets you drive features end-to-end through the <strong>real</strong> <code>gateway → bus → agent → channel</code> pipeline — without a human tapping on Telegram and without mocking anything out.</p>
+<h2 id="why-this-matters-for-agentic-development">Why this matters for agentic development<a class="headerlink" href="#why-this-matters-for-agentic-development" title="Permanent link">&para;</a></h2>
+<p>Testing an agent is not like testing a REST endpoint.</p>
+<p>A single user turn passes through: the message bus, session lookup, agent-name resolution, every middleware layer (RBAC, rate limit, content filter, PII), the LangGraph agent loop, tool calls, and finally the outbound channel formatter. <strong>The interesting bugs live in that pipeline</strong>, not in the agent in isolation.</p>
+<p>The standard alternatives miss most of it:</p>
 <table>
 <thead>
 <tr>
-<th>Axis</th>
-<th><code>RoleConfig</code> field</th>
-<th>Default</th>
+<th>Approach</th>
+<th>What it covers</th>
+<th>What it misses</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Tools</td>
-<td><code>tools</code></td>
-<td>pass-through (<code>["*"]</code> = all tools)</td>
+<td><code>langclaw agent -m "…"</code> (CLI)</td>
+<td>Agent + tools</td>
+<td>Bus, session, middleware, command router, workflow→channel progress, active-agent switching</td>
 </tr>
 <tr>
-<td>Subagents</td>
-<td><code>subagents</code></td>
-<td><strong>deny</strong> — must be explicitly allowed</td>
+<td>Unit tests on individual functions</td>
+<td>Function correctness</td>
+<td>Integration between components</td>
 </tr>
 <tr>
-<td>Workflows</td>
-<td><code>workflows</code></td>
-<td><strong>deny</strong> — must be explicitly allowed</td>
+<td>Manual Telegram / Discord</td>
+<td>Everything</td>
+<td>Can't run in CI, no assertions, no repeatability</td>
 </tr>
 </tbody>
 </table>
-<h2 id="assign-roles-to-users">Assign roles to users<a class="headerlink" href="#assign-roles-to-users" title="Permanent link">&para;</a></h2>
-<p>Roles are resolved per-request based on the <code>user_id</code> from the inbound message. Wire a resolver:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nd">@app</span><span class="o">.</span><span class="n">role_resolver</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_role</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="k">if</span> <span class="n">user_id</span> <span class="ow">in</span> <span class="n">ADMIN_IDS</span><span class="p">:</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        <span class="k">return</span> <span class="s2">&quot;admin&quot;</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="k">if</span> <span class="k">await</span> <span class="n">is_paid_user</span><span class="p">(</span><span class="n">user_id</span><span class="p">):</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="k">return</span> <span class="s2">&quot;analyst&quot;</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="k">return</span> <span class="s2">&quot;free&quot;</span>
+<p>The probe closes that gap: it injects a turn as a real WebSocket message, flows it through the full pipeline, and returns a structured, assertable list of events. <strong>No Telegram credentials. No arbitrary sleeps. Deterministic turn completion.</strong></p>
+<p>This is how langclaw's own workflow patterns cookbook was validated — every example in <a href="https://github.com/tisu19021997/langclaw/tree/main/examples/workflow_patterns"><code>examples/workflow_patterns/</code></a> was driven end-to-end through the probe before being documented.</p>
+<hr />
+<h2 id="three-ways-to-use-it">Three ways to use it<a class="headerlink" href="#three-ways-to-use-it" title="Permanent link">&para;</a></h2>
+<h3 id="1-cli-interactive-or-scripted">1. CLI — interactive or scripted<a class="headerlink" href="#1-cli-interactive-or-scripted" title="Permanent link">&para;</a></h3>
+<p>Start an isolated gateway (WebSocket only — every other channel is forced off so probe traffic never reaches a real bot):</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>langclaw<span class="w"> </span>gateway<span class="w"> </span>--probe
 </span></code></pre></div>
-<p>Without a resolver, all users get the default role (no restrictions).</p>
-<h2 id="how-enforcement-works">How enforcement works<a class="headerlink" href="#how-enforcement-works" title="Permanent link">&para;</a></h2>
-<p>The unified capability filter runs as middleware <strong>before the LLM sees the toolset</strong>. Tools the role can't access are stripped from the model's tool list entirely — the agent can't call what it can't see.</p>
-<p>Subagents and workflows have an additional gate: even if a subagent type appears in the toolset, the <code>task</code> tool checks <code>RoleConfig.subagents</code> at call time.</p>
-<h2 id="startup-validation">Startup validation<a class="headerlink" href="#startup-validation" title="Permanent link">&para;</a></h2>
-<p><code>validate_capability_registry</code> runs at startup and raises <code>ValueError</code> if any axis is misconfigured — missing <code>RoleConfig</code> field, unreserved name prefix, or no enforcement shape. Misconfiguration fails loudly rather than silently passing through.</p>
-<p>See <a href="https://github.com/tisu19021997/langclaw/blob/main/examples/rbac_showboat.py"><code>examples/rbac_showboat.py</code></a> for a runnable tour of all three axes.</p>
+<p>Then in another terminal:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>langclaw<span class="w"> </span>probe<span class="w"> </span><span class="s2">&quot;summarize today&#39;s HN&quot;</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>langclaw<span class="w"> </span>probe<span class="w"> </span><span class="s2">&quot;/reset&quot;</span><span class="w">                                    </span><span class="c1"># command path</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>langclaw<span class="w"> </span>probe<span class="w"> </span><span class="s2">&quot;what is X?&quot;</span><span class="w"> </span>--agent<span class="w"> </span>researcher<span class="w"> </span>--reset<span class="w">    </span><span class="c1"># named agent + fresh thread</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>langclaw<span class="w"> </span>probe<span class="w"> </span><span class="s2">&quot;/workflows run landscape {\&quot;subject\&quot;: \&quot;agent frameworks\&quot;, \&quot;contenders\&quot;: [\&quot;LangGraph\&quot;, \&quot;CrewAI\&quot;]}&quot;</span>
+</span></code></pre></div>
+<h3 id="2-script-notebook">2. Script / notebook<a class="headerlink" href="#2-script-notebook" title="Permanent link">&para;</a></h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">langclaw.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">probe</span><span class="p">,</span> <span class="n">WebSocketProbeTransport</span><span class="p">,</span> <span class="n">final_text</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">t</span> <span class="o">=</span> <span class="n">WebSocketProbeTransport</span><span class="p">(</span><span class="s2">&quot;ws://127.0.0.1:18789&quot;</span><span class="p">)</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">events</span> <span class="o">=</span> <span class="k">await</span> <span class="n">probe</span><span class="p">(</span><span class="s2">&quot;Say exactly: PONG&quot;</span><span class="p">,</span> <span class="n">transport</span><span class="o">=</span><span class="n">t</span><span class="p">,</span> <span class="n">reset</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">final_text</span><span class="p">(</span><span class="n">events</span><span class="p">))</span>   <span class="c1"># &quot;PONG&quot;</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">main</span><span class="p">())</span>
+</span></code></pre></div>
+<h3 id="3-pytest">3. pytest<a class="headerlink" href="#3-pytest" title="Permanent link">&para;</a></h3>
+<p>For CI, run <code>langclaw gateway --probe</code> as a fixture and probe it:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">langclaw.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">probe</span><span class="p">,</span> <span class="n">WebSocketProbeTransport</span><span class="p">,</span> <span class="n">final_text</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;session&quot;</span><span class="p">)</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">gateway</span><span class="p">(</span><span class="n">langclaw_app</span><span class="p">):</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="c1"># start your app with gateway --probe, yield, then stop</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="o">...</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_greet_tool</span><span class="p">(</span><span class="n">gateway</span><span class="p">):</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    <span class="n">events</span> <span class="o">=</span> <span class="k">await</span> <span class="n">probe</span><span class="p">(</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>        <span class="s2">&quot;greet Alice&quot;</span><span class="p">,</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>        <span class="n">transport</span><span class="o">=</span><span class="n">WebSocketProbeTransport</span><span class="p">(),</span>
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>        <span class="n">reset</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>    <span class="p">)</span>
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>    <span class="k">assert</span> <span class="s2">&quot;Alice&quot;</span> <span class="ow">in</span> <span class="n">final_text</span><span class="p">(</span><span class="n">events</span><span class="p">)</span>
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">test_reset_command</span><span class="p">(</span><span class="n">gateway</span><span class="p">):</span>
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>    <span class="n">events</span> <span class="o">=</span> <span class="k">await</span> <span class="n">probe</span><span class="p">(</span><span class="s2">&quot;/reset&quot;</span><span class="p">,</span> <span class="n">transport</span><span class="o">=</span><span class="n">WebSocketProbeTransport</span><span class="p">())</span>
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>    <span class="k">assert</span> <span class="nb">any</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;command&quot;</span> <span class="ow">and</span> <span class="n">e</span><span class="o">.</span><span class="n">is_final</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">events</span><span class="p">)</span>
+</span></code></pre></div>
+<p>You can also inject a <strong>fake transport</strong> to test the probe's normalization logic without a live server:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">langclaw.testing</span><span class="w"> </span><span class="kn">import</span> <span class="n">probe</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">FakeTransport</span><span class="p">:</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="p">):</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames</span> <span class="o">=</span> <span class="n">frames</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">open</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="o">...</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span> <span class="o">...</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">send_turn</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">agent</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span> <span class="o">...</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">receive</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames</span><span class="p">:</span> <span class="k">yield</span> <span class="n">f</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">events</span> <span class="o">=</span> <span class="k">await</span> <span class="n">probe</span><span class="p">(</span><span class="s2">&quot;hi&quot;</span><span class="p">,</span> <span class="n">transport</span><span class="o">=</span><span class="n">FakeTransport</span><span class="p">([</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;ai_chunk&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;Hel&quot;</span><span class="p">},</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;ai_chunk&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;lo&quot;</span><span class="p">},</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>    <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;ai_stream_end&quot;</span><span class="p">},</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="p">]))</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="k">assert</span> <span class="n">events</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;ai&quot;</span>
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="k">assert</span> <span class="n">events</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">content</span> <span class="o">==</span> <span class="s2">&quot;Hello&quot;</span>
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="k">assert</span> <span class="n">events</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">is_final</span>
+</span></code></pre></div>
+<hr />
+<h2 id="probeevent">ProbeEvent<a class="headerlink" href="#probeevent" title="Permanent link">&para;</a></h2>
+<p>Every turn returns a <code>list[ProbeEvent]</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Values</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type</code></td>
+<td><code>ai</code> · <code>ai_chunk</code> · <code>tool_progress</code> · <code>tool_result</code> · <code>command</code> · <code>error</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>content</code></td>
+<td>str</td>
+<td></td>
+</tr>
+<tr>
+<td><code>is_final</code></td>
+<td>bool</td>
+<td>True on the terminal event of the turn</td>
+</tr>
+<tr>
+<td><code>metadata</code></td>
+<td>dict</td>
+<td><code>tool</code>, <code>tool_call_id</code>, <code>args</code>, … for tool events</td>
+</tr>
+<tr>
+<td><code>raw</code></td>
+<td>dict</td>
+<td>The original frame, unmodified</td>
+</tr>
+</tbody>
+</table>
+<p><code>ai_chunk</code> deltas stream individually <strong>and</strong> are assembled into a single final <code>ai</code> event on <code>ai_stream_end</code>. Assert on the stream or the assembled answer — both are there:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">chunks</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">events</span> <span class="k">if</span> <span class="n">e</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">&quot;ai_chunk&quot;</span><span class="p">]</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">answer</span> <span class="o">=</span> <span class="n">final_text</span><span class="p">(</span><span class="n">events</span><span class="p">)</span>   <span class="c1"># assembled final text</span>
+</span></code></pre></div>
+<p><code>final_text(events)</code> — assembled answer string.
+<code>format_events(events)</code> — labeled lines, same format the CLI prints.</p>
+<hr />
+<h2 id="what-probe-does-differently-from-a-normal-gateway">What <code>--probe</code> does differently from a normal gateway<a class="headerlink" href="#what-probe-does-differently-from-a-normal-gateway" title="Permanent link">&para;</a></h2>
+<p><code>langclaw gateway --probe</code> forces every channel except WebSocket off <strong>at the assembly seam</strong> — your <code>.env</code> and config files are never touched. This means:</p>
+<ul>
+<li>No Telegram bot polling, no Discord connection, no Slack socket</li>
+<li>Probe traffic is isolated from live users</li>
+<li>Safe to run in CI alongside a production bot</li>
+</ul>
+<hr />
+<h2 id="transports">Transports<a class="headerlink" href="#transports" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Transport</th>
+<th>Install</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WebSocketProbeTransport</code></td>
+<td><code>langclaw[websocket]</code> (included by default)</td>
+<td>Feature testing, CI — ~95% of use</td>
+</tr>
+<tr>
+<td><code>TelegramProbeTransport</code></td>
+<td><code>langclaw[telegram-e2e]</code></td>
+<td>Smoke-test Telegram-specific rendering (Markdown, chunking, tool-progress formatting)</td>
+</tr>
+</tbody>
+</table>
+<p>The Telegram transport needs a <strong>user</strong> account (not a bot) — a bot can't DM another bot. A one-time human login mints a <code>TELETHON_SESSION</code> string stored in env. Because there's no stream-end signal over MTProto, turn completion is idle-timeout based — use it for occasional smoke tests, not per-feature CI.</p>
+<hr />
+<h2 id="honest-limits">Honest limits<a class="headerlink" href="#honest-limits" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The probe does not start or manage the gateway lifecycle — you start it explicitly.</li>
+<li>The WebSocket transport needs <code>langclaw[websocket]</code> (included in the base install).</li>
+<li>Telegram transport: <code>langclaw[telegram-e2e]</code> + <code>TELEGRAM_API_ID</code>, <code>TELEGRAM_API_HASH</code>, <code>TELETHON_SESSION</code> in env.</li>
+<li>Per-turn timeout defaults to 60 s. On expiry the probe appends a terminal <code>error</code> event and returns — it never hangs.</li>
+</ul>
 
 
 
