@@ -1,10 +1,13 @@
 # Langclaw
 
-### Multi-channel AI agent framework, the LangChain way
+### Build production-ready, role-gated Claws.
 
 [![PyPI version](https://img.shields.io/pypi/v/langclaw)](https://pypi.org/project/langclaw/)
 [![Python versions](https://img.shields.io/pypi/pyversions/langclaw)](https://pypi.org/project/langclaw/)
 [![License](https://img.shields.io/github/license/tisu19021997/langclaw)](https://github.com/tisu19021997/langclaw/blob/main/LICENSE)
+[![Docs](https://img.shields.io/badge/docs-langclaw-purple)](https://tisu19021997.github.io/langclaw/)
+
+**[Documentation](https://tisu19021997.github.io/langclaw/)** · **[Getting started](https://tisu19021997.github.io/langclaw/getting-started/)** · **[Blog](https://tisu19021997.github.io/langclaw/blog/)**
 
 ---
 

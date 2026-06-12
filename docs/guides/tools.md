@@ -1,0 +1,62 @@
+# Tools
+
+Tools are async functions the agent can call. Register them with `@app.tool()`.
+
+## Basic tool
+
+```python
+from langclaw import Langclaw
+
+app = Langclaw()
+
+@app.tool()
+async def get_weather(city: str) -> dict:
+    """Get current weather for a city."""
+    # real implementation: call a weather API
+    return {"city": city, "temp": 22, "condition": "sunny"}
+```
+
+The function name becomes the tool name. The docstring becomes the tool description shown to the LLM.
+
+## Error handling
+
+Tools must return error dicts — never raise into the agent:
+
+```python
+@app.tool()
+async def fetch_data(url: str) -> dict:
+    """Fetch JSON from a URL."""
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url)
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        return {"error": str(e)}  # correct
+        # raise  # wrong — breaks the agent loop
+```
+
+## Custom tool name
+
+```python
+@app.tool(name="search_web")
+async def _search(query: str) -> list[dict]:
+    """Search the web for a query."""
+    ...
+```
+
+## Built-in tools
+
+Langclaw ships built-in tools under `langclaw.agents.tools`. They're wired automatically when the relevant config is set:
+
+| Tool | Extra required | Config key |
+|---|---|---|
+| `web_search` | `search` | — |
+| `web_fetch` | `search` | — |
+| `cron` | — | `LANGCLAW__CRON__ENABLED=true` |
+| `task` | — | subagents registered |
+| `eval` | `interpreter` | `LANGCLAW__INTERPRETER__ENABLED=true` |
+
+## RBAC
+
+Tools participate in the three-axis RBAC system. See the [RBAC guide](rbac.md) for role definitions that gate tool access.
