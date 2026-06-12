@@ -18,14 +18,21 @@ three things, kept here so the pattern files stay about the *pattern*:
    ``split_items``) — real models don't always honour "reply with only X", so the
    control flow degrades gracefully instead of crashing.
 
-Honest boundary
----------------
-A registered ``@app.workflow`` orchestrates **tools** (``ctx.tool`` / ``ctx.parallel``)
-and arbitrary Python — not deepagents subagents. ``ctx.subagent`` exists on the API
-but is currently inert for registered workflows (the ``task`` delegation tool isn't
-in the workflow step executor's toolset). The model-backed tool here is the working
-way to put isolated LLM judgment inside a durable, schedulable workflow today. Full
-subagent fan-out *does* work in the ad-hoc ``eval`` interpreter path
+Two ways to get LLM work into a workflow
+----------------------------------------
+A registered ``@app.workflow`` orchestrates **tools** (``ctx.tool`` / ``ctx.parallel``),
+**subagents** (``ctx.subagent`` — an ``app.subagent`` with its own tools and isolated
+context), and arbitrary Python. The cookbook uses both, by fit:
+
+- **Model-backed tool (``reasoner``)** — for a *one-shot judgment* over text: classify,
+  score, compare two options, generate a candidate. One isolated model call; cheapest
+  primitive for "look at this and decide." Used by classify-and-act, generate-and-filter,
+  tournament, loop-until-done, and the synthesis/decomposition steps.
+- **Subagent (``ctx.subagent``)** — when the leaf does *multi-step work with its own
+  tools* in an isolated context: research a contender (fan-out-and-synthesize), or
+  independently gather evidence and refute a claim (adversarial verification).
+
+Full subagent fan-out also works in the ad-hoc ``eval`` interpreter path
 (``tools.task({subagent_type})``) — see ``examples/hn_digest_eval.py``.
 
 Run one pattern:

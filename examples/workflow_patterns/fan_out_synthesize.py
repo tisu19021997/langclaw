@@ -3,11 +3,15 @@ Pattern: FAN-OUT-AND-SYNTHESIZE  —  split work across parallel branches, then 
 
 Blog: "Fan-out-and-synthesize"
 
-Real job: a competitive-landscape brief. Research each contender in its own
-parallel branch (one isolated web search per contender, so no contender's findings
-colour another's), then a single synthesis step folds everything into one comparison
-across the dimensions you care about. Branch failures are isolated — one contender
-404-ing doesn't sink the brief.
+Real job: a competitive-landscape brief. Research each contender in its OWN subagent
+— an isolated context with its own web_search — so no contender's findings colour
+another's (the blog's defence against self-preferential bias). Then a single synthesis
+step folds the per-contender notes into one comparison across the dimensions you care
+about. Branch failures are isolated: one scout erroring doesn't sink the brief.
+
+This is the pattern where a subagent genuinely earns its keep: each leaf does
+multi-step work (search → read → summarise) with its own tools. The synthesis is a
+one-shot judgment over text, so it stays a lightweight model-backed tool.
 
     /workflows run landscape {"subject": "agent framework",
         "contenders": ["LangGraph", "CrewAI", "AutoGen"],
@@ -31,14 +35,28 @@ class Landscape(BaseModel):
 
 
 def register(app):
+    # A real subagent: isolated context, its own web_search. ctx.subagent delegates
+    # to it and returns its final text.
+    app.subagent(
+        "scout",
+        description="Research one option and report tight, sourced notes.",
+        system_prompt=(
+            "You research ONE option. Use web_search, then report 3–4 terse bullet "
+            "findings about it — strengths, weaknesses, and what it's best for — each "
+            "grounded in a source. No preamble. Do not invent facts."
+        ),
+        tools=["web_search"],
+    )
+    # The synthesis is a single judgment over the gathered notes — a model-backed
+    # tool (one isolated model call), not a subagent.
     reasoner(
         app,
         "compare",
         description="Synthesise per-item research into one comparison table.",
         system=(
-            "You are an industry analyst. You are given raw web findings for several "
+            "You are an industry analyst. You are given research notes for several "
             "competing options. Produce ONE markdown comparison table: a row per option, "
-            "a column per requested dimension, terse cells grounded ONLY in the findings. "
+            "a column per requested dimension, terse cells grounded ONLY in the notes. "
             "Add a one-line 'Bottom line' under the table. Do not invent facts."
         ),
     )
@@ -48,18 +66,21 @@ def register(app):
         input=Landscape,
         max_concurrency=5,
         description=(
-            "Competitive-landscape brief: research each contender in parallel, then "
-            "synthesise one comparison table across the given dimensions."
+            "Competitive-landscape brief: research each contender in its own parallel "
+            "subagent, then synthesise one comparison table across the given dimensions."
         ),
     )
     async def landscape(ctx, inp: Landscape) -> str:
         ctx.phase("research")
 
         def scout(name: str):
-            # Each branch is isolated: its own search, its own slice of the brief.
-            return lambda c: c.tool("web_search", query=f"{name} {inp.subject} review", n=4)
+            # Each branch is an isolated subagent: its own search, its own context.
+            return lambda c: c.subagent(
+                "scout",
+                f"Research '{name}' as a {inp.subject}. Focus: {', '.join(inp.dimensions)}.",
+            )
 
-        # return_exceptions=True → one failing branch yields an Exception in place
+        # return_exceptions=True → one failing scout yields an Exception in place
         # instead of sinking the whole fan-out.
         findings = await ctx.parallel(
             [scout(name) for name in inp.contenders], return_exceptions=True
@@ -67,21 +88,18 @@ def register(app):
 
         ctx.phase("synthesize")
         blocks = []
-        for name, hits in zip(inp.contenders, findings, strict=False):
-            if isinstance(hits, Exception) or not isinstance(hits, list):
+        for name, notes in zip(inp.contenders, findings, strict=False):
+            if isinstance(notes, Exception) or not say(notes):
                 ctx.log(f"{name}: research failed, noting as unknown")
                 blocks.append(f"### {name}\n(no usable findings)")
                 continue
-            ctx.log(f"{name}: {len(hits)} sources")
-            snippets = "\n".join(
-                f"- {h.get('title', '')}: {h.get('content', '')[:200]}" for h in hits[:4]
-            )
-            blocks.append(f"### {name}\n{snippets}")
+            ctx.log(f"{name}: scouted")
+            blocks.append(f"### {name}\n{say(notes)}")
 
         prompt = (
             f"Subject: {inp.subject}\n"
             f"Dimensions: {', '.join(inp.dimensions)}\n\n"
-            f"Findings:\n\n" + "\n\n".join(blocks)
+            f"Notes:\n\n" + "\n\n".join(blocks)
         )
         table = say(await ctx.tool("compare", prompt=prompt))
         return f"# {inp.subject.title()} — landscape\n\n{table}"

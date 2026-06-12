@@ -4,11 +4,15 @@ Pattern: ADVERSARIAL VERIFICATION  —  independent checkers try to REFUTE each 
 Blog: "Adversarial verification"
 
 Real job: fact-check a drafted answer before it ships. Decompose the draft into
-atomic claims, then for each claim pull fresh evidence and ask N independent
-skeptics — each prompted to *refute*, defaulting to REFUTED when unsure — to vote.
-A claim survives only if it isn't out-voted. Independence is the whole game: one
-self-grading pass rationalises its own draft; separate skeptics with clean contexts
-and a refute-by-default bias don't.
+atomic claims, then for each claim spawn N independent skeptic *subagents* — each
+gathers its OWN evidence with web_search in an isolated context and tries to refute,
+defaulting to REFUTED when unsure. A claim survives only if it isn't out-voted.
+Independence is the whole game, and a subagent makes it real: each skeptic searches
+on its own and never sees the others' findings — so you get genuinely separate
+verdicts, not one context rationalising itself N times.
+
+Decomposition is a one-shot judgment, so it's a model-backed tool; the skeptics do
+multi-step work with their own tools, so they're subagents.
 
     /workflows run fact_check {"question": "Is SQLite a good prod database?",
         "answer": "SQLite supports unlimited concurrent writers; NASA uses it for telemetry.",
@@ -17,11 +21,14 @@ and a refute-by-default bias don't.
 
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, Field
 
 from examples.workflow_patterns._app import make_app, pick_label, reasoner, say, split_items
 
 VERDICTS = ["refuted", "supported", "unverifiable"]
+_URL_RE = re.compile(r"https?://\S+")
 
 
 class Draft(BaseModel):
@@ -31,6 +38,7 @@ class Draft(BaseModel):
 
 
 def register(app):
+    # Decomposition: a one-shot judgment over text → a model-backed tool.
     reasoner(
         app,
         "extract_claims",
@@ -41,17 +49,19 @@ def register(app):
             "Return at most 6 of the load-bearing claims."
         ),
     )
-    reasoner(
-        app,
+    # Verification: each skeptic does its OWN multi-step evidence-gathering → a subagent.
+    app.subagent(
         "skeptic",
-        description="Adversarially judge one claim against evidence.",
-        system=(
-            "You are a skeptical fact-checker. You are given a CLAIM and EVIDENCE snippets. "
-            "Try to REFUTE the claim. If the evidence does not clearly support it, lean "
-            "REFUTED. Reply on two lines:\n"
+        description="Independently fact-check one claim with web search.",
+        system_prompt=(
+            "You are a skeptical fact-checker. Given a CLAIM, use web_search to find "
+            "evidence, then TRY TO REFUTE it. If the evidence doesn't clearly support "
+            "the claim, lean REFUTED. Reply on three lines:\n"
             "VERDICT: <refuted|supported|unverifiable>\n"
-            "WHY: <one sentence>"
+            "WHY: <one sentence>\n"
+            "SOURCE: <a url you used, or none>"
         ),
+        tools=["web_search"],
     )
 
     @app.workflow(
@@ -60,8 +70,8 @@ def register(app):
         max_concurrency=6,
         description=(
             "Verify a drafted answer: decompose it into atomic claims, then for each "
-            "claim retrieve evidence and have N independent skeptics vote refute/support. "
-            "Returns a report of which claims survived."
+            "claim spawn N independent skeptic subagents that gather their own evidence "
+            "and vote refute/support. Returns a report of which claims survived."
         ),
     )
     async def fact_check(ctx, inp: Draft) -> str:
@@ -74,29 +84,15 @@ def register(app):
         ctx.phase("verify")
 
         async def verify_one(c, claim: str):
-            # Each claim: one evidence pull shared by its skeptics, then independent votes.
-            hits = await c.tool("web_search", query=claim, n=3)
-            evidence = (
-                "\n".join(
-                    f"- {h.get('title', '')}: {h.get('content', '')[:200]}"
-                    for h in (hits if isinstance(hits, list) else [])
-                )
-                or "(no evidence retrieved)"
+            # N independent skeptic subagents, each with its own isolated evidence pull.
+            replies = await c.parallel(
+                [lambda cc: cc.subagent("skeptic", f"CLAIM: {claim}") for _ in range(inp.votes)]
             )
-            prompt = f"CLAIM: {claim}\n\nEVIDENCE:\n{evidence}"
-            votes = await c.parallel(
-                [lambda cc: cc.tool("skeptic", prompt=prompt) for _ in range(inp.votes)]
-            )
-            verdicts = [pick_label(say(v), VERDICTS, default="unverifiable") for v in votes]
-            refuted = verdicts.count("refuted")
-            supported = verdicts.count("supported")
-            survived = supported > refuted  # ties → does not survive (refute-by-default)
-            return {
-                "claim": claim,
-                "verdicts": verdicts,
-                "survived": survived,
-                "links": [h.get("url", "") for h in (hits if isinstance(hits, list) else [])][:2],
-            }
+            texts = [say(r) for r in replies]
+            verdicts = [pick_label(t, VERDICTS, default="unverifiable") for t in texts]
+            survived = verdicts.count("supported") > verdicts.count("refuted")  # ties lose
+            links = [m.group(0).rstrip(".,)") for t in texts if (m := _URL_RE.search(t))]
+            return {"claim": claim, "verdicts": verdicts, "survived": survived, "links": links[:2]}
 
         results = await ctx.parallel([lambda c, cl=cl: verify_one(c, cl) for cl in claims])
 
@@ -113,8 +109,7 @@ def register(app):
             tally = "/".join(r["verdicts"])
             out.append(f"{mark} {r['claim']}  _( {tally} )_")
             for url in r["links"]:
-                if url:
-                    out.append(f"    ↳ {url}")
+                out.append(f"    ↳ {url}")
         return "\n".join(out)
 
     return app

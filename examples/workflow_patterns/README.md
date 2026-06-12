@@ -42,22 +42,27 @@ The patterns differ; the plumbing is shared in [`_app.py`](_app.py):
 
 Each workflow is plain langclaw: `ctx.phase` / `ctx.log` for progress, `ctx.parallel`
 for bounded fan-out (with `return_exceptions=True` for failure isolation), `ctx.tool`
-for tools and reasoners, and ordinary Python for the branching, brackets, dedup, and
-loops. Because they're registered workflows, each is also a `workflow_<name>` tool the
-agent can call, a `/workflows run` target, and **cron-schedulable**.
+for tools and reasoners, `ctx.subagent` for delegation, and ordinary Python for the
+branching, brackets, dedup, and loops. Because they're registered workflows, each is
+also a `workflow_<name>` tool the agent can call, a `/workflows run` target, and
+**cron-schedulable**.
 
-## Honest boundary
+## Two ways to get LLM work into a workflow
 
-A registered `@app.workflow` orchestrates **tools** and arbitrary Python — not
-deepagents subagents. `ctx.subagent` exists on the API but is currently **inert for
-registered workflows** (the `task` delegation tool isn't in the workflow step
-executor's toolset), so these examples put LLM judgment in **model-backed tools**
-instead — which is the working way to get isolated reasoning into a durable,
-schedulable workflow today. Full subagent fan-out (`tools.task({subagent_type})`)
-*does* work in the ad-hoc `eval` interpreter path — see
-[`../hn_digest_eval.py`](../hn_digest_eval.py).
+A workflow can reach LLM judgment two ways, and the cookbook uses both **by fit**:
+
+- **Model-backed tool** (`reasoner` → `ctx.tool`) — a single isolated model call for a
+  *one-shot judgment* over text (classify, score, compare, generate). Cheapest primitive
+  for "look at this and decide." Used by classify-and-act, generate-and-filter,
+  tournament, loop-until-done, and the synthesis/decomposition steps.
+- **Subagent** (`app.subagent` → `ctx.subagent`) — when the leaf does *multi-step work
+  with its own tools* in an isolated context: `landscape` fans out a `scout` subagent per
+  contender; `fact_check` spawns independent `skeptic` subagents that gather their own
+  evidence. (`ctx.subagent` from a registered workflow works as of the delegation fix;
+  full subagent fan-out is also available in the ad-hoc `eval` path via
+  `tools.task({subagent_type})` — see [`../hn_digest_eval.py`](../hn_digest_eval.py).)
 
 These workflows make real model calls; the quality of a verdict, score, or
-classification is bounded by the model and (for `fact_check` / `triage`) the evidence
-retrieved. The examples surface verdicts and source links so a human can audit — they
-structure the reasoning, they don't rubber-stamp it.
+classification is bounded by the model and the evidence retrieved. The examples surface
+verdicts and source links so a human can audit — they structure the reasoning, they
+don't rubber-stamp it.
