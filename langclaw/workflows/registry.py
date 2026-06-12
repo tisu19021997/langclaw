@@ -12,6 +12,7 @@ bus, so it can be unit-tested in isolation.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
@@ -92,6 +93,14 @@ class WorkflowSpec:
             return value
         if isinstance(value, self.input_model):
             return value
+        # Models often call ``workflow_<name>`` with the input as a JSON *string*
+        # rather than a structured object. Decode it first so the agent-tool path
+        # is as forgiving as ``/workflows run`` (which json-decodes before dispatch).
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                pass  # fall through to model_validate for a clean, typed error
         if isinstance(value, dict):
             return self.input_model(**value)
         return self.input_model.model_validate(value)

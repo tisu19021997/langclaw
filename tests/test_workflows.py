@@ -527,6 +527,33 @@ async def test_runtime_validates_input_and_output():
     assert isinstance(out, Out) and out.summary == "about cats"
 
 
+def test_validate_input_coerces_json_string():
+    """A model that passes the workflow's input as a JSON *string* (common LLM
+    behaviour when calling ``workflow_<name>``) is coerced, not rejected.
+
+    The ``/workflows run`` CLI already json-decodes a string before dispatch; the
+    agent-tool path must be just as forgiving so the same input works either way.
+    """
+    from langclaw.workflows import WorkflowSpec
+
+    class In(BaseModel):
+        topic: str
+        depth: int = 1
+
+    async def body(ctx, inp):
+        return inp
+
+    spec = WorkflowSpec(name="w", fn=body, input_model=In)
+
+    coerced = spec.validate_input('{"topic": "cats", "depth": 2}')
+    assert isinstance(coerced, In)
+    assert coerced.topic == "cats" and coerced.depth == 2
+
+    # A non-JSON / non-object string still raises a clean validation error.
+    with pytest.raises((ValueError, TypeError)):
+        spec.validate_input("not json at all")
+
+
 @pytest.mark.asyncio
 async def test_runtime_timeout():
     from langclaw.config.schema import WorkflowsConfig
@@ -686,23 +713,40 @@ async def test_toolset_executor_unknown_tool_raises_step_error():
 
 
 @pytest.mark.asyncio
-async def test_toolset_executor_subagent_routes_through_task():
+async def test_toolset_executor_invokes_subagent_runnable():
+    """``ctx.subagent`` invokes the subagent's compiled graph directly and returns
+    its final AI text — no ``task`` tool, which needs an injected ToolRuntime the
+    out-of-graph workflow executor can't supply."""
+    from langchain_core.messages import AIMessage, HumanMessage
+
     from langclaw.workflows.bridge import build_toolset_executor
     from langclaw.workflows.context import StepRequest
 
     seen = {}
 
-    async def task(subagent_type: str, description: str) -> str:
-        seen["type"] = subagent_type
-        seen["desc"] = description
-        return "delegated"
+    class _FakeRunnable:
+        async def ainvoke(self, state, config=None):
+            seen["messages"] = state["messages"]
+            return {"messages": [*state["messages"], AIMessage(content="deep finding")]}
 
-    executor = build_toolset_executor([_fake_tool("task", task)])
+    executor = build_toolset_executor([], subagent_runnables={"researcher": _FakeRunnable()})
     req = StepRequest(kind="subagent", target="researcher", payload="go deep", step_id="p#0")
     out = await executor(req)
-    assert "delegated" in str(out)
-    assert seen["type"] == "researcher"
-    assert seen["desc"] == "go deep"
+    assert out == "deep finding"
+    # the prompt was handed to the subagent as a fresh user message (isolated context)
+    assert isinstance(seen["messages"][0], HumanMessage)
+    assert seen["messages"][0].content == "go deep"
+
+
+@pytest.mark.asyncio
+async def test_toolset_executor_unknown_subagent_raises_clear_error():
+    from langclaw.workflows.bridge import build_toolset_executor
+    from langclaw.workflows.context import StepRequest, WorkflowStepError
+
+    executor = build_toolset_executor([], subagent_runnables={"known": object()})
+    req = StepRequest(kind="subagent", target="ghost", payload="x", step_id="p#0")
+    with pytest.raises(WorkflowStepError, match="(?i)registered subagent"):
+        await executor(req)
 
 
 def test_make_workflow_tools_names_and_count():
