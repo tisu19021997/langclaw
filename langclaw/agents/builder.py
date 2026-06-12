@@ -343,9 +343,13 @@ def create_claw_agent(
         )
 
         _live_tools = tools
+        # Populated after the subagents are resolved (below), so ``ctx.subagent``
+        # can delegate to a subagent's compiled graph. The factory closes over the
+        # dict by reference and runs per-workflow-run, long after this is filled.
+        _subagent_runnables: dict[str, Any] = {}
 
         async def _workflow_executor_factory(_tool_runtime: Any) -> Any:
-            return build_toolset_executor(_live_tools)
+            return build_toolset_executor(_live_tools, subagent_runnables=_subagent_runnables)
 
         def _tools_for_spec(spec: Any) -> list[Any]:
             # Mode 2 / saved allowlist: spec.uses_tools ∩ live toolset (none → none).
@@ -552,6 +556,30 @@ def create_claw_agent(
         resolved_subagents.extend(_prepare_external_subagents(external_specs, config))
 
     final_subagents: list[dict[str, Any]] | None = resolved_subagents or None
+
+    # Make subagents reachable from workflow bodies (``ctx.subagent``). deepagents
+    # compiles its subagents inside ``create_deep_agent`` and only exposes them
+    # through the ``task`` tool, which needs an injected ToolRuntime the out-of-graph
+    # workflow executor can't supply. So compile the same specs into standalone
+    # runnables (via deepagents' own ``SubAgentMiddleware`` compiler) and hand them
+    # to the executor factory's closure, which invokes each graph directly. Declarative
+    # specs inherit the parent model/tools when unset — mirroring what create_deep_agent
+    # does (graph.py) — since the compiler requires both to be present.
+    if _workflows_active and final_subagents:
+        from deepagents.middleware.subagents import SubAgentMiddleware
+
+        normalized: list[dict[str, Any]] = []
+        for s in final_subagents:
+            if "runnable" in s:  # CompiledSubAgent — already a runnable
+                normalized.append(s)
+                continue
+            spec = dict(s)
+            spec.setdefault("model", resolved_model)
+            if "tools" not in spec:
+                spec["tools"] = tools
+            normalized.append(spec)
+        _sam = SubAgentMiddleware(backend=resolved_backend, subagents=normalized)
+        _subagent_runnables.update({s["name"]: s["runnable"] for s in _sam._get_subagents()})
 
     return create_deep_agent(
         model=resolved_model,
