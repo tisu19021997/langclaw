@@ -148,6 +148,13 @@ async def research(ctx, inp: Brief) -> str:
     return "\n\n".join(f"## {a}\n{r}" for a, r in zip(inp.angles, findings))
 ```
 
+A workflow body composes four kinds of step, each a durable, resumable unit:
+
+- `ctx.tool(name, **kw)` — call a registered tool (deterministic capability)
+- `ctx.subagent(type, prompt)` — delegate to a subagent (its own tools, isolated context)
+- `ctx.llm(prompt, schema=Model)` — **one model call, no tools, no agent loop** — for one-shot judgment (classify / score / extract). With a Pydantic `schema` you get a *validated object back from a single structured call*; without it, plain text. Neither Claude Code nor deepagents exposes a bare model-call step — this is langclaw's, and like every step it's memoized and crash-resumable.
+- `ctx.parallel([...])` — fan the above out concurrently, bounded by `max_concurrency`
+
 ```bash
 LANGCLAW__WORKFLOWS__ENABLED=true    # workflows are off by default
 ```
@@ -164,7 +171,7 @@ Now the agent sees a `workflow_research` tool, and users can drive it directly:
 
 | Mode | Who writes it | Reach for it when |
 |---|---|---|
-| `python` *(recommended)* | You | You want typed, testable, deterministic control flow — `ctx.parallel` / `ctx.phase` / `ctx.tool` / `ctx.subagent`. |
+| `python` *(recommended)* | You | You want typed, testable, deterministic control flow — `ctx.parallel` / `ctx.phase` / `ctx.tool` / `ctx.subagent` / `ctx.llm`. |
 | `saved` | The agent, once | The agent invents a repeatable job: it writes a sandboxed JS body via the `eval` interpreter, saves it to `workflows/<name>.js`, and it loads as a tool. |
 | `llm_authored` *(experimental)* | The model, per run | Low-stakes, supervised work where you declare only the typed contract and let the model write the body fresh each run. |
 
@@ -173,7 +180,7 @@ Now the agent sees a `workflow_research` tool, and users can drive it directly:
 > **How `saved` and `llm_authored` actually run** — programmatic tool calling (PTC):
 >
 > - The model writes a small JS program in the `langchain-quickjs` code-interpreter sandbox.
-> - It calls tools, loops, branches, retries — and can hand off to deepagents subagents via `tools.task`.
+> - It calls tools, loops, branches, retries — makes one-shot model calls via `tools.llm({ prompt })` (the JS sibling of `ctx.llm`), and can hand off to deepagents subagents via `tools.task`.
 > - Same approach as [Claude Code's dynamic workflows](https://claude.com/blog/introducing-dynamic-workflows-in-claude-code). The honest difference is **scale**: langclaw's sandbox is tuned for scripted control flow and a few subagents, not the tens-to-hundreds-of-agents parallel fan-out Claude's targets.
 > - Needs `uv add "langclaw[interpreter]"`; capability-scoped to the tools you allow via `uses_tools` — no filesystem, network, or ambient host APIs.
 
