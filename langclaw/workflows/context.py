@@ -138,6 +138,34 @@ class WorkflowContext:
         """Delegate to a subagent type, returning its reply."""
         return await self._run_step("subagent", subagent_type, prompt)
 
+    async def llm(
+        self,
+        prompt: str,
+        *,
+        schema: type | None = None,
+        model: str | None = None,
+        system: str | None = None,
+    ) -> Any:
+        """Make a single model call — no tools, no agent loop.
+
+        The lightweight third option beside :meth:`tool` (a deterministic
+        capability) and :meth:`subagent` (an autonomous worker): a bare LLM call
+        for one-shot judgment — classify, score, extract, rewrite, summarise.
+
+        Like every step it is memoised and crash-resumable, so a bare model call
+        becomes a first-class, durable workflow step.
+
+        Args:
+            prompt: The user prompt.
+            schema: Optional Pydantic model. When given, the reply is validated
+                structured output (one structured call); when omitted, plain text.
+            model: Optional model spec (e.g. ``"openai:gpt-4.1"``) overriding the
+                workflow's default model for this call.
+            system: Optional system instruction.
+        """
+        payload = {"prompt": prompt, "system": system}
+        return await self._run_step("llm", model or "", payload, schema=schema)
+
     async def tool(self, name: str, **kwargs: Any) -> Any:
         """Invoke a tool by name with keyword arguments."""
         return await self._run_step("tool", name, kwargs)

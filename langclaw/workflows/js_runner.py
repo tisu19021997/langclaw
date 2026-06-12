@@ -68,10 +68,19 @@ PHASE_SINK_ARG = "name"
 LOG_SINK_NAME = "log"
 LOG_SINK_ARG = "message"
 
+#: The model-call sink — the JS counterpart of ``ctx.llm``. A body asks for a
+#: one-shot model call via ``tools.llm({ prompt, system?, model? })`` and gets the
+#: reply text back. Always present (like ``output``/``phase``/``log``), not part of
+#: the ``@uses`` tool allowlist — it's a primitive, not a capability tool.
+LLM_SINK_NAME = "llm"
+LLM_SINK_ARG = "prompt"
+
 
 def build_workflow_script_runner(
     tools: Sequence[BaseTool],
     *,
+    default_model: Any | None = None,
+    model_resolver: Callable[[str], Any] | None = None,
     memory_limit: int = _DEFAULT_MEMORY_LIMIT,
     timeout_s: float = _DEFAULT_TIMEOUT_S,
     max_stdout_chars: int = _DEFAULT_MAX_STDOUT,
@@ -83,6 +92,10 @@ def build_workflow_script_runner(
         tools:            The tools to expose in the sandbox — the capability
                           allowlist. Pass the role-filtered, ``uses_tools``-narrowed
                           live toolset.
+        default_model:    The chat model ``tools.llm`` calls when the body gives no
+                          per-call ``model`` override. ``None`` ⇒ ``tools.llm`` errors.
+        model_resolver:   ``(model_spec) -> chat model`` resolving a per-call
+                          ``tools.llm({model})`` override. ``None`` ⇒ no override.
         memory_limit:     QuickJS runtime memory ceiling (bytes).
         timeout_s:        Per-eval wall-clock budget inside the sandbox.
         max_stdout_chars: Console-capture cap.
@@ -155,6 +168,24 @@ def build_workflow_script_runner(
                     pass
             return "ok"
 
+        # Per-run model-call sink — ctx.llm parity. One model call, no tools, no
+        # loop; returns the reply text. The body can JSON.parse it for structure.
+        async def _llm(prompt: str = "", system: str = "", model: str = "") -> str:
+            chosen = default_model
+            if model:
+                if model_resolver is None:
+                    raise WorkflowStepError(
+                        f"tools.llm requested model {model!r} but no model resolver is "
+                        "configured for this run."
+                    )
+                chosen = model_resolver(model)
+            if chosen is None:
+                raise WorkflowStepError(
+                    "tools.llm has no model to call — none was configured for this run."
+                )
+            messages = ([("system", system)] if system else []) + [("user", prompt)]
+            return _message_text(await chosen.ainvoke(messages)).strip()
+
         phase_tool = StructuredTool.from_function(
             coroutine=_phase,
             name=PHASE_SINK_NAME,
@@ -165,10 +196,18 @@ def build_workflow_script_runner(
             name=LOG_SINK_NAME,
             description=f"Emit a free-text progress line: {{ {LOG_SINK_ARG}: <string> }}.",
         )
+        llm_tool = StructuredTool.from_function(
+            coroutine=_llm,
+            name=LLM_SINK_NAME,
+            description=(
+                "Make one model call (no tools, no agent loop) and get the reply text: "
+                f"{{ {LLM_SINK_ARG}: <string>, system?: <string>, model?: <string> }}."
+            ),
+        )
 
         try:
             # Sinks install last so the reserved names win over any same-named tool.
-            repl.install_tools([*tool_list, output_tool, phase_tool, log_tool])
+            repl.install_tools([*tool_list, output_tool, phase_tool, log_tool, llm_tool])
             payload = json.dumps(_to_jsonable(validated_input))
             code = f"const inp = {payload};\n{script}"
             outcome = await repl.eval_async(code)
@@ -273,6 +312,9 @@ def _render_authoring_prompt(
         f"named phase, `await tools.{LOG_SINK_NAME}({{ {LOG_SINK_ARG}: '3/10 done' }})` "
         "for a free-text line. Both are safe no-ops if unobserved — use them to narrate "
         "long runs.\n"
+        f"- One-shot model call (for a judgment — classify, score, extract): "
+        f"`const text = await tools.{LLM_SINK_NAME}({{ {LLM_SINK_ARG}: '...', system: '...' }})`. "
+        "Returns reply text; `JSON.parse(...)` it yourself if you asked for JSON.\n"
         "- You are writing this BLIND — you cannot run it or inspect intermediate "
         "values. Do NOT assume a tool's exact result field names; if a result "
         "shape is uncertain, include the whole value rather than guessing a field, "

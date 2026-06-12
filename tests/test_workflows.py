@@ -749,6 +749,164 @@ async def test_toolset_executor_unknown_subagent_raises_clear_error():
         await executor(req)
 
 
+class _FakeChatModel:
+    """A chat model stand-in for ctx.llm tests: records the messages it was asked
+    and returns either plain text or, via with_structured_output, a fixed object."""
+
+    def __init__(self, text="ok", structured=None):
+        self._text = text
+        self._structured = structured
+        self.seen_messages = None
+        self.structured_schema = None
+
+    async def ainvoke(self, messages, *a, **k):
+        from langchain_core.messages import AIMessage
+
+        self.seen_messages = messages
+        return AIMessage(content=self._text)
+
+    def with_structured_output(self, schema, *a, **k):
+        self.structured_schema = schema
+        outer = self
+
+        class _Structured:
+            async def ainvoke(self, messages, *a, **k):
+                outer.seen_messages = messages
+                return outer._structured
+
+        return _Structured()
+
+
+@pytest.mark.asyncio
+async def test_toolset_executor_llm_plain_text():
+    from langchain_core.messages import HumanMessage
+
+    from langclaw.workflows.bridge import build_toolset_executor
+    from langclaw.workflows.context import StepRequest
+
+    model = _FakeChatModel(text="it's a bug")
+    executor = build_toolset_executor([], default_model=model)
+    req = StepRequest(kind="llm", target="", payload={"prompt": "classify this"}, step_id="p#0")
+    out = await executor(req)
+    assert out == "it's a bug"
+    # the prompt was sent as a user message
+    sent = model.seen_messages
+    assert any(isinstance(m, HumanMessage) or m == ("user", "classify this") for m in sent)
+
+
+@pytest.mark.asyncio
+async def test_toolset_executor_llm_structured_schema():
+    from langclaw.workflows.bridge import build_toolset_executor
+    from langclaw.workflows.context import StepRequest
+
+    class Verdict(BaseModel):
+        label: str
+
+    model = _FakeChatModel(structured=Verdict(label="real"))
+    executor = build_toolset_executor([], default_model=model)
+    req = StepRequest(
+        kind="llm", target="", payload={"prompt": "judge"}, step_id="p#0", schema=Verdict
+    )
+    out = await executor(req)
+    assert isinstance(out, Verdict) and out.label == "real"
+    assert model.structured_schema is Verdict
+
+
+@pytest.mark.asyncio
+async def test_toolset_executor_llm_structured_json_fallback():
+    """When the provider lacks native structured output, ctx.llm(schema=...) falls
+    back to a JSON instruction + parse, so it works on any endpoint."""
+    from langchain_core.messages import AIMessage
+
+    from langclaw.workflows.bridge import build_toolset_executor
+    from langclaw.workflows.context import StepRequest
+
+    class Out(BaseModel):
+        label: str
+        score: int
+
+    class _NoNativeStructured:
+        def with_structured_output(self, schema, *a, **k):
+            raise RuntimeError("provider has no native structured output")
+
+        async def ainvoke(self, messages, *a, **k):
+            # the fallback call returns JSON (in a fence, to exercise extraction)
+            return AIMessage(content='```json\n{"label": "bug", "score": 8}\n```')
+
+    executor = build_toolset_executor([], default_model=_NoNativeStructured())
+    req = StepRequest(kind="llm", target="", payload={"prompt": "judge"}, step_id="p#0", schema=Out)
+    out = await executor(req)
+    assert isinstance(out, Out) and out.label == "bug" and out.score == 8
+
+
+@pytest.mark.asyncio
+async def test_toolset_executor_llm_no_model_raises():
+    from langclaw.workflows.bridge import build_toolset_executor
+    from langclaw.workflows.context import StepRequest, WorkflowStepError
+
+    executor = build_toolset_executor([], default_model=None)
+    req = StepRequest(kind="llm", target="", payload={"prompt": "x"}, step_id="p#0")
+    with pytest.raises(WorkflowStepError, match="(?i)model"):
+        await executor(req)
+
+
+@pytest.mark.asyncio
+async def test_toolset_executor_llm_model_override_resolved():
+    from langclaw.workflows.bridge import build_toolset_executor
+    from langclaw.workflows.context import StepRequest
+
+    resolved = {}
+
+    def resolver(spec):
+        resolved["spec"] = spec
+        return _FakeChatModel(text="from override")
+
+    executor = build_toolset_executor(
+        [], default_model=_FakeChatModel(text="from default"), model_resolver=resolver
+    )
+    req = StepRequest(kind="llm", target="openai:gpt-4.1", payload={"prompt": "x"}, step_id="p#0")
+    out = await executor(req)
+    assert out == "from override"
+    assert resolved["spec"] == "openai:gpt-4.1"
+
+
+@pytest.mark.asyncio
+async def test_context_llm_step_text_and_schema():
+    from langclaw.workflows.context import WorkflowContext
+
+    class Out(BaseModel):
+        n: int
+
+    async def executor(req):
+        assert req.kind == "llm"
+        if req.schema is not None:
+            return {"n": 7}  # dict → _coerce builds Out
+        return "plain answer"
+
+    ctx = WorkflowContext(executor=executor)
+    assert await ctx.llm("hello") == "plain answer"
+    r = await ctx.llm("give me n", schema=Out)
+    assert isinstance(r, Out) and r.n == 7
+
+
+@pytest.mark.asyncio
+async def test_context_llm_passes_model_and_system():
+    from langclaw.workflows.context import WorkflowContext
+
+    captured = {}
+
+    async def executor(req):
+        captured["target"] = req.target
+        captured["payload"] = req.payload
+        return "ok"
+
+    ctx = WorkflowContext(executor=executor)
+    await ctx.llm("do it", model="openai:gpt-4.1", system="be terse")
+    assert captured["target"] == "openai:gpt-4.1"
+    assert captured["payload"]["prompt"] == "do it"
+    assert captured["payload"]["system"] == "be terse"
+
+
 def test_make_workflow_tools_names_and_count():
     from langclaw.config.schema import WorkflowsConfig
     from langclaw.workflows import WorkflowRegistry, WorkflowRuntime, WorkflowSpec
@@ -1445,6 +1603,43 @@ async def test_script_runner_raises_workflowsteperror_on_js_error():
     runner = build_workflow_script_runner([])
     with pytest.raises(WorkflowStepError):
         await runner("nonexistentFunction();", None)
+
+
+async def test_script_runner_tools_llm_calls_model():
+    """A saved/authored JS body reaches a one-shot model call via tools.llm — the
+    ctx.llm parity sibling for the sandbox."""
+    pytest.importorskip("langchain_quickjs")
+    from langchain_core.messages import AIMessage
+
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    class _Model:
+        def __init__(self):
+            self.seen = None
+
+        async def ainvoke(self, messages, *a, **k):
+            self.seen = messages
+            return AIMessage(content="MODEL_SAID_HI")
+
+    model = _Model()
+    runner = build_workflow_script_runner([], default_model=model)
+    script = (
+        "const r = await tools.llm({ prompt: 'classify: ' + inp.text });\n"
+        "await tools.output({ result: r });"
+    )
+    out = await runner(script, {"text": "the export button is broken"})
+    assert out == "MODEL_SAID_HI"
+    assert any("classify: the export button is broken" in str(m) for m in model.seen)
+
+
+async def test_script_runner_tools_llm_without_model_raises():
+    pytest.importorskip("langchain_quickjs")
+    from langclaw.workflows.context import WorkflowStepError
+    from langclaw.workflows.js_runner import build_workflow_script_runner
+
+    runner = build_workflow_script_runner([])  # no model configured
+    with pytest.raises(WorkflowStepError):
+        await runner("await tools.output({ result: await tools.llm({ prompt: 'x' }) });", None)
 
 
 async def test_script_runner_disallowed_tool_is_unavailable():
