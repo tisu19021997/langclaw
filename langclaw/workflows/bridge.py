@@ -6,9 +6,14 @@ Two pieces turn the inert registry into something the running agent can call:
 - :func:`build_toolset_executor` — the *default step executor*.  It maps each
   :class:`~langclaw.workflows.context.StepRequest` a workflow body issues onto
   the live toolset: ``ctx.tool(name, **kw)`` invokes that tool; ``ctx.subagent``
-  / ``ctx.agent`` route through the deepagents ``task`` delegation tool.  This is
-  the in-process executor; a future slice may publish each step to the bus so it
-  re-enters ``GatewayManager._handle`` (full RBAC/rate-limit/checkpointing).
+  invokes that subagent's *compiled graph directly* with the prompt as a fresh
+  user message and returns its final AI text.  (It deliberately does **not** go
+  through the deepagents ``task`` tool: ``task`` needs an injected ``ToolRuntime``
+  — state / config / tool_call_id — that only exists inside the agent graph, so
+  calling it from the out-of-graph workflow executor fails.  Passing the subagent
+  runnables in sidesteps that entirely.)  This is the in-process executor; a
+  future slice may publish each step to the bus so it re-enters
+  ``GatewayManager._handle`` (full RBAC/rate-limit/checkpointing).
 - :func:`make_workflow_tools` — one ``workflow_<name>`` LangChain tool per
   registered workflow.  The tool validates the run input against the spec's
   model, runs the workflow via :class:`~langclaw.workflows.runtime.WorkflowRuntime`,
@@ -102,30 +107,40 @@ class _WorkflowToolArgs(BaseModel):
     )
 
 
-def build_toolset_executor(available_tools: list[Any]) -> StepExecutor:
+def build_toolset_executor(
+    available_tools: list[Any],
+    *,
+    subagent_runnables: dict[str, Any] | None = None,
+) -> StepExecutor:
     """Return a :class:`StepExecutor` backed by a live toolset.
 
     Args:
         available_tools: The tools (objects with ``.name`` and ``.ainvoke``)
             the workflow's steps may reach.  Typically the same role-filtered
             toolset the agent itself was built with.
+        subagent_runnables: ``{subagent_type: compiled graph}`` the workflow may
+            delegate to via ``ctx.subagent``.  Each graph is invoked directly
+            (``ainvoke({"messages": [HumanMessage(prompt)]})``) — not via the
+            ``task`` tool — so it works from outside the agent graph.  ``None`` ⇒
+            no subagent is reachable and ``ctx.subagent`` raises a clear error.
 
     Returns:
         An async ``(StepRequest) -> result`` callable:
 
         - ``kind == "tool"``  → ``tool.ainvoke(payload_dict)``.
-        - ``kind in {"subagent", "agent"}`` → route through the ``task`` tool as
-          ``{"subagent_type": target, "description": payload}``.
+        - ``kind == "subagent"`` → invoke ``subagent_runnables[target]`` with the
+          payload as a user message; return its final AI text.
 
     Raises (inside the returned callable):
-        WorkflowStepError: when a referenced tool / the ``task`` tool is absent —
-            the same tool-absence boundary the interpreter relies on.
+        WorkflowStepError: when a referenced tool is absent, a subagent is not
+            registered, or a named-``agent`` step is requested (unsupported).
     """
     by_name: dict[str, Any] = {}
     for t in available_tools:
         name = getattr(t, "name", None)
         if name:
             by_name[name] = t
+    runnables: dict[str, Any] = subagent_runnables or {}
 
     async def _executor(request: StepRequest) -> Any:
         if request.kind == "tool":
@@ -138,20 +153,61 @@ def build_toolset_executor(available_tools: list[Any]) -> StepExecutor:
             args = request.payload if isinstance(request.payload, dict) else {}
             return await tool.ainvoke(args)
 
-        if request.kind in ("subagent", "agent"):
-            task = by_name.get("task")
-            if task is None:
+        if request.kind == "subagent":
+            runnable = runnables.get(request.target)
+            if runnable is None:
+                available = ", ".join(sorted(runnables)) or "none"
                 raise WorkflowStepError(
-                    f"Workflow step requested {request.kind} {request.target!r} but "
-                    "the delegation tool 'task' is not available to this run."
+                    f"Workflow step requested subagent {request.target!r}, which is not "
+                    f"a registered subagent (available: {available}). Register it with "
+                    "app.subagent(...)."
                 )
-            return await task.ainvoke(
-                {"subagent_type": request.target, "description": request.payload}
+            from langchain_core.messages import HumanMessage
+
+            result = await runnable.ainvoke(
+                {"messages": [HumanMessage(content=str(request.payload))]}
+            )
+            return _subagent_reply_text(result)
+
+        if request.kind == "agent":
+            raise WorkflowStepError(
+                "ctx.agent (delegating to a named agent) is not supported from a "
+                "workflow yet; use ctx.subagent(<type>, ...) to delegate to a subagent."
             )
 
         raise WorkflowStepError(f"Unknown workflow step kind: {request.kind!r}")
 
     return _executor
+
+
+def _subagent_reply_text(result: Any) -> str:
+    """Extract a subagent graph's final reply: the last non-empty AI message text.
+
+    Mirrors how deepagents' ``task`` tool reduces a subagent result — walk back to
+    the last :class:`AIMessage` with text (a trailing empty ``end_turn`` message is
+    skipped).  Returns ``""`` when the subagent produced no text.
+    """
+    from langchain_core.messages import AIMessage
+
+    messages = result.get("messages", []) if isinstance(result, dict) else []
+    for msg in reversed(messages):
+        if not isinstance(msg, AIMessage):
+            continue
+        content = msg.content
+        if isinstance(content, str):
+            if content.strip():
+                return content.strip()
+            continue
+        if isinstance(content, list):  # content blocks → join the text parts
+            parts = [
+                b.get("text", "")
+                for b in content
+                if isinstance(b, dict) and b.get("type") == "text"
+            ]
+            text = " ".join(parts).strip()
+            if text:
+                return text
+    return ""
 
 
 def make_workflow_tools(
