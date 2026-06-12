@@ -58,10 +58,14 @@ def make_app(system_prompt: str = "") -> Langclaw:
 
 
 def pick_label(text: str, choices: list[str], default: str = "") -> str:
-    """Return the first *choice* that appears in *text* (case-insensitive)."""
+    """Return the first *choice* that appears in *text* as a whole word (case-insensitive).
+
+    Whole-word so a label isn't matched inside another token — e.g. ``"supported"``
+    must not match inside ``"unsupported"``.
+    """
     low = text.lower()
     for c in choices:
-        if c.lower() in low:
+        if re.search(rf"\b{re.escape(c.lower())}\b", low):
             return c
     return default or (choices[0] if choices else "")
 

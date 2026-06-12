@@ -29,10 +29,21 @@ from examples.workflow_patterns._app import make_app, pick_label
 
 VERDICTS = ["refuted", "supported", "unverifiable"]
 _URL_RE = re.compile(r"https?://\S+")
+_VERDICT_RE = re.compile(r"verdict\s*:\s*([a-z]+)", re.IGNORECASE)
 _EXTRACT_SYS = (
     "Extract the distinct, atomic, checkable factual claims from the answer. Skip "
     "opinions and hedges. Return at most 6 of the load-bearing claims."
 )
+
+
+def _verdict(reply: str) -> str:
+    """Read the skeptic's verdict from its ``VERDICT:`` line, falling back to a scan.
+
+    Reading the labelled line (not the whole reply) avoids a stray word in the prose
+    flipping the verdict — e.g. "not clearly supported" must not count as *supported*.
+    """
+    m = _VERDICT_RE.search(reply)
+    return pick_label(m.group(1) if m else reply, VERDICTS, default="unverifiable")
 
 
 class Draft(BaseModel):
@@ -88,7 +99,7 @@ def register(app):
                 [lambda cc: cc.subagent("skeptic", f"CLAIM: {claim}") for _ in range(inp.votes)]
             )
             texts = [r if isinstance(r, str) else str(r) for r in replies]
-            verdicts = [pick_label(t, VERDICTS, default="unverifiable") for t in texts]
+            verdicts = [_verdict(t) for t in texts]
             survived = verdicts.count("supported") > verdicts.count("refuted")  # ties lose
             links = [m.group(0).rstrip(".,)") for t in texts if (m := _URL_RE.search(t))]
             return {"claim": claim, "verdicts": verdicts, "survived": survived, "links": links[:2]}
