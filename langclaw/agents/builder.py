@@ -349,7 +349,12 @@ def create_claw_agent(
         _subagent_runnables: dict[str, Any] = {}
 
         async def _workflow_executor_factory(_tool_runtime: Any) -> Any:
-            return build_toolset_executor(_live_tools, subagent_runnables=_subagent_runnables)
+            return build_toolset_executor(
+                _live_tools,
+                subagent_runnables=_subagent_runnables,
+                default_model=resolved_model,
+                model_resolver=init_chat_model,
+            )
 
         def _tools_for_spec(spec: Any) -> list[Any]:
             # Mode 2 / saved allowlist: spec.uses_tools ∩ live toolset (none → none).
