@@ -10,44 +10,37 @@ similar-issues search plus a repro checklist; a feature request gets scoped; a
 question gets answered from the web. The classifier never does the work, and the
 handlers never re-classify — each step has one job and one isolated context.
 
+The classification is a one-shot judgment, so it's `ctx.llm` with a schema — a
+validated category back from a single call, no string parsing.
+
     /workflows run triage {"text": "the /login endpoint 500s when the password contains a +"}
 """
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
-from examples.workflow_patterns._app import make_app, pick_label, reasoner, say
+from examples.workflow_patterns._app import make_app
 
-LABELS = ["security", "bug", "feature_request", "question"]
+_CLASSIFIER_SYS = "You are a precise support-ticket router."
+_ASSESS_SYS = (
+    "You are a senior on-call engineer. Given a ticket and its category, respond with a "
+    "tight, skimmable assessment: severity (low/med/high), the single most likely cause, "
+    "and the one next action. Markdown, <120 words."
+)
 
 
 class Ticket(BaseModel):
     text: str = Field(description="The raw inbound ticket / report text.")
 
 
-def register(app):
-    reasoner(
-        app,
-        "classify_ticket",
-        description="Classify a support ticket into one category.",
-        system=(
-            "You are a precise support-ticket router. Read the ticket and reply with "
-            "EXACTLY ONE of these labels, lowercase, nothing else: "
-            "security, bug, feature_request, question."
-        ),
-    )
-    reasoner(
-        app,
-        "assess",
-        description="Give a short, structured assessment of a ticket.",
-        system=(
-            "You are a senior on-call engineer. Given a ticket and its category, "
-            "respond with a tight, skimmable assessment: severity (low/med/high), the "
-            "single most likely cause, and the one next action. Markdown, <120 words."
-        ),
-    )
+class Routing(BaseModel):
+    category: Literal["security", "bug", "feature_request", "question"]
 
+
+def register(app):
     @app.workflow(
         "triage",
         input=Ticket,
@@ -60,9 +53,12 @@ def register(app):
     )
     async def triage(ctx, inp: Ticket) -> str:
         ctx.phase("classify")
-        label = pick_label(
-            say(await ctx.tool("classify_ticket", prompt=inp.text)), LABELS, default="question"
+        routing = await ctx.llm(
+            f"Classify this support ticket.\n\n{inp.text}",
+            schema=Routing,
+            system=_CLASSIFIER_SYS,
         )
+        label = routing.category
         ctx.log(f"classified as {label}")
 
         ctx.phase("act")
@@ -71,27 +67,23 @@ def register(app):
         # Each branch reaches for different tools — that's the point of the pattern.
         if label == "security":
             hits = await ctx.tool("web_search", query=f"{inp.text} CVE advisory", n=3)
-            out.append(say(await ctx.tool("assess", prompt=f"category=security\n{inp.text}")))
+            out.append(await ctx.llm(f"category=security\n{inp.text}", system=_ASSESS_SYS))
             out += ["", "## Related advisories", _links(hits)]
         elif label == "bug":
             hits = await ctx.tool("web_search", query=f"{inp.text} error fix github issue", n=3)
-            out.append(say(await ctx.tool("assess", prompt=f"category=bug\n{inp.text}")))
+            out.append(await ctx.llm(f"category=bug\n{inp.text}", system=_ASSESS_SYS))
             out += ["", "## Possibly-related reports", _links(hits)]
         elif label == "feature_request":
             out.append(
-                say(
-                    await ctx.tool(
-                        "assess",
-                        prompt=(
-                            "category=feature_request. Instead of severity, give: user "
-                            f"value, rough effort (S/M/L), and one open question.\n{inp.text}"
-                        ),
-                    )
+                await ctx.llm(
+                    "category=feature_request. Instead of severity, give: user value, "
+                    f"rough effort (S/M/L), and one open question.\n{inp.text}",
+                    system=_ASSESS_SYS,
                 )
             )
         else:  # question
             hits = await ctx.tool("web_search", query=inp.text, n=3)
-            out.append(say(await ctx.tool("assess", prompt=f"category=question\n{inp.text}")))
+            out.append(await ctx.llm(f"category=question\n{inp.text}", system=_ASSESS_SYS))
             out += ["", "## Sources", _links(hits)]
 
         return "\n".join(out)

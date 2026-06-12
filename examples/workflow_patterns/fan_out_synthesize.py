@@ -22,7 +22,14 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from examples.workflow_patterns._app import make_app, reasoner, say
+from examples.workflow_patterns._app import make_app
+
+_COMPARE_SYS = (
+    "You are an industry analyst. You are given research notes for several competing "
+    "options. Produce ONE markdown comparison table: a row per option, a column per "
+    "requested dimension, terse cells grounded ONLY in the notes. Add a one-line "
+    "'Bottom line' under the table. Do not invent facts."
+)
 
 
 class Landscape(BaseModel):
@@ -46,19 +53,6 @@ def register(app):
             "grounded in a source. No preamble. Do not invent facts."
         ),
         tools=["web_search"],
-    )
-    # The synthesis is a single judgment over the gathered notes — a model-backed
-    # tool (one isolated model call), not a subagent.
-    reasoner(
-        app,
-        "compare",
-        description="Synthesise per-item research into one comparison table.",
-        system=(
-            "You are an industry analyst. You are given research notes for several "
-            "competing options. Produce ONE markdown comparison table: a row per option, "
-            "a column per requested dimension, terse cells grounded ONLY in the notes. "
-            "Add a one-line 'Bottom line' under the table. Do not invent facts."
-        ),
     )
 
     @app.workflow(
@@ -89,19 +83,20 @@ def register(app):
         ctx.phase("synthesize")
         blocks = []
         for name, notes in zip(inp.contenders, findings, strict=False):
-            if isinstance(notes, Exception) or not say(notes):
+            if isinstance(notes, Exception) or not (isinstance(notes, str) and notes.strip()):
                 ctx.log(f"{name}: research failed, noting as unknown")
                 blocks.append(f"### {name}\n(no usable findings)")
                 continue
             ctx.log(f"{name}: scouted")
-            blocks.append(f"### {name}\n{say(notes)}")
+            blocks.append(f"### {name}\n{notes.strip()}")
 
         prompt = (
             f"Subject: {inp.subject}\n"
             f"Dimensions: {', '.join(inp.dimensions)}\n\n"
             f"Notes:\n\n" + "\n\n".join(blocks)
         )
-        table = say(await ctx.tool("compare", prompt=prompt))
+        # Synthesis is a one-shot judgment over the gathered notes → ctx.llm.
+        table = await ctx.llm(prompt, system=_COMPARE_SYS)
         return f"# {inp.subject.title()} — landscape\n\n{table}"
 
     return app

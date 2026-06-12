@@ -18,9 +18,15 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from examples.workflow_patterns._app import make_app, parse_score, reasoner, say
+from examples.workflow_patterns._app import make_app
 
 ANGLES = ["bold", "playful", "technical", "benefit-led", "contrarian", "minimalist"]
+
+_WRITE_SYS = (
+    "You are a senior copywriter. Given a product, an audience, and a stylistic ANGLE, "
+    "write exactly ONE tagline (<=10 words). No quotes, no preamble, just the line."
+)
+_JUDGE_SYS = "You judge marketing taglines on clarity, memorability, and fit for the audience."
 
 
 class StudioBrief(BaseModel):
@@ -31,27 +37,12 @@ class StudioBrief(BaseModel):
     bar: int = Field(default=6, ge=0, le=10, description="Minimum score to keep.")
 
 
-def register(app):
-    reasoner(
-        app,
-        "tagline",
-        description="Write one tagline from a given angle.",
-        system=(
-            "You are a senior copywriter. Given a product, an audience, and a stylistic "
-            "ANGLE, write exactly ONE tagline (<=10 words). No quotes, no preamble, just "
-            "the line."
-        ),
-    )
-    reasoner(
-        app,
-        "judge_tagline",
-        description="Score a tagline against a rubric.",
-        system=(
-            "You judge marketing taglines on clarity, memorability, and fit for the "
-            "audience. Reply on two lines:\nSCORE: <0-10>\nWHY: <one sentence>"
-        ),
-    )
+class Score(BaseModel):
+    score: int = Field(ge=0, le=10, description="0–10 rating.")
+    why: str = Field(description="One-sentence justification.")
 
+
+def register(app):
     @app.workflow(
         "tagline_studio",
         input=StudioBrief,
@@ -66,26 +57,26 @@ def register(app):
         angles = ANGLES[: inp.n]
 
         def gen(angle: str):
-            return lambda c: c.tool(
-                "tagline",
-                prompt=f"PRODUCT: {inp.product}\nAUDIENCE: {inp.audience}\nANGLE: {angle}",
+            return lambda c: c.llm(
+                f"PRODUCT: {inp.product}\nAUDIENCE: {inp.audience}\nANGLE: {angle}",
+                system=_WRITE_SYS,
             )
 
         raw = await ctx.parallel([gen(a) for a in angles])
-        candidates = [(a, say(r)) for a, r in zip(angles, raw, strict=False) if say(r)]
+        candidates = [(a, r.strip()) for a, r in zip(angles, raw, strict=False) if r and r.strip()]
         ctx.log(f"generated {len(candidates)} candidates")
 
         ctx.phase("filter")
 
         def judge(line: str):
-            return lambda c: c.tool(
-                "judge_tagline",
-                prompt=f"AUDIENCE: {inp.audience}\nTAGLINE: {line}",
+            # One structured judgment per candidate → a validated Score, no parsing.
+            return lambda c: c.llm(
+                f"AUDIENCE: {inp.audience}\nTAGLINE: {line}", schema=Score, system=_JUDGE_SYS
             )
 
         verdicts = await ctx.parallel([judge(line) for _, line in candidates])
         scored = [
-            {"angle": a, "line": line, "score": parse_score(say(v)), "why": _why(say(v))}
+            {"angle": a, "line": line, "score": v.score, "why": v.why}
             for (a, line), v in zip(candidates, verdicts, strict=False)
         ]
         scored.sort(key=lambda s: s["score"], reverse=True)
@@ -103,13 +94,6 @@ def register(app):
         return "\n".join(out)
 
     return app
-
-
-def _why(text: str) -> str:
-    for line in text.splitlines():
-        if line.lower().startswith("why"):
-            return line.split(":", 1)[-1].strip()
-    return ""
 
 
 if __name__ == "__main__":

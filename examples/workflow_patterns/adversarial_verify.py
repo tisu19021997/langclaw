@@ -25,10 +25,14 @@ import re
 
 from pydantic import BaseModel, Field
 
-from examples.workflow_patterns._app import make_app, pick_label, reasoner, say, split_items
+from examples.workflow_patterns._app import make_app, pick_label
 
 VERDICTS = ["refuted", "supported", "unverifiable"]
 _URL_RE = re.compile(r"https?://\S+")
+_EXTRACT_SYS = (
+    "Extract the distinct, atomic, checkable factual claims from the answer. Skip "
+    "opinions and hedges. Return at most 6 of the load-bearing claims."
+)
 
 
 class Draft(BaseModel):
@@ -37,18 +41,11 @@ class Draft(BaseModel):
     votes: int = Field(default=2, ge=1, le=4, description="Independent skeptics per claim.")
 
 
+class Claims(BaseModel):
+    claims: list[str] = Field(description="Atomic, checkable factual claims.")
+
+
 def register(app):
-    # Decomposition: a one-shot judgment over text → a model-backed tool.
-    reasoner(
-        app,
-        "extract_claims",
-        description="Break an answer into atomic, checkable factual claims.",
-        system=(
-            "Extract the distinct, atomic, checkable factual claims from the answer. "
-            "One claim per line, no numbering, no commentary. Skip opinions and hedges. "
-            "Return at most 6 of the load-bearing claims."
-        ),
-    )
     # Verification: each skeptic does its OWN multi-step evidence-gathering → a subagent.
     app.subagent(
         "skeptic",
@@ -76,7 +73,9 @@ def register(app):
     )
     async def fact_check(ctx, inp: Draft) -> str:
         ctx.phase("decompose")
-        claims = split_items(say(await ctx.tool("extract_claims", prompt=inp.answer)), limit=6)
+        # Decomposition is a one-shot judgment → ctx.llm with a schema (a list back).
+        extracted = await ctx.llm(inp.answer, schema=Claims, system=_EXTRACT_SYS)
+        claims = extracted.claims[:6]
         if not claims:
             return "# Fact-check\n\nNo checkable claims found."
         ctx.log(f"{len(claims)} claims to verify")
@@ -88,7 +87,7 @@ def register(app):
             replies = await c.parallel(
                 [lambda cc: cc.subagent("skeptic", f"CLAIM: {claim}") for _ in range(inp.votes)]
             )
-            texts = [say(r) for r in replies]
+            texts = [r if isinstance(r, str) else str(r) for r in replies]
             verdicts = [pick_label(t, VERDICTS, default="unverifiable") for t in texts]
             survived = verdicts.count("supported") > verdicts.count("refuted")  # ties lose
             links = [m.group(0).rstrip(".,)") for t in texts if (m := _URL_RE.search(t))]

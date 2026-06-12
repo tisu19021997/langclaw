@@ -18,7 +18,13 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from examples.workflow_patterns._app import make_app, norm, reasoner, say, split_items
+from examples.workflow_patterns._app import make_app, norm
+
+_HUNTER_SYS = (
+    "You find edge cases and failure modes. Given a TARGET and a list of cases ALREADY "
+    "FOUND, propose up to 5 genuinely NEW ones not already covered. Terse. Return an "
+    "empty list if you truly can't think of new ones."
+)
 
 
 class Hunt(BaseModel):
@@ -28,19 +34,11 @@ class Hunt(BaseModel):
     max_rounds: int = Field(default=8, ge=1, le=20, description="Hard cap on rounds.")
 
 
-def register(app):
-    reasoner(
-        app,
-        "hunter",
-        description="Propose NEW edge cases not already on a list.",
-        system=(
-            "You find edge cases and failure modes. Given a TARGET and a list of cases "
-            "ALREADY FOUND, propose up to 5 genuinely NEW ones not already covered. One "
-            "per line, terse, no numbering. If you truly can't think of new ones, reply "
-            "with the single word: NONE."
-        ),
-    )
+class Cases(BaseModel):
+    cases: list[str] = Field(description="New edge cases, terse, one per item.")
 
+
+def register(app):
     @app.workflow(
         "edge_hunt",
         input=Hunt,
@@ -61,12 +59,13 @@ def register(app):
             rnd += 1
             ctx.phase(f"round {rnd}")
             already = "\n".join(f"- {c}" for c in found) or "(nothing yet)"
-            raw = say(
-                await ctx.tool(
-                    "hunter", prompt=f"TARGET: {inp.target}\n\nALREADY FOUND:\n{already}"
-                )
+            # One structured judgment per round → a validated list, no parsing.
+            proposed = await ctx.llm(
+                f"TARGET: {inp.target}\n\nALREADY FOUND:\n{already}",
+                schema=Cases,
+                system=_HUNTER_SYS,
             )
-            fresh = [c for c in split_items(raw, limit=5) if norm(c) and norm(c) not in seen]
+            fresh = [c for c in proposed.cases[:5] if norm(c) and norm(c) not in seen]
 
             if not fresh:
                 dry += 1

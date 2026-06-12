@@ -16,9 +16,16 @@ champion remains. Odd rounds get a bye. You get a ranking you can trust the top 
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
-from examples.workflow_patterns._app import make_app, parse_winner, reasoner, say
+from examples.workflow_patterns._app import make_app
+
+_REFEREE_SYS = (
+    "You are an impartial referee. Given a CRITERION and two options A and B, decide "
+    "which one better satisfies the criterion."
+)
 
 
 class Bracket(BaseModel):
@@ -26,18 +33,12 @@ class Bracket(BaseModel):
     criterion: str = Field(description="What 'better' means in each duel.")
 
 
-def register(app):
-    reasoner(
-        app,
-        "referee",
-        description="Pick the better of two options for a criterion.",
-        system=(
-            "You are an impartial referee. Given a CRITERION and two options A and B, "
-            "decide which one better satisfies the criterion. Reply on two lines:\n"
-            "WINNER: <A|B>\nWHY: <one sentence>"
-        ),
-    )
+class Duel(BaseModel):
+    winner: Literal["A", "B"]
+    why: str = Field(description="One-sentence justification.")
 
+
+def register(app):
     @app.workflow(
         "prioritize",
         input=Bracket,
@@ -56,11 +57,11 @@ def register(app):
         async def duel(c, a: str, b: str | None) -> str:
             if b is None:  # bye — advances for free
                 return a
-            verdict = say(
-                await c.tool("referee", prompt=f"CRITERION: {inp.criterion}\nA: {a}\nB: {b}")
+            # One structured judgment per duel → a validated winner, no parsing.
+            verdict = await c.llm(
+                f"CRITERION: {inp.criterion}\nA: {a}\nB: {b}", schema=Duel, system=_REFEREE_SYS
             )
-            w = parse_winner(verdict)
-            return b if w == "B" else a  # default to A when unparseable
+            return b if verdict.winner == "B" else a
 
         rounds: list[str] = []
         rnd = 0

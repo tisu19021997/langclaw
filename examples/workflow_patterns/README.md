@@ -31,35 +31,29 @@ The patterns differ; the plumbing is shared in [`_app.py`](_app.py):
 
 - **`make_app()`** — a WebSocket-only app (the outward channels are forced off so an
   example never hijacks a real bot), with the workflow primitive on.
-- **`reasoner(app, name, system=…)`** — registers a focused, single-shot
-  **model-backed tool**. A workflow reaches LLM judgment with
-  `await ctx.tool("<name>", prompt=…)`, and each call is a *fresh* model context —
-  the isolation the dynamic-workflow patterns rely on to fight goal-drift and
-  self-preferential bias.
-- **tolerant parsers** (`pick_label` / `parse_score` / `parse_winner` /
-  `split_items`) — real models don't always honour "reply with only X", so the
-  control flow degrades gracefully instead of crashing.
+- two tolerant parsers (`pick_label` / `norm`) for the few spots that read a
+  *subagent's* free-text reply — models don't always honour "reply with only X".
 
 Each workflow is plain langclaw: `ctx.phase` / `ctx.log` for progress, `ctx.parallel`
 for bounded fan-out (with `return_exceptions=True` for failure isolation), `ctx.tool`
-for tools and reasoners, `ctx.subagent` for delegation, and ordinary Python for the
-branching, brackets, dedup, and loops. Because they're registered workflows, each is
-also a `workflow_<name>` tool the agent can call, a `/workflows run` target, and
-**cron-schedulable**.
+for tools, `ctx.llm` for one-shot judgment, `ctx.subagent` for delegation, and ordinary
+Python for the branching, brackets, dedup, and loops. Because they're registered
+workflows, each is also a `workflow_<name>` tool the agent can call, a `/workflows run`
+target, and **cron-schedulable**.
 
 ## Two ways to get LLM work into a workflow
 
-A workflow can reach LLM judgment two ways, and the cookbook uses both **by fit**:
+A workflow reaches LLM judgment two ways, and the cookbook uses both **by fit**:
 
-- **Model-backed tool** (`reasoner` → `ctx.tool`) — a single isolated model call for a
-  *one-shot judgment* over text (classify, score, compare, generate). Cheapest primitive
-  for "look at this and decide." Used by classify-and-act, generate-and-filter,
-  tournament, loop-until-done, and the synthesis/decomposition steps.
-- **Subagent** (`app.subagent` → `ctx.subagent`) — when the leaf does *multi-step work
-  with its own tools* in an isolated context: `landscape` fans out a `scout` subagent per
-  contender; `fact_check` spawns independent `skeptic` subagents that gather their own
-  evidence. (`ctx.subagent` from a registered workflow works as of the delegation fix;
-  full subagent fan-out is also available in the ad-hoc `eval` path via
+- **`ctx.llm(prompt, schema=Model)`** — one model call, no tools, no agent loop, for a
+  *one-shot judgment* (classify, score, compare, extract). With a Pydantic `schema` you
+  get a *validated object back from a single call* — no string parsing. Used by
+  classify-and-act (`Routing`), generate-and-filter (`Score`), tournament (`Duel`),
+  loop-until-done (`Cases`), and the decompose/synthesis steps.
+- **`ctx.subagent(type, prompt)`** — when the leaf does *multi-step work with its own
+  tools* in an isolated context: `landscape` fans out a `scout` subagent per contender;
+  `fact_check` spawns independent `skeptic` subagents that gather their own evidence.
+  (Full subagent fan-out is also available in the ad-hoc `eval` path via
   `tools.task({subagent_type})` — see [`../hn_digest_eval.py`](../hn_digest_eval.py).)
 
 These workflows make real model calls; the quality of a verdict, score, or
