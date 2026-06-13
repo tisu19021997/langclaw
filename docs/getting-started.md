@@ -101,5 +101,6 @@ langclaw status    # check provider keys + channel + bus health
 -   [:octicons-workflow-16: **Workflows**](guides/workflows.md) — durable multi-step routines
 -   [:octicons-people-16: **RBAC**](guides/rbac.md) — role-based access control
 -   [:octicons-clock-16: **Cron**](guides/cron.md) — scheduled jobs
+-   [:octicons-rocket-16: **Deployment**](guides/deployment.md) — prod backends, scaling, containers
 
 </div>

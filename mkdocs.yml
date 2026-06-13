@@ -86,6 +86,7 @@ nav:
     - Subagents: guides/subagents.md
     - RBAC: guides/rbac.md
     - Scheduled Jobs: guides/cron.md
+    - Deployment: guides/deployment.md
     - Probe Harness: guides/probe.md
     - Probe Internals: PROBE.md
     - Architecture: guides/architecture.md
