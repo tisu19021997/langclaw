@@ -7,10 +7,13 @@ langclaw gates three independent capability *axes* behind a role:
 - **subagents** — which ``app.subagent`` types a role may reach via ``tools.task``.
 - **workflows** — which registered workflows a role may run (``workflow_<name>``).
 
-These used to be three hand-written helpers with *divergent* semantics
-(unknown-role pass-through for tools vs default-deny for the other two) and
-three enforcement seams that had to be kept in lockstep by eye — every new axis
-multiplied that drift surface.
+These used to be three hand-written helpers with *divergent* unknown-role
+semantics and three enforcement seams that had to be kept in lockstep by eye —
+every new axis multiplied that drift surface. All three axes are now
+**default-deny** for unknown roles: enabling RBAC restricts every axis for
+unlisted users. The per-axis :attr:`~CapabilityAxis.unknown_role_grants_all`
+knob survives (a future "anonymous/public" axis could opt into pass-through) but
+no *shipped* axis sets it.
 
 This module collapses the *resolution* model to one declaration per axis:
 
@@ -52,9 +55,11 @@ class CapabilityAxis:
             holding this axis's grant list (e.g. ``"tools"``).
         unknown_role_grants_all: The **single** semantics decision. ``True`` →
             an unknown role (not in ``config.roles``) is *not* filtered and gets
-            the whole universe (pass-through, as the tool axis has always
-            behaved). ``False`` → an unknown role gets nothing (default-deny, as
-            subagents and workflows do).
+            the whole universe (pass-through). ``False`` → an unknown role gets
+            nothing (default-deny). Every *shipped* axis sets ``False`` so that
+            enabling RBAC restricts unlisted users on every axis; the ``True``
+            branch remains for a future opt-in pass-through axis (e.g. an
+            anonymous/public capability).
         tool_prefix: For axes enforced by the model-call tool filter: tools whose
             ``.name`` starts with this prefix belong to this axis. ``None`` for
             the residual tool axis and for axes not enforced by that filter.
@@ -98,13 +103,19 @@ class CapabilityAxis:
         return self.maps_to_tools or self.arg_gated
 
 
-#: The tool axis — every plain ``@app.tool``. **Pass-through** for unknown roles
-#: (an unrecognised role sees the full toolset), matching langclaw's original
-#: ``allowed_tool_names`` contract. Owns the residual (un-prefixed) namespace.
+#: The tool axis — every plain ``@app.tool``. **Default-deny** for unknown roles,
+#: like every other axis: enabling RBAC restricts tools for *everyone*, including
+#: an unlisted user whose ``default_role`` was never registered. (Before this it
+#: was unknown-role *pass-through*, which silently granted all tools to unlisted
+#: users the moment RBAC was turned on — the opposite of what "enable RBAC"
+#: implies.) When RBAC is *disabled* this filter is never installed, so every user
+#: still sees every tool — the open-by-default case is handled at the wiring layer
+#: (``agents/builder.py``), not by this flag. Owns the residual (un-prefixed)
+#: namespace.
 TOOLS = CapabilityAxis(
     name="tools",
     role_field="tools",
-    unknown_role_grants_all=True,
+    unknown_role_grants_all=False,
     is_residual_tool_axis=True,
 )
 

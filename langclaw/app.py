@@ -400,7 +400,7 @@ class Langclaw:
 
         Three independent RBAC axes:
 
-        - ``tools``     — pass-through for unknown roles; ``["*"]`` grants all.
+        - ``tools``     — **default-deny** for unknown roles; ``["*"]`` grants all.
         - ``subagents`` — **default-deny**; subagent types reachable via the
                           ``task`` tool. ``["*"]`` allows every registered one.
         - ``workflows`` — **default-deny**; workflows reachable as the
