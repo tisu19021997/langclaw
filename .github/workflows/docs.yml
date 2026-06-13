@@ -1,0 +1,49 @@
+name: Docs
+
+# Build the MkDocs Material site and deploy it to the gh-pages branch on every
+# push to main that touches docs, the mkdocs config, or the package source
+# (mkdocstrings renders API docs from docstrings, so code changes matter too).
+# Matches the existing manual flow: `mkdocs gh-deploy` pushes to gh-pages, which
+# GitHub Pages serves (legacy "deploy from branch" source). docs/CNAME rides
+# along in the build, so the langclaw.dev custom domain survives each deploy.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "langclaw/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+env:
+  UV_FROZEN: "1"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-suffix: docs
+
+      - name: Install docs dependencies
+        run: uv sync --group docs
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Build and deploy to gh-pages
+        run: uv run mkdocs gh-deploy --force
