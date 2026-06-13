@@ -5,10 +5,17 @@ All config is read from environment variables with the `LANGCLAW__` prefix and
 API keys are the exception — they use the provider's own plain env var
 (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …), not a `LANGCLAW__` key.
 
+!!! tip "Typo'd keys are surfaced, not silently dropped"
+    An unrecognized `LANGCLAW__` env var (e.g. `…__BOT_TOKEN` when the field is
+    `…__TOKEN`) is logged as a `WARNING` at load time, naming the stray key. Set
+    `LANGCLAW__STRICT_ENV=true` to make an unknown key raise instead. Only
+    `LANGCLAW__`-prefixed keys are checked — plain provider vars are left alone.
+
 ## Common environment variables
 
 | Env var | Default | Notes |
 |---|---|---|
+| `LANGCLAW__STRICT_ENV` | `false` | raise on an unknown `LANGCLAW__` key instead of warning |
 | `LANGCLAW__AGENTS__MODEL` | `anthropic:claude-sonnet-4-5-20250929` | `provider:model` spec |
 | `LANGCLAW__AGENTS__RATE_LIMIT_RPM` | `60` | requests/min |
 | `LANGCLAW__AGENTS__BACKEND__BACKEND` | `local_shell` | `local_shell` (file tools **+ unsandboxed `execute`**), `filesystem` (file tools only), `state`, `store` |
