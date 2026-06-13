@@ -481,7 +481,10 @@ class CronEventBrokerConfig(BaseModel):
 
 
 class CronConfig(BaseModel):
-    enabled: bool = True
+    enabled: bool = False
+    """Off by default. Enabling the SQLite data store (the default) requires the
+    ``sqlalchemy`` and ``aiosqlite`` packages. Set ``LANGCLAW__CRON__ENABLED=true``
+    to opt in."""
     timezone: str = "UTC"
     data_store: CronDataStoreConfig = Field(default_factory=CronDataStoreConfig)
     event_broker: CronEventBrokerConfig = Field(default_factory=CronEventBrokerConfig)

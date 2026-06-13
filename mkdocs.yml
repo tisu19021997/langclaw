@@ -87,7 +87,9 @@ nav:
     - RBAC: guides/rbac.md
     - Scheduled Jobs: guides/cron.md
     - Probe Harness: guides/probe.md
+    - Probe Internals: PROBE.md
     - Architecture: guides/architecture.md
+    - Architecture Internals: ARCHITECTURE.md
   - API Reference:
     - reference/index.md
     - Langclaw: reference/app.md

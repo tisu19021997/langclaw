@@ -74,4 +74,4 @@ LANGCLAW__CHECKPOINTER__BACKEND=postgres
 LANGCLAW__AGENTS__BACKEND__BACKEND=filesystem
 ```
 
-For the full sequence diagram and middleware order: [`docs/ARCHITECTURE.md`](https://github.com/tisu19021997/langclaw/blob/main/docs/ARCHITECTURE.md).
+For the full sequence diagram and middleware order, see [Architecture Internals](../ARCHITECTURE.md).

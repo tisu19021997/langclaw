@@ -12,7 +12,7 @@ Channels are the inbound/outbound interfaces between users and your agent. Enabl
 
     ```env
     LANGCLAW__CHANNELS__TELEGRAM__ENABLED=true
-    LANGCLAW__CHANNELS__TELEGRAM__BOT_TOKEN=123456:ABC-DEF...
+    LANGCLAW__CHANNELS__TELEGRAM__TOKEN=123456:ABC-DEF...
     ```
 
 === "Discord"
@@ -46,6 +46,24 @@ Channels are the inbound/outbound interfaces between users and your agent. Enabl
     LANGCLAW__CHANNELS__WEBSOCKET__ENABLED=true
     LANGCLAW__CHANNELS__WEBSOCKET__PORT=8765
     ```
+
+    **Wire format.** Send a JSON envelope; the agent streams its reply back as
+    a sequence of frames:
+
+    ```jsonc
+    // client → server
+    { "type": "message", "content": "Hello!" }
+    // optionally target a named agent:
+    { "type": "message", "content": "...", "metadata": { "agent_name": "researcher" } }
+
+    // server → client (stream)
+    { "type": "ai_chunk", "content": "Hel" }
+    { "type": "ai_chunk", "content": "lo" }
+    { "type": "ai_stream_end", "content": "" }   // terminator — no is_final field
+    ```
+
+    To exercise this without writing a client, use the [probe harness](probe.md)
+    or `langclaw probe 'your message'` against a running `langclaw gateway --probe`.
 
 ## Custom channel
 

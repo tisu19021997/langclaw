@@ -18,21 +18,42 @@ app.role("free",     tools=["web_search"],   subagents=[],               workflo
 | Subagents | `subagents` | **deny** — must be explicitly allowed |
 | Workflows | `workflows` | **deny** — must be explicitly allowed |
 
-## Assign roles to users
+## Enable RBAC
 
-Roles are resolved per-request based on the `user_id` from the inbound message. Wire a resolver:
+RBAC is **off by default** — every user sees every tool. Turn it on:
 
-```python
-@app.role_resolver
-async def resolve_role(user_id: str) -> str:
-    if user_id in ADMIN_IDS:
-        return "admin"
-    if await is_paid_user(user_id):
-        return "analyst"
-    return "free"
+```bash
+LANGCLAW__PERMISSIONS__ENABLED=true
+LANGCLAW__PERMISSIONS__DEFAULT_ROLE=viewer   # role for unlisted users (default: viewer)
 ```
 
-Without a resolver, all users get the default role (no restrictions).
+## Assign roles to users
+
+Roles are resolved per-request from the inbound message's `user_id`. You map
+users to roles **per channel** via that channel's `user_roles` setting. The env
+format is a comma list of `id:role` (IDs *or* `@usernames`):
+
+```bash
+LANGCLAW__CHANNELS__TELEGRAM__USER_ROLES=123456:admin,@alice:analyst,789:free
+```
+
+Equivalently in code/config: `channels.telegram.user_roles = {"123456": "admin", "@alice": "analyst"}`.
+
+**Resolution order** (`gateway/manager.py:_resolve_user_role`):
+
+1. A pre-resolved `metadata["user_role"]` on the message (e.g. stamped by a cron job at schedule time).
+2. The channel's `user_roles` mapping — by `user_id`, then by `username`.
+3. `permissions.default_role` (default `"viewer"`) for anyone unlisted.
+
+!!! note "What `default_role` actually grants"
+    The default role is **not** "no restrictions". An unlisted user gets whatever
+    that role's `RoleConfig` allows: tools are pass-through *only if* the role's
+    `tools` includes them (define `app.role("viewer", tools=["*"])` to allow all),
+    while **subagents and workflows remain default-deny** unless the role lists
+    them explicitly.
+
+There is currently no programmatic `role_resolver` hook — role assignment is
+declarative via `user_roles` + `default_role`.
 
 ## How enforcement works
 

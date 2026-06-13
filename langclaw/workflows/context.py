@@ -69,8 +69,10 @@ class WorkflowContext:
                       free-text progress narrator (e.g. projected to a channel).
         max_steps:    Step-count backstop for the whole run.
         semaphore:    Shared concurrency limiter for ``parallel`` fan-out.
-        _phase / _prefix / _counter: internal deterministic-ID state (also used
-                      to spawn child contexts inside :meth:`parallel`).
+
+    The leading-underscore ``_phase`` / ``_prefix`` / ``_counter`` parameters are
+    internal deterministic-ID state, also used to spawn child contexts inside
+    :meth:`parallel`.
     """
 
     def __init__(

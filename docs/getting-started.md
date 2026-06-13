@@ -22,19 +22,26 @@ uv add "langclaw[all]"               # everything
 Langclaw reads config from environment variables with the `LANGCLAW__` prefix, nested with `__` delimiters. Drop them in a `.env` file:
 
 ```env title=".env"
-# LLM provider
-LANGCLAW__PROVIDERS__OPENAI__API_KEY=sk-...
+# LLM provider — a plain provider env var, NOT a LANGCLAW__ key.
+# The default model is Anthropic, so set ANTHROPIC_API_KEY:
+ANTHROPIC_API_KEY=sk-ant-...
+# (Use OPENAI_API_KEY / GOOGLE_API_KEY / etc. if you pick that provider's model.)
 
 # Telegram channel
 LANGCLAW__CHANNELS__TELEGRAM__ENABLED=true
-LANGCLAW__CHANNELS__TELEGRAM__BOT_TOKEN=123456:ABC-DEF...
+LANGCLAW__CHANNELS__TELEGRAM__TOKEN=123456:ABC-DEF...
 
-# Model (default: openai:gpt-4o-mini)
+# Model (default: anthropic:claude-sonnet-4-5-20250929)
 LANGCLAW__AGENTS__MODEL=openai:gpt-4.1
 
 # Persistent state (default: SQLite)
 LANGCLAW__CHECKPOINTER__BACKEND=sqlite
 ```
+
+!!! note "Model and provider key must match"
+    `LANGCLAW__AGENTS__MODEL` selects the provider (`anthropic:…`, `openai:…`, `google:…`).
+    Set the matching plain env var for that provider's API key. `langclaw status`
+    shows which provider keys it can see.
 
 ## Hello world
 
@@ -58,15 +65,32 @@ if __name__ == "__main__":
 python app.py
 ```
 
-Langclaw starts the message bus, connects any enabled channels, and begins listening. Open Telegram and talk to your bot.
+Langclaw starts the message bus, connects any enabled channels, and begins listening. With a valid API key and Telegram token set, open Telegram and talk to your bot.
+
+## Talk to it locally — no channel needed
+
+You don't need a chat app to try your agent. The CLI gives you a REPL and a one-shot mode that run your default agent directly:
+
+```bash
+langclaw agent                       # interactive REPL
+langclaw agent -m "reverse 'hello'"  # single message, print the reply
+```
+
+Only `ANTHROPIC_API_KEY` (or your chosen provider's key) is required for these.
 
 ## CLI quickstart
 
 ```bash
-langclaw init      # scaffold app.py + .env in the current directory
-langclaw gateway   # start the gateway (equivalent to python app.py)
-langclaw status    # check channel + bus health
+langclaw init      # scaffold ~/.langclaw/ (config.json, AGENTS.md, skills) and install deps
+langclaw gateway   # start the built-in agent from ~/.langclaw/ across all enabled channels
+langclaw status    # check provider keys + channel + bus health
 ```
+
+!!! warning "`langclaw gateway` runs the built-in agent, not your `app.py`"
+    `langclaw init` + `langclaw gateway` drive a config-only agent rooted at
+    `~/.langclaw/` — they do **not** load tools/commands/subagents you registered
+    in a Python file. To run *your* app (everything decorated on your `Langclaw`
+    object), use `python app.py`. The two paths are separate by design.
 
 ## Next steps
 

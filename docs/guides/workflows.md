@@ -1,6 +1,6 @@
 # Workflows
 
-A **workflow** is a durable, typed, multi-step routine you register once and run many ways.
+A **workflow** is a typed, multi-step routine you register once and run many ways. Steps become durable and crash-resumable when you opt in — see [Durability](#durability) below.
 
 ```bash
 LANGCLAW__WORKFLOWS__ENABLED=true   # workflows are off by default
@@ -51,7 +51,7 @@ async def research(ctx, inp: Brief) -> str:
 
 ## Workflow steps
 
-Four kinds of step, each durable and resumable:
+The `ctx` object is a [`WorkflowContext`](../reference/context.md#workflowcontext). Its step methods (each becomes a memoized, resumable step once [durability](#durability) is on):
 
 ### `ctx.tool(name, **kwargs)`
 
@@ -94,6 +94,10 @@ notes = await ctx.subagent(
 )
 ```
 
+### `ctx.agent(name, prompt, schema=Model)`
+
+Run a step against a [named agent](subagents.md#named-agents) (its own tools, model, and thread) and get its reply back. Like `ctx.subagent` but targets a top-level named agent instead of a subagent type.
+
 ### `ctx.parallel(fns, return_exceptions=False)`
 
 Fan out a list of step lambdas concurrently, bounded by the workflow's `max_concurrency`:
@@ -135,8 +139,20 @@ ctx.phase("research")       # named phase header
 ctx.log("searching web...")  # inline log line
 ```
 
+## Durability
+
+Step memoization and crash-resume are **opt-in and off by default**. Enabling `workflows` alone gives you typed I/O, bounded parallelism, and progress streaming — but *not* persistence. Turn on what you need:
+
+```bash
+LANGCLAW__WORKFLOWS__ENABLED=true
+LANGCLAW__WORKFLOWS__DURABLE_STEPS=true      # memoize completed steps (default: false)
+LANGCLAW__WORKFLOWS__RESUME_ON_STARTUP=true  # re-drive interrupted runs after a crash (default: false)
+```
+
+`RESUME_ON_STARTUP` requires `DURABLE_STEPS` (they share one store). With both off, a crashed run restarts from the beginning and no step results are cached.
+
 ## Saved workflows (agent-authored)
 
-When the code interpreter is enabled (`LANGCLAW__INTERPRETER__ENABLED=true`), the agent can author a workflow by writing a `.js` file to `workflows/`. It loads as a `workflow_<name>` tool without a restart.
+Requires the interpreter extra (`uv add "langclaw[interpreter]"`). When the code interpreter is enabled (`LANGCLAW__INTERPRETER__ENABLED=true`) and the backend is filesystem-rooted, the agent can author a workflow by writing a `.js` file to `workflows/`. It loads as a `workflow_<name>` tool without a restart.
 
 See the [Architecture guide](architecture.md) for details.

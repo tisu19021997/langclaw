@@ -43,8 +43,10 @@ async def landscape(ctx, inp: Landscape) -> str:
 
 | `output` | Behaviour |
 |---|---|
+| `"main_agent"` (default) | Returns the final text back to the calling agent or workflow |
 | `"channel"` | Streams directly to the originating channel as it runs |
-| `"agent"` (default) | Returns the final text back to the calling agent or workflow |
+
+The literal value is `"main_agent"` — passing any other string (e.g. `"agent"`) raises a `ValueError` at registration.
 
 ## Named agents
 

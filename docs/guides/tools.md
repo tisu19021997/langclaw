@@ -38,12 +38,35 @@ async def fetch_data(url: str) -> dict:
 
 ## Custom tool name
 
+By default the tool name is the function name. To use a different name, pre-wrap
+the function with LangChain's `@tool("name")` — `@app.tool()` registers an
+existing `BaseTool` as-is:
+
 ```python
-@app.tool(name="search_web")
+from langchain_core.tools import tool
+
+@app.tool()
+@tool("search_web")
 async def _search(query: str) -> list[dict]:
     """Search the web for a query."""
     ...
 ```
+
+## Bring an existing LangChain tool
+
+Any LangChain `BaseTool` instance drops in via `register_tool()` (or
+`register_tools([...])` for several at once) — this is how you reuse the
+LangChain tool ecosystem:
+
+```python
+from langchain_community.tools import DuckDuckGoSearchRun
+
+app.register_tool(DuckDuckGoSearchRun())
+app.register_tools([tool_a, tool_b], roles=["analyst"])  # optional RBAC grant
+```
+
+`@app.tool()` is sugar for "wrap this function, then register it";
+`register_tool()` skips the wrapping for tools you already built.
 
 ## Built-in tools
 

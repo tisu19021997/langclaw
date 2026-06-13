@@ -227,7 +227,7 @@ uv add "langclaw[telegram,postgres,rabbitmq]"
 uv add "langclaw[all]"
 ```
 
-Available extras: `telegram`, `discord`, `slack`, `websocket`, `postgres`, `rabbitmq`, `kafka`, `mcp`, `search`, `gmail`.
+Available extras: `telegram`, `telegram-e2e`, `discord`, `slack`, `matrix`, `websocket`, `postgres`, `rabbitmq`, `kafka`, `mcp`, `search`, `gmail`, `interpreter` (and `all`).
 
 ## Quick Start
 

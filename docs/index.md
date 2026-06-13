@@ -2,6 +2,8 @@
 
 **Build production-ready, role-gated Claws.**
 
+A **Claw** is a running langclaw agent — the configured, multi-channel, role-gated assistant your `Langclaw` app object produces.
+
 `uv add langclaw` and build on top of it — like FastAPI, but for agents. Define tools, roles, channels, and workflows on one app object. Langclaw wires up the message bus, middleware, state persistence, and channel routing. You write the agent logic.
 
 <div class="grid cards" markdown>
@@ -75,7 +77,12 @@ uv add "langclaw[telegram,postgres]"
 uv add "langclaw[all]"
 ```
 
-Available extras: `telegram` · `discord` · `slack` · `websocket` · `postgres` · `rabbitmq` · `kafka` · `mcp` · `search` · `gmail` · `interpreter`
+Available extras:
+
+- **Channels:** `telegram` · `telegram-e2e` · `discord` · `slack` · `matrix` · `websocket` (websocket is bundled)
+- **Backends:** `postgres` · `rabbitmq` · `kafka`
+- **Capabilities:** `search` · `mcp` · `gmail` · `interpreter`
+- **`all`** — everything above
 
 ## Quick example
 
