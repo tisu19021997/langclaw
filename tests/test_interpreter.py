@@ -125,14 +125,16 @@ def test_allowed_tool_names_restricted_role():
     assert allowed_tool_names(cfg, "viewer", universe) == {"web_search"}
 
 
-def test_allowed_tool_names_unknown_role_allows_all():
-    """Mirrors the middleware: an undefined role is not filtered."""
+def test_allowed_tool_names_unknown_role_is_default_deny():
+    """Mirrors the middleware: with RBAC enabled an undefined role is denied —
+    the PTC tool surface follows the same default-deny tool axis, so a script run
+    by an unlisted user (undefined ``default_role``) reaches no tools."""
     from langclaw.config.schema import PermissionsConfig
     from langclaw.middleware.permissions import allowed_tool_names
 
     cfg = PermissionsConfig(enabled=True, roles={})
     universe = ["web_search", "web_fetch"]
-    assert allowed_tool_names(cfg, "ghost", universe) == set(universe)
+    assert allowed_tool_names(cfg, "ghost", universe) == set()
 
 
 def test_allowed_subagents_default_deny():
