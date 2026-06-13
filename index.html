@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Multi-channel AI agent framework, the LangChain way">
+        <meta name="description" content="Build production-ready, role-gated Claws.">
       
       
       
@@ -744,6 +744,34 @@
   
   
     <li class="md-nav__item">
+      <a href="guides/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="guides/probe/" class="md-nav__link">
         
   
@@ -772,6 +800,34 @@
   
   
     <li class="md-nav__item">
+      <a href="PROBE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Probe Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="guides/architecture/" class="md-nav__link">
         
   
@@ -780,6 +836,34 @@
     
   
     Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Internals
   
 
     
@@ -1077,7 +1161,8 @@
 
 
 <h1 id="langclaw">langclaw<a class="headerlink" href="#langclaw" title="Permanent link">&para;</a></h1>
-<p><strong>Multi-channel AI agent framework, the LangChain way.</strong></p>
+<p><strong>Build production-ready, role-gated Claws.</strong></p>
+<p>A <strong>Claw</strong> is a running langclaw agent — the configured, multi-channel, role-gated assistant your <code>Langclaw</code> app object produces.</p>
 <p><code>uv add langclaw</code> and build on top of it — like FastAPI, but for agents. Define tools, roles, channels, and workflows on one app object. Langclaw wires up the message bus, middleware, state persistence, and channel routing. You write the agent logic.</p>
 <div class="grid cards">
 <ul>
@@ -1135,7 +1220,13 @@
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;langclaw[telegram,postgres]&quot;</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;langclaw[all]&quot;</span>
 </span></code></pre></div>
-<p>Available extras: <code>telegram</code> · <code>discord</code> · <code>slack</code> · <code>websocket</code> · <code>postgres</code> · <code>rabbitmq</code> · <code>kafka</code> · <code>mcp</code> · <code>search</code> · <code>gmail</code> · <code>interpreter</code></p>
+<p>Available extras:</p>
+<ul>
+<li><strong>Channels:</strong> <code>telegram</code> · <code>telegram-e2e</code> · <code>discord</code> · <code>slack</code> · <code>matrix</code> · <code>websocket</code></li>
+<li><strong>Backends:</strong> <code>postgres</code> · <code>rabbitmq</code> · <code>kafka</code></li>
+<li><strong>Capabilities:</strong> <code>search</code> · <code>mcp</code> · <code>gmail</code> · <code>interpreter</code></li>
+<li><strong><code>all</code></strong> — every extra except <code>telegram-e2e</code></li>
+</ul>
 <h2 id="quick-example">Quick example<a class="headerlink" href="#quick-example" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">langclaw</span><span class="w"> </span><span class="kn">import</span> <span class="n">Langclaw</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">langclaw.gateway.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">CommandContext</span>

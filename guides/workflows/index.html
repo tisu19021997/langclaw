@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Multi-channel AI agent framework, the LangChain way">
+        <meta name="description" content="Build production-ready, role-gated Claws.">
       
       
       
@@ -675,10 +675,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ctxllmprompt-schemamodel-system" class="md-nav__link">
+  <a href="#ctxllmprompt-schemamodel-model-system" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ctx.llm(prompt, schema=Model, system=...)
+        ctx.llm(prompt, schema=Model, model=..., system=...)
       
     </span>
   </a>
@@ -686,10 +686,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ctxsubagenttype-prompt" class="md-nav__link">
+  <a href="#ctxsubagentsubagent_type-prompt" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ctx.subagent(type, prompt)
+        ctx.subagent(subagent_type, prompt)
       
     </span>
   </a>
@@ -697,10 +697,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ctxparallelfns-return_exceptionsfalse" class="md-nav__link">
+  <a href="#ctxagentname-prompt-schemamodel" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ctx.parallel(fns, return_exceptions=False)
+        ctx.agent(name, prompt, schema=Model)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ctxparallelthunks-return_exceptionsfalse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ctx.parallel(thunks, return_exceptions=False)
       
     </span>
   </a>
@@ -728,6 +739,17 @@
     <span class="md-ellipsis">
       
         Progress streaming
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#durability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Durability
       
     </span>
   </a>
@@ -845,6 +867,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../probe/" class="md-nav__link">
         
   
@@ -873,6 +923,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../PROBE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Probe Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../architecture/" class="md-nav__link">
         
   
@@ -881,6 +959,34 @@
     
   
     Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Internals
   
 
     
@@ -1173,10 +1279,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ctxllmprompt-schemamodel-system" class="md-nav__link">
+  <a href="#ctxllmprompt-schemamodel-model-system" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ctx.llm(prompt, schema=Model, system=...)
+        ctx.llm(prompt, schema=Model, model=..., system=...)
       
     </span>
   </a>
@@ -1184,10 +1290,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ctxsubagenttype-prompt" class="md-nav__link">
+  <a href="#ctxsubagentsubagent_type-prompt" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ctx.subagent(type, prompt)
+        ctx.subagent(subagent_type, prompt)
       
     </span>
   </a>
@@ -1195,10 +1301,21 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#ctxparallelfns-return_exceptionsfalse" class="md-nav__link">
+  <a href="#ctxagentname-prompt-schemamodel" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ctx.parallel(fns, return_exceptions=False)
+        ctx.agent(name, prompt, schema=Model)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ctxparallelthunks-return_exceptionsfalse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ctx.parallel(thunks, return_exceptions=False)
       
     </span>
   </a>
@@ -1226,6 +1343,17 @@
     <span class="md-ellipsis">
       
         Progress streaming
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#durability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Durability
       
     </span>
   </a>
@@ -1312,7 +1440,7 @@
 
 
 <h1 id="workflows">Workflows<a class="headerlink" href="#workflows" title="Permanent link">&para;</a></h1>
-<p>A <strong>workflow</strong> is a durable, typed, multi-step routine you register once and run many ways.</p>
+<p>A <strong>workflow</strong> is a typed, multi-step routine you register once and run many ways. Steps become durable and crash-resumable when you opt in — see <a href="#durability">Durability</a> below.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">LANGCLAW__WORKFLOWS__ENABLED</span><span class="o">=</span><span class="nb">true</span><span class="w">   </span><span class="c1"># workflows are off by default</span>
 </span></code></pre></div>
 <h2 id="register-a-workflow">Register a workflow<a class="headerlink" href="#register-a-workflow" title="Permanent link">&para;</a></h2>
@@ -1345,19 +1473,22 @@
 <h2 id="run-a-workflow">Run a workflow<a class="headerlink" href="#run-a-workflow" title="Permanent link">&para;</a></h2>
 <p><strong>Via the agent</strong> — the agent sees a <code>workflow_research</code> tool and calls it when appropriate.</p>
 <p><strong>Via CLI</strong>:
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>/workflows run research {&quot;topic&quot;: &quot;solid-state batteries&quot;}
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>/workflows runs          # list recent runs
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>/workflows status &lt;id&gt;   # run details
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>/workflows                       # list registered workflows (default)
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>/workflows list                  # list registered workflows
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>/workflows run research {&quot;topic&quot;: &quot;solid-state batteries&quot;}
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>/workflows runs                  # list recent runs
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>/workflows status &lt;run_id&gt;       # run details
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>/workflows cancel &lt;run_id&gt;       # cancel a live run
 </span></code></pre></div></p>
 <p><strong>Via cron</strong> — schedule it once and it fires on the schedule without any LLM overhead. See <a href="../cron/">Scheduled Jobs</a>.</p>
 <h2 id="workflow-steps">Workflow steps<a class="headerlink" href="#workflow-steps" title="Permanent link">&para;</a></h2>
-<p>Four kinds of step, each durable and resumable:</p>
+<p>The <code>ctx</code> object is a <a href="../../reference/context/#workflowcontext"><code>WorkflowContext</code></a>. Its step methods (each becomes a memoized, resumable step once <a href="#durability">durability</a> is on):</p>
 <h3 id="ctxtoolname-kwargs"><code>ctx.tool(name, **kwargs)</code><a class="headerlink" href="#ctxtoolname-kwargs" title="Permanent link">&para;</a></h3>
 <p>Call a registered tool. Deterministic, fast.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">tool</span><span class="p">(</span><span class="s2">&quot;web_search&quot;</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="s2">&quot;langchain docs&quot;</span><span class="p">)</span>
 </span></code></pre></div>
-<h3 id="ctxllmprompt-schemamodel-system"><code>ctx.llm(prompt, schema=Model, system=...)</code><a class="headerlink" href="#ctxllmprompt-schemamodel-system" title="Permanent link">&para;</a></h3>
-<p>One model call — no tools, no agent loop. Returns a validated Pydantic object when <code>schema</code> is given, plain text otherwise.</p>
+<h3 id="ctxllmprompt-schemamodel-model-system"><code>ctx.llm(prompt, schema=Model, model=..., system=...)</code><a class="headerlink" href="#ctxllmprompt-schemamodel-model-system" title="Permanent link">&para;</a></h3>
+<p>One model call — no tools, no agent loop. Returns a validated Pydantic object when <code>schema</code> is given, plain text otherwise. Pass <code>model="openai:gpt-4.1"</code> to override the workflow's default model for just this call.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">Score</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
@@ -1375,15 +1506,17 @@
 <p class="admonition-title">Tip</p>
 <p><code>ctx.llm</code> is a langclaw primitive — neither Claude Code nor deepagents expose a bare one-shot model-call step. Use it for classification, scoring, pairwise comparison, extraction — anywhere you don't need tool calls.</p>
 </div>
-<h3 id="ctxsubagenttype-prompt"><code>ctx.subagent(type, prompt)</code><a class="headerlink" href="#ctxsubagenttype-prompt" title="Permanent link">&para;</a></h3>
+<h3 id="ctxsubagentsubagent_type-prompt"><code>ctx.subagent(subagent_type, prompt)</code><a class="headerlink" href="#ctxsubagentsubagent_type-prompt" title="Permanent link">&para;</a></h3>
 <p>Delegate to a subagent — a full isolated agent with its own tools and context window. Use when a leaf needs multi-step work (search → read → reason).</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">notes</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">subagent</span><span class="p">(</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="s2">&quot;scout&quot;</span><span class="p">,</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="sa">f</span><span class="s2">&quot;Research &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; as an agent framework. Focus on strengths and weaknesses.&quot;</span><span class="p">,</span>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="p">)</span>
 </span></code></pre></div>
-<h3 id="ctxparallelfns-return_exceptionsfalse"><code>ctx.parallel(fns, return_exceptions=False)</code><a class="headerlink" href="#ctxparallelfns-return_exceptionsfalse" title="Permanent link">&para;</a></h3>
-<p>Fan out a list of step lambdas concurrently, bounded by the workflow's <code>max_concurrency</code>:</p>
+<h3 id="ctxagentname-prompt-schemamodel"><code>ctx.agent(name, prompt, schema=Model)</code><a class="headerlink" href="#ctxagentname-prompt-schemamodel" title="Permanent link">&para;</a></h3>
+<p>Run a step against a <a href="../subagents/#named-agents">named agent</a> (its own tools, model, and thread) and get its reply back. Like <code>ctx.subagent</code> but targets a top-level named agent instead of a subagent type.</p>
+<h3 id="ctxparallelthunks-return_exceptionsfalse"><code>ctx.parallel(thunks, return_exceptions=False)</code><a class="headerlink" href="#ctxparallelthunks-return_exceptionsfalse" title="Permanent link">&para;</a></h3>
+<p>Fan out a list of step lambdas (<code>thunks</code>) concurrently, bounded by the workflow's <code>max_concurrency</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">parallel</span><span class="p">([</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>    <span class="k">lambda</span> <span class="n">c</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">subagent</span><span class="p">(</span><span class="s2">&quot;scout&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Research </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">competitors</span>
@@ -1442,8 +1575,15 @@
 <div class="language-python highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">ctx</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="s2">&quot;research&quot;</span><span class="p">)</span>       <span class="c1"># named phase header</span>
 </span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">ctx</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="s2">&quot;searching web...&quot;</span><span class="p">)</span>  <span class="c1"># inline log line</span>
 </span></code></pre></div>
+<h2 id="durability">Durability<a class="headerlink" href="#durability" title="Permanent link">&para;</a></h2>
+<p>Step memoization and crash-resume are <strong>opt-in and off by default</strong>. Enabling <code>workflows</code> alone gives you typed I/O, bounded parallelism, and progress streaming — but <em>not</em> persistence. Turn on what you need:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nv">LANGCLAW__WORKFLOWS__ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nv">LANGCLAW__WORKFLOWS__DURABLE_STEPS</span><span class="o">=</span><span class="nb">true</span><span class="w">      </span><span class="c1"># memoize completed steps (default: false)</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nv">LANGCLAW__WORKFLOWS__RESUME_ON_STARTUP</span><span class="o">=</span><span class="nb">true</span><span class="w">  </span><span class="c1"># re-drive interrupted runs after a crash (default: false)</span>
+</span></code></pre></div>
+<p><code>RESUME_ON_STARTUP</code> requires <code>DURABLE_STEPS</code> (they share one store). With both off, a crashed run restarts from the beginning and no step results are cached.</p>
 <h2 id="saved-workflows-agent-authored">Saved workflows (agent-authored)<a class="headerlink" href="#saved-workflows-agent-authored" title="Permanent link">&para;</a></h2>
-<p>When the code interpreter is enabled (<code>LANGCLAW__INTERPRETER__ENABLED=true</code>), the agent can author a workflow by writing a <code>.js</code> file to <code>workflows/</code>. It loads as a <code>workflow_&lt;name&gt;</code> tool without a restart.</p>
+<p>Requires the interpreter extra (<code>uv add "langclaw[interpreter]"</code>). When the code interpreter is enabled (<code>LANGCLAW__INTERPRETER__ENABLED=true</code>) and the backend is filesystem-rooted, the agent can author a workflow by writing a <code>.js</code> file to <code>workflows/</code>. It loads as a <code>workflow_&lt;name&gt;</code> tool without a restart.</p>
 <p>See the <a href="../architecture/">Architecture guide</a> for details.</p>
 
 

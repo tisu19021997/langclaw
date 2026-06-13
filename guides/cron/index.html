@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Multi-channel AI agent framework, the LangChain way">
+        <meta name="description" content="Build production-ready, role-gated Claws.">
       
       
       
@@ -16,7 +16,7 @@
         <link rel="prev" href="../rbac/">
       
       
-        <link rel="next" href="../probe/">
+        <link rel="next" href="../deployment/">
       
       
         
@@ -747,6 +747,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#where-output-goes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where output goes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#internals" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -761,6 +772,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -801,6 +840,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../PROBE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Probe Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../architecture/" class="md-nav__link">
         
   
@@ -809,6 +876,34 @@
     
   
     Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Internals
   
 
     
@@ -1089,6 +1184,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#where-output-goes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where output goes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#internals" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1169,7 +1275,9 @@
 
 <h1 id="scheduled-jobs">Scheduled Jobs<a class="headerlink" href="#scheduled-jobs" title="Permanent link">&para;</a></h1>
 <p>Cron jobs publish an <code>InboundMessage</code> to the same bus as user messages — they flow through the identical middleware pipeline and produce channel output.</p>
+<p>Cron is <strong>off by default</strong>. Enabling it with the default SQLite data store also requires <code>sqlalchemy</code> and <code>aiosqlite</code>:</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">LANGCLAW__CRON__ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>add<span class="w"> </span>sqlalchemy<span class="w"> </span>aiosqlite<span class="w">   </span><span class="c1"># needed for the default sqlite cron data store</span>
 </span></code></pre></div>
 <h2 id="schedule-via-the-agent">Schedule via the agent<a class="headerlink" href="#schedule-via-the-agent" title="Permanent link">&para;</a></h2>
 <p>Once cron is enabled, the agent gets a <code>cron</code> tool. Users schedule jobs in plain language:</p>
@@ -1184,10 +1292,13 @@
 <p>On fire, the workflow runs verbatim. If the <code>.js</code> file is deleted, the job self-disarms.</p>
 <h2 id="manage-jobs">Manage jobs<a class="headerlink" href="#manage-jobs" title="Permanent link">&para;</a></h2>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>/cron list          → all scheduled jobs
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>/cron cancel &lt;id&gt;   → remove a job
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>/cron view &lt;id&gt;     → show job details
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>/cron remove &lt;id&gt;   → remove a job
 </span></code></pre></div>
+<h2 id="where-output-goes">Where output goes<a class="headerlink" href="#where-output-goes" title="Permanent link">&para;</a></h2>
+<p>A cron job has no live conversation, so it captures its delivery target <strong>at schedule time</strong>: when the agent's <code>cron</code> tool creates a job, it reads the current <code>LangclawContext</code> and stamps the <code>channel</code>, <code>user_id</code>, and <code>chat_id</code> into the job. On every fire the result is delivered back to that same channel/chat. Schedule a digest from your Telegram chat and it arrives in that chat.</p>
 <h2 id="internals">Internals<a class="headerlink" href="#internals" title="Permanent link">&para;</a></h2>
-<p>Cron is backed by APScheduler v4. Jobs are persisted to the checkpointer so they survive restarts. Each fire stamps <code>agent_name</code> into <code>InboundMessage.metadata</code> (from the context at schedule time), so jobs always run against the right agent even if the user switches later.</p>
+<p>Cron is backed by APScheduler v4. Jobs are persisted to APScheduler's <strong>own data store</strong> (<code>LANGCLAW__CRON__DATA_STORE__BACKEND</code>, <code>sqlite</code> by default — a separate store from the conversation checkpointer), so they survive restarts. Each fire also stamps <code>agent_name</code> into <code>InboundMessage.metadata</code> (from the context at schedule time), so jobs always run against the right agent even if the user switches later.</p>
 
 
 

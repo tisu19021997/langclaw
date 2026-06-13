@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Multi-channel AI agent framework, the LangChain way">
+        <meta name="description" content="Build production-ready, role-gated Claws.">
       
       
       
@@ -495,6 +495,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#talk-to-it-locally-no-channel-needed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Talk to it locally — no channel needed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cli-quickstart" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -779,6 +790,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../guides/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../guides/probe/" class="md-nav__link">
         
   
@@ -807,6 +846,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../PROBE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Probe Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../guides/architecture/" class="md-nav__link">
         
   
@@ -815,6 +882,34 @@
     
   
     Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Internals
   
 
     
@@ -1095,6 +1190,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#talk-to-it-locally-no-channel-needed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Talk to it locally — no channel needed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cli-quickstart" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1152,25 +1258,33 @@
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;langclaw[telegram]&quot;</span><span class="w">          </span><span class="c1"># Telegram</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;langclaw[discord]&quot;</span><span class="w">           </span><span class="c1"># Discord</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;langclaw[slack]&quot;</span><span class="w">             </span><span class="c1"># Slack</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;langclaw[websocket]&quot;</span><span class="w">         </span><span class="c1"># WebSocket (included with the base package)</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;langclaw[websocket]&quot;</span><span class="w">         </span><span class="c1"># WebSocket channel</span>
 </span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;langclaw[telegram,postgres]&quot;</span><span class="w"> </span><span class="c1"># multiple extras</span>
 </span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;langclaw[all]&quot;</span><span class="w">               </span><span class="c1"># everything</span>
 </span></code></pre></div>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <p>Langclaw reads config from environment variables with the <code>LANGCLAW__</code> prefix, nested with <code>__</code> delimiters. Drop them in a <code>.env</code> file:</p>
-<div class="language-text highlight"><span class="filename">.env</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a># LLM provider
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>LANGCLAW__PROVIDERS__OPENAI__API_KEY=sk-...
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a># Telegram channel
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>LANGCLAW__CHANNELS__TELEGRAM__ENABLED=true
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>LANGCLAW__CHANNELS__TELEGRAM__BOT_TOKEN=123456:ABC-DEF...
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a># Model (default: openai:gpt-4o-mini)
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>LANGCLAW__AGENTS__MODEL=openai:gpt-4.1
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a># Persistent state (default: SQLite)
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>LANGCLAW__CHECKPOINTER__BACKEND=sqlite
+<div class="language-text highlight"><span class="filename">.env</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a># LLM provider — a plain provider env var, NOT a LANGCLAW__ key.
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a># The default model is Anthropic, so set ANTHROPIC_API_KEY:
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>ANTHROPIC_API_KEY=sk-ant-...
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a># (Use OPENAI_API_KEY / GOOGLE_API_KEY / etc. if you pick that provider&#39;s model.)
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a># Telegram channel
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>LANGCLAW__CHANNELS__TELEGRAM__ENABLED=true
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>LANGCLAW__CHANNELS__TELEGRAM__TOKEN=123456:ABC-DEF...
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a># Model (default: anthropic:claude-sonnet-4-5-20250929)
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>LANGCLAW__AGENTS__MODEL=openai:gpt-4.1
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a># Persistent state (default: SQLite)
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>LANGCLAW__CHECKPOINTER__BACKEND=sqlite
 </span></code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Model and provider key must match</p>
+<p><code>LANGCLAW__AGENTS__MODEL</code> selects the provider (<code>anthropic:…</code>, <code>openai:…</code>, <code>google:…</code>).
+Set the matching plain env var for that provider's API key. <code>langclaw status</code>
+shows which provider keys it can see.</p>
+</div>
 <h2 id="hello-world">Hello world<a class="headerlink" href="#hello-world" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><span class="filename">app.py</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">langclaw</span><span class="w"> </span><span class="kn">import</span> <span class="n">Langclaw</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
@@ -1188,12 +1302,25 @@
 </span></code></pre></div>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python<span class="w"> </span>app.py
 </span></code></pre></div>
-<p>Langclaw starts the message bus, connects any enabled channels, and begins listening. Open Telegram and talk to your bot.</p>
-<h2 id="cli-quickstart">CLI quickstart<a class="headerlink" href="#cli-quickstart" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>langclaw<span class="w"> </span>init<span class="w">      </span><span class="c1"># scaffold app.py + .env in the current directory</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>langclaw<span class="w"> </span>gateway<span class="w">   </span><span class="c1"># start the gateway (equivalent to python app.py)</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>langclaw<span class="w"> </span>status<span class="w">    </span><span class="c1"># check channel + bus health</span>
+<p>Langclaw starts the message bus, connects any enabled channels, and begins listening. With a valid API key and Telegram token set, open Telegram and talk to your bot.</p>
+<h2 id="talk-to-it-locally-no-channel-needed">Talk to it locally — no channel needed<a class="headerlink" href="#talk-to-it-locally-no-channel-needed" title="Permanent link">&para;</a></h2>
+<p>You don't need a chat app to try your agent. The CLI gives you a REPL and a one-shot mode that run your default agent directly:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>langclaw<span class="w"> </span>agent<span class="w">                       </span><span class="c1"># interactive REPL</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>langclaw<span class="w"> </span>agent<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;reverse &#39;hello&#39;&quot;</span><span class="w">  </span><span class="c1"># single message, print the reply</span>
 </span></code></pre></div>
+<p>Only <code>ANTHROPIC_API_KEY</code> (or your chosen provider's key) is required for these.</p>
+<h2 id="cli-quickstart">CLI quickstart<a class="headerlink" href="#cli-quickstart" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>langclaw<span class="w"> </span>init<span class="w">      </span><span class="c1"># scaffold ~/.langclaw/ (config.json, AGENTS.md, skills) and install deps</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>langclaw<span class="w"> </span>gateway<span class="w">   </span><span class="c1"># start the built-in agent from ~/.langclaw/ across all enabled channels</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>langclaw<span class="w"> </span>status<span class="w">    </span><span class="c1"># check provider keys + channel + bus health</span>
+</span></code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title"><code>langclaw gateway</code> runs the built-in agent, not your <code>app.py</code></p>
+<p><code>langclaw init</code> + <code>langclaw gateway</code> drive a config-only agent rooted at
+<code>~/.langclaw/</code> — they do <strong>not</strong> load tools/commands/subagents you registered
+in a Python file. To run <em>your</em> app (everything decorated on your <code>Langclaw</code>
+object), use <code>python app.py</code>. The two paths are separate by design.</p>
+</div>
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
 <div class="grid cards">
 <ul>
@@ -1202,6 +1329,7 @@
 <li><a href="../guides/workflows/"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M0 1.75C0 .784.784 0 1.75 0h3.5C6.216 0 7 .784 7 1.75v3.5A1.75 1.75 0 0 1 5.25 7H4v4a1 1 0 0 0 1 1h4v-1.25C9 9.784 9.784 9 10.75 9h3.5c.966 0 1.75.784 1.75 1.75v3.5A1.75 1.75 0 0 1 14.25 16h-3.5A1.75 1.75 0 0 1 9 14.25v-.75H5A2.5 2.5 0 0 1 2.5 11V7h-.75A1.75 1.75 0 0 1 0 5.25Zm1.75-.25a.25.25 0 0 0-.25.25v3.5c0 .138.112.25.25.25h3.5a.25.25 0 0 0 .25-.25v-3.5a.25.25 0 0 0-.25-.25Zm9 9a.25.25 0 0 0-.25.25v3.5c0 .138.112.25.25.25h3.5a.25.25 0 0 0 .25-.25v-3.5a.25.25 0 0 0-.25-.25Z"/></svg></span> <strong>Workflows</strong></a> — durable multi-step routines</li>
 <li><a href="../guides/rbac/"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 5.5a3.5 3.5 0 1 1 5.898 2.549 5.51 5.51 0 0 1 3.034 4.084.75.75 0 1 1-1.482.235 4 4 0 0 0-7.9 0 .75.75 0 0 1-1.482-.236A5.5 5.5 0 0 1 3.102 8.05 3.5 3.5 0 0 1 2 5.5M11 4a3.001 3.001 0 0 1 2.22 5.018 5 5 0 0 1 2.56 3.012.749.749 0 0 1-.885.954.75.75 0 0 1-.549-.514 3.51 3.51 0 0 0-2.522-2.372.75.75 0 0 1-.574-.73v-.352a.75.75 0 0 1 .416-.672A1.5 1.5 0 0 0 11 5.5.75.75 0 0 1 11 4m-5.5-.5a2 2 0 1 0-.001 3.999A2 2 0 0 0 5.5 3.5"/></svg></span> <strong>RBAC</strong></a> — role-based access control</li>
 <li><a href="../guides/cron/"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0M1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0m7-3.25v2.992l2.028.812a.75.75 0 0 1-.557 1.392l-2.5-1A.75.75 0 0 1 7 8.25v-3.5a.75.75 0 0 1 1.5 0"/></svg></span> <strong>Cron</strong></a> — scheduled jobs</li>
+<li><a href="../guides/deployment/"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M14.064 0h.186C15.216 0 16 .784 16 1.75v.186a8.75 8.75 0 0 1-2.564 6.186l-.458.459q-.472.471-.979.904v3.207c0 .608-.315 1.172-.833 1.49l-2.774 1.707a.75.75 0 0 1-1.11-.418l-.954-3.102a1 1 0 0 1-.145-.125L3.754 9.816a1 1 0 0 1-.124-.145L.528 8.717a.75.75 0 0 1-.418-1.11l1.71-2.774A1.75 1.75 0 0 1 3.31 4h3.204q.433-.508.904-.979l.459-.458A8.75 8.75 0 0 1 14.064 0M8.938 3.623h-.002l-.458.458c-.76.76-1.437 1.598-2.02 2.5l-1.5 2.317 2.143 2.143 2.317-1.5c.902-.583 1.74-1.26 2.499-2.02l.459-.458a7.25 7.25 0 0 0 2.123-5.127V1.75a.25.25 0 0 0-.25-.25h-.186a7.25 7.25 0 0 0-5.125 2.123M3.56 14.56c-.732.732-2.334 1.045-3.005 1.148a.23.23 0 0 1-.201-.064.23.23 0 0 1-.064-.201c.103-.671.416-2.273 1.15-3.003a1.502 1.502 0 1 1 2.12 2.12m6.94-3.935q-.132.09-.266.175l-2.35 1.521.548 1.783 1.949-1.2a.25.25 0 0 0 .119-.213ZM3.678 8.116 5.2 5.766q.087-.135.176-.266H3.309a.25.25 0 0 0-.213.119l-1.2 1.95ZM12 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/></svg></span> <strong>Deployment</strong></a> — prod backends, scaling, containers</li>
 </ul>
 </div>
 

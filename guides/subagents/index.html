@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Multi-channel AI agent framework, the LangChain way">
+        <meta name="description" content="Build production-ready, role-gated Claws.">
       
       
       
@@ -773,6 +773,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../probe/" class="md-nav__link">
         
   
@@ -801,6 +829,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../PROBE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Probe Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../architecture/" class="md-nav__link">
         
   
@@ -809,6 +865,34 @@
     
   
     Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Internals
   
 
     
@@ -1209,15 +1293,16 @@
 </thead>
 <tbody>
 <tr>
+<td><code>"main_agent"</code> (default)</td>
+<td>Returns the final text back to the calling agent or workflow</td>
+</tr>
+<tr>
 <td><code>"channel"</code></td>
 <td>Streams directly to the originating channel as it runs</td>
 </tr>
-<tr>
-<td><code>"agent"</code> (default)</td>
-<td>Returns the final text back to the calling agent or workflow</td>
-</tr>
 </tbody>
 </table>
+<p>The literal value is <code>"main_agent"</code> — passing any other string (e.g. <code>"agent"</code>) raises a <code>ValueError</code> at registration.</p>
 <h2 id="named-agents">Named agents<a class="headerlink" href="#named-agents" title="Permanent link">&para;</a></h2>
 <p>Named agents are top-level agents — not subagents — with their own persistent conversation threads. Users switch between them with <code>/agent</code>:</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">app</span><span class="o">.</span><span class="n">agent</span><span class="p">(</span>

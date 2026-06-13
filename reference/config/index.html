@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Multi-channel AI agent framework, the LangChain way">
+        <meta name="description" content="Build production-ready, role-gated Claws.">
       
       
       
@@ -677,6 +677,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../guides/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guides/probe/" class="md-nav__link">
         
   
@@ -705,6 +733,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../PROBE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Probe Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guides/architecture/" class="md-nav__link">
         
   
@@ -713,6 +769,34 @@
     
   
     Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Internals
   
 
     
@@ -913,6 +997,28 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#common-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common environment variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#top-level-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top-level config
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#langclaw.LangclawConfig" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -946,6 +1052,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#langclaw.LangclawConfig.strict_env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;strict_env
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -959,6 +1076,887 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sub-schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sub-schemas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.AgentConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;AgentConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" AgentConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.AgentConfig.backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.AgentConfig.workflows_dir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;workflows_dir
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;BackendConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" BackendConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;env
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.execute_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;execute_timeout
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.inherit_env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;inherit_env
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.max_output_bytes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_output_bytes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.root_dir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;root_dir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.virtual_mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;virtual_mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ChannelsConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ChannelsConfig
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.TelegramChannelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TelegramChannelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" TelegramChannelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.TelegramChannelConfig.streaming_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;streaming_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.TelegramChannelConfig.user_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.DiscordChannelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DiscordChannelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" DiscordChannelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.DiscordChannelConfig.streaming_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;streaming_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.DiscordChannelConfig.user_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SlackChannelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" SlackChannelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.app_token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;app_token
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.bot_token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;bot_token
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.reaction_complete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;reaction_complete
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.reaction_feedback_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;reaction_feedback_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.reaction_processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;reaction_processing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.streaming_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;streaming_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.user_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;MatrixChannelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" MatrixChannelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.access_token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;access_token
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.allow_from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;allow_from
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.auto_join_invites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;auto_join_invites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.device_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;device_id
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.e2ee_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;e2ee_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.homeserver_url" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;homeserver_url
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.store_path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;store_path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.user_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_id
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.user_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WebSocketChannelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;WebSocketChannelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" WebSocketChannelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WebSocketChannelConfig.streaming_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;streaming_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WebSocketChannelConfig.user_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.CheckpointerConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CheckpointerConfig
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BusConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;BusConfig
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.PermissionsConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;PermissionsConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" PermissionsConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.PermissionsConfig.default_role" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;default_role
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.PermissionsConfig.enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.PermissionsConfig.roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.RoleConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;RoleConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" RoleConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.RoleConfig.subagents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;subagents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.RoleConfig.tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.RoleConfig.workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;workflows
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.CronConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CronConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" CronConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.CronConfig.enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;WorkflowsConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" WorkflowsConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.durable_steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;durable_steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.max_concurrent_runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_concurrent_runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.max_depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_depth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.max_steps_per_run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_steps_per_run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.resume_on_startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;resume_on_startup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;InterpreterConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" InterpreterConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.allow_tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;allow_tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.max_concurrent_subagents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_concurrent_subagents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.max_ptc_calls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_ptc_calls
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.max_result_chars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_result_chars
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.memory_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;memory_limit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.snapshot_between_turns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;snapshot_between_turns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;timeout
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ToolsConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ToolsConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" ToolsConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ToolsConfig.brave_api_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;brave_api_key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ToolsConfig.gmail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;gmail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ToolsConfig.search_backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;search_backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ToolsConfig.tavily_api_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;tavily_api_key
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1062,6 +2060,28 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#common-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common environment variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#top-level-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top-level config
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#langclaw.LangclawConfig" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1095,6 +2115,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#langclaw.LangclawConfig.strict_env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;strict_env
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1108,6 +2139,887 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sub-schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sub-schemas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.AgentConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;AgentConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" AgentConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.AgentConfig.backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.AgentConfig.workflows_dir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;workflows_dir
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;BackendConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" BackendConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;env
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.execute_timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;execute_timeout
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.inherit_env" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;inherit_env
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.max_output_bytes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_output_bytes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.root_dir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;root_dir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BackendConfig.virtual_mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;virtual_mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ChannelsConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ChannelsConfig
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.TelegramChannelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;TelegramChannelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" TelegramChannelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.TelegramChannelConfig.streaming_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;streaming_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.TelegramChannelConfig.user_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.DiscordChannelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;DiscordChannelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" DiscordChannelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.DiscordChannelConfig.streaming_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;streaming_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.DiscordChannelConfig.user_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;SlackChannelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" SlackChannelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.app_token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;app_token
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.bot_token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;bot_token
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.reaction_complete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;reaction_complete
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.reaction_feedback_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;reaction_feedback_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.reaction_processing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;reaction_processing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.streaming_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;streaming_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.SlackChannelConfig.user_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;MatrixChannelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" MatrixChannelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.access_token" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;access_token
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.allow_from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;allow_from
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.auto_join_invites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;auto_join_invites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.device_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;device_id
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.e2ee_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;e2ee_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.homeserver_url" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;homeserver_url
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.store_path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;store_path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.user_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_id
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.MatrixChannelConfig.user_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WebSocketChannelConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;WebSocketChannelConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" WebSocketChannelConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WebSocketChannelConfig.streaming_enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;streaming_enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WebSocketChannelConfig.user_roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;user_roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.CheckpointerConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CheckpointerConfig
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.BusConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;BusConfig
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.PermissionsConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;PermissionsConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" PermissionsConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.PermissionsConfig.default_role" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;default_role
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.PermissionsConfig.enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.PermissionsConfig.roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;roles
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.RoleConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;RoleConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" RoleConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.RoleConfig.subagents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;subagents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.RoleConfig.tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.RoleConfig.workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;workflows
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.CronConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;CronConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" CronConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.CronConfig.enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;WorkflowsConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" WorkflowsConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.durable_steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;durable_steps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.max_concurrent_runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_concurrent_runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.max_depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_depth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.max_steps_per_run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_steps_per_run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.WorkflowsConfig.resume_on_startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;resume_on_startup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;InterpreterConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" InterpreterConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.allow_tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;allow_tools
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.enabled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;enabled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.max_concurrent_subagents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_concurrent_subagents
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.max_ptc_calls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_ptc_calls
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.max_result_chars" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;max_result_chars
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.memory_limit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;memory_limit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.snapshot_between_turns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;snapshot_between_turns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.InterpreterConfig.timeout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;timeout
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ToolsConfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-class"></code>&nbsp;ToolsConfig
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label=" ToolsConfig">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ToolsConfig.brave_api_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;brave_api_key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ToolsConfig.gmail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;gmail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ToolsConfig.search_backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;search_backend
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaw.config.schema.ToolsConfig.tavily_api_key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;tavily_api_key
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1180,6 +3092,157 @@
 
 
 <h1 id="config">Config<a class="headerlink" href="#config" title="Permanent link">&para;</a></h1>
+<p>All config is read from environment variables with the <code>LANGCLAW__</code> prefix and
+<code>__</code> as the nesting delimiter (e.g. <code>LANGCLAW__BUS__BACKEND=rabbitmq</code>). Provider
+API keys are the exception — they use the provider's own plain env var
+(<code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, …), not a <code>LANGCLAW__</code> key.</p>
+<div class="admonition tip">
+<p class="admonition-title">Typo'd keys are surfaced, not silently dropped</p>
+<p>An unrecognized <code>LANGCLAW__</code> env var (e.g. <code>…__BOT_TOKEN</code> when the field is
+<code>…__TOKEN</code>) is logged as a <code>WARNING</code> at load time, naming the stray key. Set
+<code>LANGCLAW__STRICT_ENV=true</code> to make an unknown key raise instead. Only
+<code>LANGCLAW__</code>-prefixed keys are checked — plain provider vars are left alone.</p>
+</div>
+<h2 id="common-environment-variables">Common environment variables<a class="headerlink" href="#common-environment-variables" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Env var</th>
+<th>Default</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LANGCLAW__STRICT_ENV</code></td>
+<td><code>false</code></td>
+<td>raise on an unknown <code>LANGCLAW__</code> key instead of warning</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__AGENTS__MODEL</code></td>
+<td><code>anthropic:claude-sonnet-4-5-20250929</code></td>
+<td><code>provider:model</code> spec</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__AGENTS__RATE_LIMIT_RPM</code></td>
+<td><code>60</code></td>
+<td>requests/min</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__AGENTS__BACKEND__BACKEND</code></td>
+<td><code>local_shell</code></td>
+<td><code>local_shell</code> (file tools <strong>+ unsandboxed <code>execute</code></strong>), <code>filesystem</code> (file tools only), <code>state</code>, <code>store</code></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__CHECKPOINTER__BACKEND</code></td>
+<td><code>sqlite</code></td>
+<td><code>sqlite</code> | <code>postgres</code></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__CHECKPOINTER__SQLITE__DB_PATH</code></td>
+<td><code>~/.langclaw/state.db</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__CHECKPOINTER__POSTGRES__DSN</code></td>
+<td><code>""</code></td>
+<td>required for <code>postgres</code> (needs <code>langclaw[postgres]</code>)</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__BUS__BACKEND</code></td>
+<td><code>asyncio</code></td>
+<td><code>asyncio</code> | <code>rabbitmq</code> | <code>kafka</code></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__BUS__RABBITMQ__AMQP_URL</code></td>
+<td><code>amqp://guest:guest@localhost/</code></td>
+<td>needs <code>langclaw[rabbitmq]</code></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__BUS__RABBITMQ__QUEUE_NAME</code></td>
+<td><code>langclaw.inbound</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__BUS__KAFKA__BOOTSTRAP_SERVERS</code></td>
+<td><code>localhost:9092</code></td>
+<td>needs <code>langclaw[kafka]</code></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__BUS__KAFKA__TOPIC</code></td>
+<td><code>langclaw.inbound</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__PERMISSIONS__ENABLED</code></td>
+<td><code>false</code></td>
+<td>turn on RBAC</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__PERMISSIONS__DEFAULT_ROLE</code></td>
+<td><code>viewer</code></td>
+<td>role for unlisted users</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__CRON__ENABLED</code></td>
+<td><code>false</code></td>
+<td>sqlite store needs <code>sqlalchemy</code>+<code>aiosqlite</code></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__CRON__DATA_STORE__BACKEND</code></td>
+<td><code>sqlite</code></td>
+<td>separate from the checkpointer</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__WORKFLOWS__ENABLED</code></td>
+<td><code>false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__WORKFLOWS__DURABLE_STEPS</code></td>
+<td><code>false</code></td>
+<td>memoize completed steps</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__WORKFLOWS__RESUME_ON_STARTUP</code></td>
+<td><code>false</code></td>
+<td>re-drive interrupted runs (requires <code>DURABLE_STEPS</code>)</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__INTERPRETER__ENABLED</code></td>
+<td><code>false</code></td>
+<td>sandboxed <code>eval</code> tool (needs <code>langclaw[interpreter]</code>)</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__CHANNELS__TELEGRAM__ENABLED</code></td>
+<td><code>false</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__CHANNELS__TELEGRAM__TOKEN</code></td>
+<td><code>""</code></td>
+<td>bot token (needs <code>langclaw[telegram]</code>)</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__CHANNELS__TELEGRAM__USER_ROLES</code></td>
+<td><code>{}</code></td>
+<td><code>id:role</code> comma list, e.g. <code>123:admin,@alice:analyst</code></td>
+</tr>
+<tr>
+<td><code>LANGCLAW__CHANNELS__WEBSOCKET__ENABLED</code></td>
+<td><code>false</code></td>
+<td>bundled, no extra</td>
+</tr>
+<tr>
+<td><code>LANGCLAW__CHANNELS__WEBSOCKET__PORT</code></td>
+<td><code>18789</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>The same <code>enabled</code> / <code>token</code> / <code>user_roles</code> pattern applies to the Discord, Slack,
+and Matrix channels. Full field-level docs (types and defaults) are rendered below.</p>
+<h2 id="top-level-config">Top-level config<a class="headerlink" href="#top-level-config" title="Permanent link">&para;</a></h2>
 
 
 <div class="doc doc-object doc-class">
@@ -1275,6 +3338,32 @@ Override via env var: <code>LANGCLAW__LOG_LEVEL=INFO</code>.</p>
 
 </div>
 
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.LangclawConfig.strict_env" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">strict_env</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.LangclawConfig.strict_env" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>When <code>True</code>, an unknown <code>LANGCLAW__</code> env var raises at load time instead
+of logging a warning. Unknown keys are otherwise silently ignored by
+pydantic-settings, which makes typos (e.g. <code>…__BOT_TOKEN</code> for <code>…__TOKEN</code>)
+impossible to self-diagnose. Override via <code>LANGCLAW__STRICT_ENV=true</code>.</p>
+
+    </div>
+
+</div>
+
 
 
 
@@ -1301,33 +3390,2280 @@ Override via env var: <code>LANGCLAW__LOG_LEVEL=INFO</code>.</p>
 <p>Also calls <code>load_dotenv()</code> so that standard provider env vars
 (<code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, etc.) from <code>.env</code>
 are available in <code>os.environ</code> for <code>init_chat_model</code>.</p>
+<p>Unknown <code>LANGCLAW__</code> env vars are surfaced via :func:<code>validate_env_keys</code>
+(warning by default; raising when <code>LANGCLAW__STRICT_ENV=true</code>).</p>
 
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>langclaw/config/schema.py</code></summary>
-              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-837">837</a></span>
-<span class="normal"><a href="#__codelineno-0-838">838</a></span>
-<span class="normal"><a href="#__codelineno-0-839">839</a></span>
-<span class="normal"><a href="#__codelineno-0-840">840</a></span>
-<span class="normal"><a href="#__codelineno-0-841">841</a></span>
-<span class="normal"><a href="#__codelineno-0-842">842</a></span>
-<span class="normal"><a href="#__codelineno-0-843">843</a></span>
-<span class="normal"><a href="#__codelineno-0-844">844</a></span>
-<span class="normal"><a href="#__codelineno-0-845">845</a></span>
-<span class="normal"><a href="#__codelineno-0-846">846</a></span>
-<span class="normal"><a href="#__codelineno-0-847">847</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-837"><a id="__codelineno-0-837" name="__codelineno-0-837"></a><span class="k">def</span><span class="w"> </span><span class="nf">load_config</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">LangclawConfig</span><span class="p">:</span>
-</span><span id="__span-0-838"><a id="__codelineno-0-838" name="__codelineno-0-838"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Load and return the merged LangclawConfig.</span>
-</span><span id="__span-0-839"><a id="__codelineno-0-839" name="__codelineno-0-839"></a>
-</span><span id="__span-0-840"><a id="__codelineno-0-840" name="__codelineno-0-840"></a><span class="sd">    Also calls ``load_dotenv()`` so that standard provider env vars</span>
-</span><span id="__span-0-841"><a id="__codelineno-0-841" name="__codelineno-0-841"></a><span class="sd">    (``ANTHROPIC_API_KEY``, ``OPENAI_API_KEY``, etc.) from ``.env``</span>
-</span><span id="__span-0-842"><a id="__codelineno-0-842" name="__codelineno-0-842"></a><span class="sd">    are available in ``os.environ`` for ``init_chat_model``.</span>
-</span><span id="__span-0-843"><a id="__codelineno-0-843" name="__codelineno-0-843"></a><span class="sd">    &quot;&quot;&quot;</span>
-</span><span id="__span-0-844"><a id="__codelineno-0-844" name="__codelineno-0-844"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">dotenv</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_dotenv</span>
-</span><span id="__span-0-845"><a id="__codelineno-0-845" name="__codelineno-0-845"></a>
-</span><span id="__span-0-846"><a id="__codelineno-0-846" name="__codelineno-0-846"></a>    <span class="n">load_dotenv</span><span class="p">(</span><span class="n">override</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-</span><span id="__span-0-847"><a id="__codelineno-0-847" name="__codelineno-0-847"></a>    <span class="k">return</span> <span class="n">LangclawConfig</span><span class="p">()</span>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-934">934</a></span>
+<span class="normal"><a href="#__codelineno-0-935">935</a></span>
+<span class="normal"><a href="#__codelineno-0-936">936</a></span>
+<span class="normal"><a href="#__codelineno-0-937">937</a></span>
+<span class="normal"><a href="#__codelineno-0-938">938</a></span>
+<span class="normal"><a href="#__codelineno-0-939">939</a></span>
+<span class="normal"><a href="#__codelineno-0-940">940</a></span>
+<span class="normal"><a href="#__codelineno-0-941">941</a></span>
+<span class="normal"><a href="#__codelineno-0-942">942</a></span>
+<span class="normal"><a href="#__codelineno-0-943">943</a></span>
+<span class="normal"><a href="#__codelineno-0-944">944</a></span>
+<span class="normal"><a href="#__codelineno-0-945">945</a></span>
+<span class="normal"><a href="#__codelineno-0-946">946</a></span>
+<span class="normal"><a href="#__codelineno-0-947">947</a></span>
+<span class="normal"><a href="#__codelineno-0-948">948</a></span>
+<span class="normal"><a href="#__codelineno-0-949">949</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-934"><a id="__codelineno-0-934" name="__codelineno-0-934"></a><span class="k">def</span><span class="w"> </span><span class="nf">load_config</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">LangclawConfig</span><span class="p">:</span>
+</span><span id="__span-0-935"><a id="__codelineno-0-935" name="__codelineno-0-935"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Load and return the merged LangclawConfig.</span>
+</span><span id="__span-0-936"><a id="__codelineno-0-936" name="__codelineno-0-936"></a>
+</span><span id="__span-0-937"><a id="__codelineno-0-937" name="__codelineno-0-937"></a><span class="sd">    Also calls ``load_dotenv()`` so that standard provider env vars</span>
+</span><span id="__span-0-938"><a id="__codelineno-0-938" name="__codelineno-0-938"></a><span class="sd">    (``ANTHROPIC_API_KEY``, ``OPENAI_API_KEY``, etc.) from ``.env``</span>
+</span><span id="__span-0-939"><a id="__codelineno-0-939" name="__codelineno-0-939"></a><span class="sd">    are available in ``os.environ`` for ``init_chat_model``.</span>
+</span><span id="__span-0-940"><a id="__codelineno-0-940" name="__codelineno-0-940"></a>
+</span><span id="__span-0-941"><a id="__codelineno-0-941" name="__codelineno-0-941"></a><span class="sd">    Unknown ``LANGCLAW__`` env vars are surfaced via :func:`validate_env_keys`</span>
+</span><span id="__span-0-942"><a id="__codelineno-0-942" name="__codelineno-0-942"></a><span class="sd">    (warning by default; raising when ``LANGCLAW__STRICT_ENV=true``).</span>
+</span><span id="__span-0-943"><a id="__codelineno-0-943" name="__codelineno-0-943"></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="__span-0-944"><a id="__codelineno-0-944" name="__codelineno-0-944"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">dotenv</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_dotenv</span>
+</span><span id="__span-0-945"><a id="__codelineno-0-945" name="__codelineno-0-945"></a>
+</span><span id="__span-0-946"><a id="__codelineno-0-946" name="__codelineno-0-946"></a>    <span class="n">load_dotenv</span><span class="p">(</span><span class="n">override</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span><span id="__span-0-947"><a id="__codelineno-0-947" name="__codelineno-0-947"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">LangclawConfig</span><span class="p">()</span>
+</span><span id="__span-0-948"><a id="__codelineno-0-948" name="__codelineno-0-948"></a>    <span class="n">validate_env_keys</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">strict_env</span><span class="p">)</span>
+</span><span id="__span-0-949"><a id="__codelineno-0-949" name="__codelineno-0-949"></a>    <span class="k">return</span> <span class="n">config</span>
 </span></code></pre></div></td></tr></table></div>
             </details>
+    </div>
+
+</div><h2 id="sub-schemas">Sub-schemas<a class="headerlink" href="#sub-schemas" title="Permanent link">&para;</a></h2>
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.AgentConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.AgentConfig</code>
+
+
+<a href="#langclaw.config.schema.AgentConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.AgentConfig.backend" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">backend</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">BackendConfig</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.AgentConfig.backend" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Deepagents filesystem/shell backend selection. See <code>BackendConfig</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.AgentConfig.workflows_dir" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">workflows_dir</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-property"><code>property</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.AgentConfig.workflows_dir" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Host directory holding runtime-authored (saved) workflow <code>.js</code> files.</p>
+<p>Rooted at the agent's <em>filesystem backend root</em> so it matches where the
+agent's own <code>write_file</code> lands: <code>backend.root_dir</code> when set, else the
+workspace dir. (For <code>state</code>/<code>store</code> backends there is no host root and
+file-authoring is unavailable — see <code>WorkflowsConfig</code>.)</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.BackendConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.BackendConfig</code>
+
+
+<a href="#langclaw.config.schema.BackendConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>Selects which deepagents filesystem backend the agent runs on.</p>
+<p>deepagents abstracts the agent's file tools (<code>ls</code>/<code>read_file</code>/
+<code>write_file</code>/<code>edit_file</code>/<code>glob</code>/<code>grep</code> and, for shell backends,
+<code>execute</code>) behind a swappable backend.  This config drives the common,
+purely-declarative cases; advanced backends that need live objects
+(<code>StoreBackend</code> with a custom store/namespace, <code>CompositeBackend</code>, a
+sandbox, …) are injected as instances via <code>Langclaw(backend=...)</code> /
+<code>create_claw_agent(backend=...)</code>.</p>
+<ul>
+<li><code>"local_shell"</code> (default) — real files under <code>root_dir</code> <strong>plus</strong> an
+  <code>execute</code> tool that runs shell commands on the host. Enables shell
+  access; <code>virtual_mode</code> still sandboxes file <em>paths</em> to <code>root_dir</code> but
+  the <code>execute</code> command itself is unsandboxed (<code>subprocess</code> on the
+  host). Disable by selecting another backend if that is too broad.</li>
+<li><code>"filesystem"</code> — real files under <code>root_dir</code>, no <code>execute</code> tool.</li>
+<li><code>"state"</code> — files live in LangGraph thread state (no host filesystem).</li>
+<li><code>"store"</code> — files live in a LangGraph <code>BaseStore</code> (cross-thread).</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.BackendConfig.backend" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">backend</span> <span class="o">=</span> <span class="s1">&#39;local_shell&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.BackendConfig.backend" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Which backend to construct. Default <code>"local_shell"</code> to expose the
+<code>execute</code> tool.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.BackendConfig.env" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">env</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.BackendConfig.env" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>local_shell</code> only — extra environment variables for spawned commands.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.BackendConfig.execute_timeout" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">execute_timeout</span> <span class="o">=</span> <span class="mi">120</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.BackendConfig.execute_timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>local_shell</code> only — per-command wall-clock timeout in seconds.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.BackendConfig.inherit_env" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">inherit_env</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.BackendConfig.inherit_env" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>local_shell</code> only — when <code>True</code> the host environment is inherited by
+spawned commands. Off by default; combine with <code>env</code> for an explicit set.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.BackendConfig.max_output_bytes" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">max_output_bytes</span> <span class="o">=</span> <span class="mi">100000</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.BackendConfig.max_output_bytes" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p><code>local_shell</code> only — cap on captured command output bytes.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.BackendConfig.root_dir" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">root_dir</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.BackendConfig.root_dir" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Filesystem root for <code>local_shell</code>/<code>filesystem</code> backends. Empty means
+'use the agent's workspace directory'. Ignored by <code>state</code>/<code>store</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.BackendConfig.virtual_mode" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">virtual_mode</span> <span class="o">=</span> <span class="kc">True</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.BackendConfig.virtual_mode" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Sandbox file paths to <code>root_dir</code> (reject <code>../</code> traversal). Applies to
+the filesystem-rooted backends only.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.ChannelsConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.ChannelsConfig</code>
+
+
+<a href="#langclaw.config.schema.ChannelsConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.TelegramChannelConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.TelegramChannelConfig</code>
+
+
+<a href="#langclaw.config.schema.TelegramChannelConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.TelegramChannelConfig.streaming_enabled" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">streaming_enabled</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.TelegramChannelConfig.streaming_enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Stream AI responses token-by-token by sending one message then editing
+it in place as new content arrives.</p>
+<p>.. warning::
+    <strong>Enabling this may degrade reliability.</strong>
+    Telegram enforces a global rate limit of ~20 message edits per minute
+    per bot.  Under moderate load (multiple concurrent users) this limit is
+    easily exceeded, causing <code>RetryAfter</code> errors and delayed delivery.
+    The 300 ms edit throttle reduces — but does not eliminate — the risk.</p>
+<div class="language-text highlight"><pre><span></span><code>Enable only when the live-typing UX is more important than reliability,
+and only in low-traffic environments.  Leave disabled (default) to
+receive the full response as a single message after generation completes.
+</code></pre></div>
+<p>Env: <code>LANGCLAW__CHANNELS__TELEGRAM__STREAMING_ENABLED=true</code></p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.TelegramChannelConfig.user_roles" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">user_roles</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.TelegramChannelConfig.user_roles" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Maps Telegram user IDs / @usernames to permission roles.
+Env format: <code>123456:admin,@alice:editor</code></p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.DiscordChannelConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.DiscordChannelConfig</code>
+
+
+<a href="#langclaw.config.schema.DiscordChannelConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.DiscordChannelConfig.streaming_enabled" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">streaming_enabled</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.DiscordChannelConfig.streaming_enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Stream AI responses token-by-token by sending one message then editing
+it in place as new content arrives.</p>
+<p>.. warning::
+    <strong>Enabling this may degrade reliability.</strong>
+    Discord allows at most 5 edits per second per message and enforces a
+    global 50 req/s REST limit per bot.  High-frequency edits during
+    generation can trigger <code>429 Too Many Requests</code> errors, cause visible
+    lag, or result in dropped updates.  The 300 ms throttle mitigates but
+    does not prevent this under concurrent load.</p>
+<div class="language-text highlight"><pre><span></span><code>Enable only when the live-typing UX is more important than reliability,
+and only in low-traffic environments.  Leave disabled (default) to
+receive the full response as a single message after generation completes.
+</code></pre></div>
+<p>Env: <code>LANGCLAW__CHANNELS__DISCORD__STREAMING_ENABLED=true</code></p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.DiscordChannelConfig.user_roles" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">user_roles</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.DiscordChannelConfig.user_roles" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Maps Discord user IDs to permission roles.
+Env format: <code>123456:admin,789012:viewer</code></p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.SlackChannelConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.SlackChannelConfig</code>
+
+
+<a href="#langclaw.config.schema.SlackChannelConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.SlackChannelConfig.app_token" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">app_token</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.SlackChannelConfig.app_token" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Slack App-Level Token for Socket Mode (starts with xapp-).
+Get from https://api.slack.com/apps -&gt; Basic Information -&gt; App-Level Tokens</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.SlackChannelConfig.bot_token" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">bot_token</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.SlackChannelConfig.bot_token" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Slack Bot User OAuth Token (starts with xoxb-).
+Get from https://api.slack.com/apps -&gt; OAuth &amp; Permissions</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.SlackChannelConfig.reaction_complete" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">reaction_complete</span> <span class="o">=</span> <span class="s1">&#39;white_check_mark&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.SlackChannelConfig.reaction_complete" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Emoji name for 'complete' reaction. Default: 'white_check_mark' (✅).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.SlackChannelConfig.reaction_feedback_enabled" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">reaction_feedback_enabled</span> <span class="o">=</span> <span class="kc">True</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.SlackChannelConfig.reaction_feedback_enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Enable reaction emoji feedback (👀 while processing, ✅ when done).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.SlackChannelConfig.reaction_processing" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">reaction_processing</span> <span class="o">=</span> <span class="s1">&#39;eyes&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.SlackChannelConfig.reaction_processing" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Emoji name for 'processing' reaction. Default: 'eyes' (👀).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.SlackChannelConfig.streaming_enabled" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">streaming_enabled</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.SlackChannelConfig.streaming_enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Stream AI responses token-by-token by posting one message then updating
+it in place via <code>chat_update</code> as new content arrives.</p>
+<p>.. warning::
+    <strong>Enabling this may degrade reliability.</strong>
+    Slack's <code>chat_update</code> API is Tier 3 (~50 req/min per app).  Rapid
+    edits during generation can exhaust this quota, causing <code>ratelimited</code>
+    errors and stalled responses.  The 300 ms update throttle reduces —
+    but does not eliminate — the risk, especially with multiple concurrent
+    users sharing the same bot quota.</p>
+<div class="language-text highlight"><pre><span></span><code>Enable only when the live-typing UX is more important than reliability,
+and only in low-traffic environments.  Leave disabled (default) to
+receive the full response as a single message after generation completes.
+</code></pre></div>
+<p>Env: <code>LANGCLAW__CHANNELS__SLACK__STREAMING_ENABLED=true</code></p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.SlackChannelConfig.user_roles" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">user_roles</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.SlackChannelConfig.user_roles" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Maps Slack user IDs to permission roles.
+Env format: <code>U123456:admin,U789012:viewer</code></p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.MatrixChannelConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.MatrixChannelConfig</code>
+
+
+<a href="#langclaw.config.schema.MatrixChannelConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.MatrixChannelConfig.access_token" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">access_token</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.MatrixChannelConfig.access_token" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Long-lived access token obtained via <code>/login</code> or
+<code>matrix-commander --login</code>. Starts with <code>syt_</code> on Synapse.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.MatrixChannelConfig.allow_from" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">allow_from</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.MatrixChannelConfig.allow_from" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Whitelist of Matrix user IDs, e.g. <code>@alice:matrix.org,@bob:matrix.org</code>.
+Empty list means 'allow everyone'.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.MatrixChannelConfig.auto_join_invites" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">auto_join_invites</span> <span class="o">=</span> <span class="kc">True</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.MatrixChannelConfig.auto_join_invites" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Automatically join rooms the bot is invited to. When <code>allow_from</code>
+is non-empty the inviter must be on the allow-list.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.MatrixChannelConfig.device_id" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">device_id</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.MatrixChannelConfig.device_id" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Device ID associated with <code>access_token</code>. Required by matrix-nio
+for token-only authentication.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.MatrixChannelConfig.e2ee_enabled" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">e2ee_enabled</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.MatrixChannelConfig.e2ee_enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Reserved for future support of end-to-end-encrypted rooms.</p>
+<p>.. warning::
+    Not implemented in this release. Starting the channel with
+    <code>e2ee_enabled=True</code> raises an error at startup — the bot will
+    not silently fall back to unencrypted mode, which would leak
+    otherwise-encrypted messages on sync. Leave <code>False</code> for now;
+    set it to opt in once E2EE support ships.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.MatrixChannelConfig.homeserver_url" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">homeserver_url</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.MatrixChannelConfig.homeserver_url" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Full homeserver URL, e.g. <code>"https://matrix.org"</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.MatrixChannelConfig.store_path" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">store_path</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.MatrixChannelConfig.store_path" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Optional directory for nio's state store. Defaults to
+<code>~/.langclaw/matrix_store</code> when left empty.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.MatrixChannelConfig.user_id" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">user_id</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.MatrixChannelConfig.user_id" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Bot user ID in fully-qualified form, e.g. <code>"@mybot:matrix.org"</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.MatrixChannelConfig.user_roles" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">user_roles</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.MatrixChannelConfig.user_roles" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Maps Matrix user IDs to permission roles.
+Env format: <code>@alice:matrix.org:admin,@bob:matrix.org:viewer</code></p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.WebSocketChannelConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.WebSocketChannelConfig</code>
+
+
+<a href="#langclaw.config.schema.WebSocketChannelConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.WebSocketChannelConfig.streaming_enabled" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">streaming_enabled</span> <span class="o">=</span> <span class="kc">True</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.WebSocketChannelConfig.streaming_enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Stream AI responses token-by-token, emitting <code>{"type": "ai_chunk"}</code>
+events as content is generated, followed by <code>{"type": "ai_stream_end"}</code>.</p>
+<p>Unlike Telegram, Slack, and Discord, WebSocket streaming carries no
+rate-limit risk — chunks are pushed directly over the open socket without
+any platform API calls.  Clients should accumulate <code>ai_chunk</code> payloads
+and render them incrementally.</p>
+<p>Defaults to <code>True</code>.  Set to <code>False</code> to receive a single
+<code>{"type": "ai"}</code> event with the complete response instead.</p>
+<p>Env: <code>LANGCLAW__CHANNELS__WEBSOCKET__STREAMING_ENABLED=false</code></p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.WebSocketChannelConfig.user_roles" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">user_roles</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.WebSocketChannelConfig.user_roles" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Maps WebSocket user IDs to permission roles.
+Env format: <code>user1:admin,user2:viewer</code></p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.CheckpointerConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.CheckpointerConfig</code>
+
+
+<a href="#langclaw.config.schema.CheckpointerConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.BusConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.BusConfig</code>
+
+
+<a href="#langclaw.config.schema.BusConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.PermissionsConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.PermissionsConfig</code>
+
+
+<a href="#langclaw.config.schema.PermissionsConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>Global RBAC definitions.</p>
+<p>Role <em>definitions</em> (role name -&gt; allowed tools) live here.
+User -&gt; role <em>mappings</em> live per-channel alongside <code>allow_from</code>.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.PermissionsConfig.default_role" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">default_role</span> <span class="o">=</span> <span class="s1">&#39;viewer&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.PermissionsConfig.default_role" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Role assigned to users not listed in any channel's <code>user_roles</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.PermissionsConfig.enabled" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">enabled</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.PermissionsConfig.enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Enable per-user tool permission filtering.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.PermissionsConfig.roles" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">roles</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.PermissionsConfig.roles" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Role name -&gt; <code>RoleConfig</code>. Define in <code>config.json</code>::</p>
+<p>{"roles": {"admin": {"tools": ["*"]}, "viewer": {"tools": ["web_search"]}}}</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.RoleConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.RoleConfig</code>
+
+
+<a href="#langclaw.config.schema.RoleConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>Defines which tools (and interpreter subagents) a role may use.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.RoleConfig.subagents" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">subagents</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.RoleConfig.subagents" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Subagent types this role may invoke from an interpreter script via
+<code>tools.task({subagent_type})</code>.  <strong>Default-deny</strong> — an empty list means
+the role cannot spawn any subagent from a script.  Use <code>["*"]</code> to allow
+every registered subagent.  This is a separate axis from <code>tools</code>: a role
+with <code>tools=["*"]</code> still cannot reach subagents unless they are listed
+here.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.RoleConfig.tools" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">tools</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.RoleConfig.tools" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Tool names this role is allowed to invoke.
+Use <code>["*"]</code> to grant access to all tools.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.RoleConfig.workflows" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">workflows</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.RoleConfig.workflows" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Workflow names this role may invoke — via the <code>workflow_&lt;name&gt;</code> tool,
+a <code>/workflows</code> command, cron, or (Phase 2) <code>tools.workflow.&lt;name&gt;</code> inside
+an interpreter script.  <strong>Default-deny</strong> like <code>subagents</code> — an empty list
+means the role may invoke no workflows.  Use <code>["*"]</code> to allow every
+registered workflow.  A third RBAC axis alongside <code>tools</code> and
+<code>subagents</code> — all three resolve through the one descriptor-driven
+:func:<code>langclaw.rbac.resolve_capability</code> (a new axis = one
+:class:<code>~langclaw.rbac.CapabilityAxis</code> + one field here).</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.CronConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.CronConfig</code>
+
+
+<a href="#langclaw.config.schema.CronConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.CronConfig.enabled" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">enabled</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.CronConfig.enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Off by default. Enabling the SQLite data store (the default) requires the
+<code>sqlalchemy</code> and <code>aiosqlite</code> packages. Set <code>LANGCLAW__CRON__ENABLED=true</code>
+to opt in.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.WorkflowsConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.WorkflowsConfig</code>
+
+
+<a href="#langclaw.config.schema.WorkflowsConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>Operator-authored Workflow primitive configuration (issue #38).</p>
+<p>Opt-in and <strong>off by default</strong>.  When enabled, workflows registered with
+<code>@app.workflow()</code> become invocable three ways: the LLM calls the
+<code>workflow_&lt;name&gt;</code> tool; an operator runs <code>/workflows run &lt;name&gt;</code>; or a
+message with <code>origin="workflow"</code> (e.g. a cron-fired job) dispatches one
+through the gateway.  Each is typed, multi-step, and RBAC-gated by role.</p>
+<p><strong>Runtime authoring (<code>mode="saved"</code>):</strong> when this <em>and</em> <code>interpreter</code> are
+enabled (and the backend is filesystem-rooted), the agent can save a workflow
+by <strong>writing a file</strong> with its ordinary <code>write_file</code> tool — there is no
+bespoke save tool.  After running an ad-hoc job with <code>eval</code>, the user can say
+"save that workflow"; the agent writes the same JS to <code>workflows/&lt;name&gt;.js</code>
+(with <code>// @description</code> / <code>// @uses</code> header comments).  The gateway watches
+that folder, reconciles the file into the registry, and rebuilds the default
+agent, so the new <code>workflow_&lt;name&gt;</code> tool goes live in the same session and
+reloads on every restart.  (Requires the <code>interpreter</code> extra — a saved body
+runs in the same QuickJS sandbox as <code>eval</code>.  <code>state</code>/<code>store</code> backends have
+no host folder, so file-authoring is unavailable there.)</p>
+<p>RBAC is enforced at the <strong>invocation</strong> boundary: the <code>workflow_&lt;name&gt;</code> tool
+gate, the <code>/workflows</code> command, cron dispatch, and bus dispatch all consult
+the role's default-deny workflow allowlist.  A workflow's <strong>steps</strong>, however,
+run <strong>in-process</strong> by calling <code>tool.ainvoke</code> directly — they bypass the
+graph, so the per-request <code>ToolPermissionMiddleware</code> does not filter a
+step's toolset.  A workflow can therefore reach any tool in the default
+agent's toolset; restrict reachable tools via the workflow's <code>uses_tools</code>,
+not per-role tool RBAC.  Bus dispatch runs a <em>whole workflow</em> as one bus
+message; full bus → gateway re-entry per <em>step</em> (inheriting rate limiting,
+channel context, per-step checkpointing, and step-level RBAC) is not yet
+wired.</p>
+<p>Env: <code>LANGCLAW__WORKFLOWS__ENABLED=true</code></p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.WorkflowsConfig.durable_steps" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">durable_steps</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.WorkflowsConfig.durable_steps" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>When <code>True</code>, completed workflow step results are persisted to a
+LangGraph <code>BaseStore</code> (a sibling SQLite file or the Postgres DSN, matching
+the checkpointer backend) instead of an in-process dict, so they survive a
+process restart.  Off by default.</p>
+<p>NOTE: this only <em>persists</em> step results — it does not re-run anything on its
+own.  Set <code>resume_on_startup</code> for that.  The store currently has no TTL or
+pruning, so it grows unbounded; keep an eye on it for long-lived deployments.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.WorkflowsConfig.enabled" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">enabled</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.WorkflowsConfig.enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Enable the Workflow primitive.  Off by default — registering workflows
+is inert until this is set.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.WorkflowsConfig.max_concurrent_runs" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">max_concurrent_runs</span> <span class="o">=</span> <span class="mi">16</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.WorkflowsConfig.max_concurrent_runs" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Global ceiling on simultaneously-running workflow runs across the host,
+regardless of any single workflow's own budget.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.WorkflowsConfig.max_depth" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">max_depth</span> <span class="o">=</span> <span class="mi">2</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.WorkflowsConfig.max_depth" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Maximum nesting depth — how many levels a workflow may invoke other
+workflows.  Bounds recursive fan-out.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.WorkflowsConfig.max_steps_per_run" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">max_steps_per_run</span> <span class="o">=</span> <span class="mi">1000</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.WorkflowsConfig.max_steps_per_run" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Hard backstop on total steps a single run may execute.  Guards against a
+runaway loop in an operator-authored body.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.WorkflowsConfig.resume_on_startup" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">resume_on_startup</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.WorkflowsConfig.resume_on_startup" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>When <code>True</code>, workflow runs left incomplete by a previous process (a crash
+/ kill) are re-run on startup from the run journal: completed steps replay
+from the durable step store and only the unfinished tail executes.  Off by
+default.  Requires <code>durable_steps</code> (the step store + run journal share one
+<code>BaseStore</code>); without it, enabling this logs a warning and does nothing.</p>
+<p>Caveats developers should know before relying on it:</p>
+<ul>
+<li><strong>Python-mode workflows only.</strong>  Runs whose spec is no longer registered, or
+  whose <code>mode</code> is <code>llm_authored</code>, are skipped (logged), not resumed.</li>
+<li><strong>Crash vs. clean failure.</strong>  A killed process leaves a run <code>running</code> and
+  so resumable; a workflow that raised a normal exception is marked <code>failed</code>
+  and is <em>not</em> retried (avoids looping on a deterministic bug).</li>
+<li><strong>No step-result invalidation.</strong>  Resume matches cached steps by a
+  deterministic <code>step_id</code> (<code>&lt;phase&gt;#&lt;seq&gt;</code>).  Editing a workflow body
+  between crash and restart can shift those IDs and replay stale results — bump
+  the workflow name or clear the store after changing a body you may resume.</li>
+<li><strong>Resumes under the default agent's permissions.</strong>  The resume step executor
+  is built from the default agent's role-filtered toolset, not the original
+  invoker's role/named-agent context — a resumed run may see a different
+  toolset than the run that crashed.</li>
+<li><strong>Blocking at startup.</strong>  Incomplete runs are replayed sequentially before
+  the gateway begins serving traffic, so a slow or hanging resumed run delays
+  startup.</li>
+<li><strong>One attempt.</strong>  A run that raises again during resume is marked <code>failed</code>
+  and not retried — even if the cause was transient.</li>
+</ul>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.InterpreterConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.InterpreterConfig</code>
+
+
+<a href="#langclaw.config.schema.InterpreterConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>Sandboxed code-interpreter (RLM) configuration.</p>
+<p>Opt-in and <strong>off by default</strong>.  When enabled, the agent gains an <code>eval</code>
+tool backed by <code>langchain-quickjs</code>'s <code>CodeInterpreterMiddleware</code>: it
+writes a sandboxed JavaScript program that can loop, branch, retry, and
+fan out over a role-filtered allowlist of tools (Programmatic Tool Calling),
+including <code>tools.task({subagent_type})</code> to orchestrate registered
+subagents.</p>
+<p>The QuickJS sandbox has no filesystem, network, or shell access; the real
+trust boundary is the <em>exposed tools</em>, so the PTC allowlist defaults to a
+read-only set and mutating/egress tools require explicit <code>allow_tools</code>
+opt-in.  Requires the <code>interpreter</code> extra::</p>
+<div class="language-text highlight"><pre><span></span><code>uv add &#39;langclaw[interpreter]&#39;
+</code></pre></div>
+<p>Env: <code>LANGCLAW__INTERPRETER__ENABLED=true</code></p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.InterpreterConfig.allow_tools" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">allow_tools</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.InterpreterConfig.allow_tools" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Operator opt-in beyond the read-only default PTC allowlist.  Add
+mutating/egress tool names here to expose them inside scripts, or <code>["*"]</code>
+to expose every available tool (subject to per-role RBAC).</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.InterpreterConfig.enabled" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">enabled</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.InterpreterConfig.enabled" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Enable the <code>eval</code> code-interpreter tool. Off by default.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.InterpreterConfig.max_concurrent_subagents" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">max_concurrent_subagents</span> <span class="o">=</span> <span class="mi">4</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.InterpreterConfig.max_concurrent_subagents" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Advisory cap on concurrent <code>tools.task</code> fan-out width.</p>
+<p>.. note::
+    Reserved for forward compatibility — the current <code>langchain-quickjs</code>
+    <code>CodeInterpreterMiddleware</code> does not expose a concurrency knob, so
+    this value is documented but not yet enforced by the sandbox.  The
+    effective bound today is <code>max_ptc_calls</code> plus <code>timeout</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.InterpreterConfig.max_ptc_calls" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">max_ptc_calls</span> <span class="o">=</span> <span class="mi">256</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.InterpreterConfig.max_ptc_calls" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Maximum total <code>tools.*</code> bridge calls allowed during one <code>eval</code>.
+Bounds runaway fan-out / PTC-call DoS.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.InterpreterConfig.max_result_chars" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">max_result_chars</span> <span class="o">=</span> <span class="mi">4000</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.InterpreterConfig.max_result_chars" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Caps what a script <code>return</code> (and captured <code>console.log</code>) sends back
+to the agent turn.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.InterpreterConfig.memory_limit" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">memory_limit</span> <span class="o">=</span> <span class="mi">64</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.InterpreterConfig.memory_limit" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Bytes the QuickJS heap may use per eval. Default 64 MiB.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.InterpreterConfig.snapshot_between_turns" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">snapshot_between_turns</span> <span class="o">=</span> <span class="kc">False</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.InterpreterConfig.snapshot_between_turns" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Persist REPL state across <code>eval</code> calls (snapshot after / restore before).</p>
+<p>Off by default: a fresh context per <code>eval</code> avoids cross-call <code>const</code>/
+<code>let</code> redeclaration errors when the model retries with the same variable
+names. Enable only when a workflow genuinely needs to accumulate state
+across separate <code>eval</code> calls.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.InterpreterConfig.timeout" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">timeout</span> <span class="o">=</span> <span class="mf">5.0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.InterpreterConfig.timeout" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Per-<code>eval</code> wall-clock budget in seconds, <strong>including awaited
+<code>tools.task</code> subagent runs</strong>.</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="langclaw.config.schema.ToolsConfig" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-class"></code>            <code>langclaw.config.schema.ToolsConfig</code>
+
+
+<a href="#langclaw.config.schema.ToolsConfig" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents first">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>Configuration for built-in agent tools (web search, fetch, etc.).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.ToolsConfig.brave_api_key" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">brave_api_key</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.ToolsConfig.brave_api_key" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Brave Search API key. Required when search_backend = "brave".
+Obtain one at https://api.search.brave.com/app/dashboard</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.ToolsConfig.gmail" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">gmail</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">GmailConfig</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.ToolsConfig.gmail" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Gmail tool configuration. See <code>GmailConfig</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.ToolsConfig.search_backend" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">search_backend</span> <span class="o">=</span> <span class="s1">&#39;brave&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.ToolsConfig.search_backend" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Search backend to use. One of <code>"brave"</code>, <code>"tavily"</code>, or <code>"duckduckgo"</code>.</p>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="langclaw.config.schema.ToolsConfig.tavily_api_key" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <code class="highlight language-python"><span class="n">tavily_api_key</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#langclaw.config.schema.ToolsConfig.tavily_api_key" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Tavily Search API key. Required when search_backend = "tavily".
+Obtain one at https://app.tavily.com</p>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
     </div>
 
 </div>

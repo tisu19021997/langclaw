@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Multi-channel AI agent framework, the LangChain way">
+        <meta name="description" content="Build production-ready, role-gated Claws.">
       
       
       
@@ -677,6 +677,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../guides/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guides/probe/" class="md-nav__link">
         
   
@@ -705,6 +733,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../PROBE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Probe Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guides/architecture/" class="md-nav__link">
         
   
@@ -713,6 +769,34 @@
     
   
     Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Internals
   
 
     
@@ -1955,7 +2039,7 @@ axis is merged independently (order-stable dedupe).  Registering
 any role automatically enables the permissions system.</p>
 <p>Three independent RBAC axes:</p>
 <ul>
-<li><code>tools</code>     — pass-through for unknown roles; <code>["*"]</code> grants all.</li>
+<li><code>tools</code>     — <strong>default-deny</strong> for unknown roles; <code>["*"]</code> grants all.</li>
 <li><code>subagents</code> — <strong>default-deny</strong>; subagent types reachable via the
                   <code>task</code> tool. <code>["*"]</code> allows every registered one.</li>
 <li><code>workflows</code> — <strong>default-deny</strong>; workflows reachable as the
@@ -2100,7 +2184,7 @@ any role automatically enables the permissions system.</p>
 </span><span id="__span-0-400"><a id="__codelineno-0-400" name="__codelineno-0-400"></a>
 </span><span id="__span-0-401"><a id="__codelineno-0-401" name="__codelineno-0-401"></a><span class="sd">    Three independent RBAC axes:</span>
 </span><span id="__span-0-402"><a id="__codelineno-0-402" name="__codelineno-0-402"></a>
-</span><span id="__span-0-403"><a id="__codelineno-0-403" name="__codelineno-0-403"></a><span class="sd">    - ``tools``     — pass-through for unknown roles; ``[&quot;*&quot;]`` grants all.</span>
+</span><span id="__span-0-403"><a id="__codelineno-0-403" name="__codelineno-0-403"></a><span class="sd">    - ``tools``     — **default-deny** for unknown roles; ``[&quot;*&quot;]`` grants all.</span>
 </span><span id="__span-0-404"><a id="__codelineno-0-404" name="__codelineno-0-404"></a><span class="sd">    - ``subagents`` — **default-deny**; subagent types reachable via the</span>
 </span><span id="__span-0-405"><a id="__codelineno-0-405" name="__codelineno-0-405"></a><span class="sd">                      ``task`` tool. ``[&quot;*&quot;]`` allows every registered one.</span>
 </span><span id="__span-0-406"><a id="__codelineno-0-406" name="__codelineno-0-406"></a><span class="sd">    - ``workflows`` — **default-deny**; workflows reachable as the</span>
@@ -2152,8 +2236,8 @@ agent.  Each named agent:</p>
 <li>Shares the same checkpointer backend as the main agent.</li>
 <li>Can use a different system prompt, tool set, or model.</li>
 </ul>
-<p>Users switch between agents via the built-in <code>/switch &lt;name&gt;</code> command,
-and can return to the main agent with <code>/switch default</code>.</p>
+<p>Users switch between agents via the built-in <code>/agent &lt;name&gt;</code> command,
+and can return to the main agent with <code>/agent default</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2176,7 +2260,7 @@ and can return to the main agent with <code>/switch default</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Unique identifier used with <code>/switch &lt;name&gt;</code>.
+                <p>Unique identifier used with <code>/agent &lt;name&gt;</code>.
            Must not be <code>"default"</code> (reserved sentinel).</p>
               </div>
             </td>
@@ -2193,7 +2277,7 @@ and can return to the main agent with <code>/switch default</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Short description shown by <code>/switch</code> with no args.</p>
+                <p>Short description shown by <code>/agent</code> with no args.</p>
               </div>
             </td>
             <td>
@@ -2397,13 +2481,13 @@ and can return to the main agent with <code>/switch default</code>.</p>
 </span><span id="__span-0-598"><a id="__codelineno-0-598" name="__codelineno-0-598"></a><span class="sd">    - Shares the same checkpointer backend as the main agent.</span>
 </span><span id="__span-0-599"><a id="__codelineno-0-599" name="__codelineno-0-599"></a><span class="sd">    - Can use a different system prompt, tool set, or model.</span>
 </span><span id="__span-0-600"><a id="__codelineno-0-600" name="__codelineno-0-600"></a>
-</span><span id="__span-0-601"><a id="__codelineno-0-601" name="__codelineno-0-601"></a><span class="sd">    Users switch between agents via the built-in ``/switch &lt;name&gt;`` command,</span>
-</span><span id="__span-0-602"><a id="__codelineno-0-602" name="__codelineno-0-602"></a><span class="sd">    and can return to the main agent with ``/switch default``.</span>
+</span><span id="__span-0-601"><a id="__codelineno-0-601" name="__codelineno-0-601"></a><span class="sd">    Users switch between agents via the built-in ``/agent &lt;name&gt;`` command,</span>
+</span><span id="__span-0-602"><a id="__codelineno-0-602" name="__codelineno-0-602"></a><span class="sd">    and can return to the main agent with ``/agent default``.</span>
 </span><span id="__span-0-603"><a id="__codelineno-0-603" name="__codelineno-0-603"></a>
 </span><span id="__span-0-604"><a id="__codelineno-0-604" name="__codelineno-0-604"></a><span class="sd">    Args:</span>
-</span><span id="__span-0-605"><a id="__codelineno-0-605" name="__codelineno-0-605"></a><span class="sd">        name:          Unique identifier used with ``/switch &lt;name&gt;``.</span>
+</span><span id="__span-0-605"><a id="__codelineno-0-605" name="__codelineno-0-605"></a><span class="sd">        name:          Unique identifier used with ``/agent &lt;name&gt;``.</span>
 </span><span id="__span-0-606"><a id="__codelineno-0-606" name="__codelineno-0-606"></a><span class="sd">                       Must not be ``&quot;default&quot;`` (reserved sentinel).</span>
-</span><span id="__span-0-607"><a id="__codelineno-0-607" name="__codelineno-0-607"></a><span class="sd">        description:   Short description shown by ``/switch`` with no args.</span>
+</span><span id="__span-0-607"><a id="__codelineno-0-607" name="__codelineno-0-607"></a><span class="sd">        description:   Short description shown by ``/agent`` with no args.</span>
 </span><span id="__span-0-608"><a id="__codelineno-0-608" name="__codelineno-0-608"></a><span class="sd">        display_name:  Optional human-facing name for this agent. Injected</span>
 </span><span id="__span-0-609"><a id="__codelineno-0-609" name="__codelineno-0-609"></a><span class="sd">                       into the system prompt so the model knows its own</span>
 </span><span id="__span-0-610"><a id="__codelineno-0-610" name="__codelineno-0-610"></a><span class="sd">                       name, and shown alongside the routing key in</span>

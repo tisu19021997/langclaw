@@ -10,11 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://langclaw.dev/blog/langclaw-0-2-0/">
+        <link rel="canonical" href="https://langclaw.dev/guides/deployment/">
       
       
+        <link rel="prev" href="../cron/">
       
-        <link rel="next" href="../langclaw-0-3-0/">
+      
+        <link rel="next" href="../probe/">
       
       
         
@@ -25,7 +27,7 @@
     
     
       
-        <title>langclaw 0.2.0 — workflows and the code interpreter - langclaw</title>
+        <title>Deployment - langclaw</title>
       
     
     
@@ -78,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#langclaw-020-workflows-and-the-code-interpreter" class="md-skip">
+        <a href="#deployment" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              langclaw 0.2.0 — workflows and the code interpreter
+              Deployment
             
           </span>
         </div>
@@ -264,11 +266,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../guides/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
           
   
   
@@ -304,11 +308,9 @@
   
   
   
-    
   
-  
-    <li class="md-tabs__item md-tabs__item--active">
-      <a href="../" class="md-tabs__link">
+    <li class="md-tabs__item">
+      <a href="../../blog/" class="md-tabs__link">
         
   
   
@@ -332,9 +334,7 @@
           
             
               
-                
-              
-              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" hidden>
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
                     
@@ -426,26 +426,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -463,7 +468,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -481,7 +486,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         
   
   
@@ -509,7 +514,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/tools/" class="md-nav__link">
+      <a href="../tools/" class="md-nav__link">
         
   
   
@@ -537,7 +542,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/channels/" class="md-nav__link">
+      <a href="../channels/" class="md-nav__link">
         
   
   
@@ -565,7 +570,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/workflows/" class="md-nav__link">
+      <a href="../workflows/" class="md-nav__link">
         
   
   
@@ -593,7 +598,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/subagents/" class="md-nav__link">
+      <a href="../subagents/" class="md-nav__link">
         
   
   
@@ -621,7 +626,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/rbac/" class="md-nav__link">
+      <a href="../rbac/" class="md-nav__link">
         
   
   
@@ -649,7 +654,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/cron/" class="md-nav__link">
+      <a href="../cron/" class="md-nav__link">
         
   
   
@@ -674,10 +679,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../guides/deployment/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -693,6 +725,92 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#process-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Process model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dev-prod-backends" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dev → prod backends
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scaling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scaling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#containerizing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Containerizing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observability
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -705,7 +823,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/probe/" class="md-nav__link">
+      <a href="../probe/" class="md-nav__link">
         
   
   
@@ -761,7 +879,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../guides/architecture/" class="md-nav__link">
+      <a href="../architecture/" class="md-nav__link">
         
   
   
@@ -992,14 +1110,12 @@
       
   
   
-    
-  
   
     
   
   
-    <li class="md-nav__item md-nav__item--active">
-      <a href="../" class="md-nav__link">
+    <li class="md-nav__item">
+      <a href="../../blog/" class="md-nav__link">
         
   
   
@@ -1027,8 +1143,6 @@
             
             
               
-                
-              
               <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
                 <div class="md-sidebar__scrollwrap">
                   <div class="md-sidebar__inner">
@@ -1048,10 +1162,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#workflows" class="md-nav__link">
+  <a href="#process-model" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Workflows
+        Process model
       
     </span>
   </a>
@@ -1059,10 +1173,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#code-interpreter-rlm" class="md-nav__link">
+  <a href="#dev-prod-backends" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Code interpreter (RLM)
+        Dev → prod backends
       
     </span>
   </a>
@@ -1070,10 +1184,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#matrix-channel" class="md-nav__link">
+  <a href="#scaling" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Matrix channel
+        Scaling
       
     </span>
   </a>
@@ -1081,10 +1195,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#rbac-subagents-and-workflows-axes" class="md-nav__link">
+  <a href="#containerizing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        RBAC: subagents and workflows axes
+        Containerizing
       
     </span>
   </a>
@@ -1092,10 +1206,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#whats-in-02" class="md-nav__link">
+  <a href="#security-checklist" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What's in 0.2
+        Security checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observability
       
     </span>
   </a>
@@ -1111,192 +1236,212 @@
             
           
           
-  <div class="md-content md-content--post" data-md-component="content">
-    <div class="md-sidebar md-sidebar--post" data-md-component="sidebar" data-md-type="navigation">
-      <div class="md-sidebar__scrollwrap">
-        <div class="md-sidebar__inner md-post">
-          <nav class="md-nav md-nav--primary">
-            <div class="md-post__back">
-              <div class="md-nav__title md-nav__container">
-                <a href="../" class="md-nav__link">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
-                  <span class="md-ellipsis">
-                    Back to index
-                  </span>
-                </a>
-              </div>
-            </div>
-            
-              <div class="md-post__authors md-typeset">
+            <div class="md-content" data-md-component="content">
+              
                 
-                  <div class="md-profile md-post__profile">
-                    <span class="md-author md-author--long">
-                      <img src="https://github.com/tisu19021997.png" alt="Quang Pham">
-                    </span>
-                    <span class="md-profile__description">
-                      <strong>
-                        
-                          <a href="https://github.com/tisu19021997">Quang Pham</a>
-                        
-                      </strong>
-                      <br>
-                      Builder of langclaw
-                    </span>
-                  </div>
-                
-              </div>
-            
-            <ul class="md-post__meta md-nav__list">
-              <li class="md-nav__item md-nav__item--section">
-                <div class="md-post__title">
-                  <span class="md-ellipsis">
-                    Metadata
-                  </span>
-                </div>
-                <nav class="md-nav">
-                  <ul class="md-nav__list">
-                    <li class="md-nav__item">
-                      <div class="md-nav__link">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 19H5V8h14m-3-7v2H8V1H6v2H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-1V1m-1 11h-5v5h5z"/></svg>
-                        <time datetime="2026-05-31 00:00:00+00:00" class="md-ellipsis">May 31, 2026</time>
-                      </div>
-                    </li>
-                    
-                    
-                      <li class="md-nav__item">
-                        <div class="md-nav__link">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9 3v15h3V3zm3 2 4 13 3-1-4-13zM5 5v13h3V5zM3 19v2h18v-2z"/></svg>
-                          <span class="md-ellipsis">
-                            in
-                            
-                              <a href="../category/release/">Release</a></span>
-                        </div>
-                      </li>
-                    
-                    
-                      
-                      <li class="md-nav__item">
-                        <div class="md-nav__link">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
-                          <span class="md-ellipsis">
-                            
-                              2 min read
-                            
-                          </span>
-                        </div>
-                      </li>
-                    
-                  </ul>
-                </nav>
-              </li>
-            </ul>
-            
-          </nav>
-          
-        </div>
-      </div>
-    </div>
-    <article class="md-content__inner md-typeset">
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
       
         
   
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
 
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Guides
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
 
 
   
   
 
 
-<h1 id="langclaw-020-workflows-and-the-code-interpreter">langclaw 0.2.0 — workflows and the code interpreter<a class="headerlink" href="#langclaw-020-workflows-and-the-code-interpreter" title="Permanent link">&para;</a></h1>
-<p>0.2.0 introduces two major primitives: the <code>@app.workflow</code> decorator for durable multi-step routines, and an opt-in sandboxed code interpreter that lets the agent author and run its own workflows at runtime.</p>
-<!-- more -->
-
-<h2 id="workflows">Workflows<a class="headerlink" href="#workflows" title="Permanent link">&para;</a></h2>
-<p>A workflow is a typed, multi-step routine the agent can call as a tool, a user can trigger via <code>/workflows run</code>, and a cron job can fire on schedule.</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">langclaw</span><span class="w"> </span><span class="kn">import</span> <span class="n">Langclaw</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">app</span> <span class="o">=</span> <span class="n">Langclaw</span><span class="p">()</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">class</span><span class="w"> </span><span class="nc">Brief</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">topic</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">angles</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;overview&quot;</span><span class="p">,</span> <span class="s2">&quot;risks&quot;</span><span class="p">,</span> <span class="s2">&quot;recent news&quot;</span><span class="p">]</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="nd">@app</span><span class="o">.</span><span class="n">workflow</span><span class="p">(</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    <span class="s2">&quot;research&quot;</span><span class="p">,</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    <span class="nb">input</span><span class="o">=</span><span class="n">Brief</span><span class="p">,</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    <span class="n">max_concurrency</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Search several angles in parallel, then synthesize.&quot;</span><span class="p">,</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">)</span>
-</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">research</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">inp</span><span class="p">:</span> <span class="n">Brief</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="s2">&quot;gather&quot;</span><span class="p">)</span>
-</span><span id="__span-0-18"><a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>
-</span><span id="__span-0-19"><a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>    <span class="n">findings</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">parallel</span><span class="p">([</span>
-</span><span id="__span-0-20"><a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>        <span class="k">lambda</span> <span class="n">c</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">tool</span><span class="p">(</span><span class="s2">&quot;web_search&quot;</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">inp</span><span class="o">.</span><span class="n">topic</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="__span-0-21"><a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="n">inp</span><span class="o">.</span><span class="n">angles</span>
-</span><span id="__span-0-22"><a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>    <span class="p">])</span>
-</span><span id="__span-0-23"><a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>
-</span><span id="__span-0-24"><a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="s2">&quot;synthesize&quot;</span><span class="p">)</span>
-</span><span id="__span-0-25"><a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>    <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;## </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">r</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">inp</span><span class="o">.</span><span class="n">angles</span><span class="p">,</span> <span class="n">findings</span><span class="p">))</span>
+<h1 id="deployment">Deployment<a class="headerlink" href="#deployment" title="Permanent link">&para;</a></h1>
+<p>How to take a langclaw app from <code>python app.py</code> on your laptop to a running
+service. This page is honest about what's wired and what you have to provide
+yourself.</p>
+<h2 id="process-model">Process model<a class="headerlink" href="#process-model" title="Permanent link">&para;</a></h2>
+<p><code>app.run()</code> is <strong>blocking</strong> and runs a <strong>single asyncio event loop in one
+process</strong>. It wires the bus, checkpointer, channels, cron, and agent, then serves
+until cancelled. There is no built-in worker pool or forking — concurrency is
+cooperative within the loop. To scale beyond one process, see <a href="#scaling">Scaling</a>.</p>
+<p>Startup and shutdown hooks let you manage external resources:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">@app</span><span class="o">.</span><span class="n">on_startup</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">open_pool</span><span class="p">():</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    <span class="o">...</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nd">@app</span><span class="o">.</span><span class="n">on_shutdown</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">close_pool</span><span class="p">():</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="o">...</span>
 </span></code></pre></div>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">LANGCLAW__WORKFLOWS__ENABLED</span><span class="o">=</span><span class="nb">true</span>
-</span></code></pre></div>
-<p>Three authoring modes ship in 0.2:</p>
+<p><code>on_startup</code> hooks run <strong>before</strong> the bus and checkpointer are started — use them
+to open your own resources (DB pools, HTTP clients), not to publish to the bus. On
+normal cancellation (Ctrl-C / <code>SIGINT</code>), langclaw unwinds the bus, checkpointer,
+and workflow stores via an <code>AsyncExitStack</code> and then runs your <code>on_shutdown</code> hooks.</p>
+<div class="admonition warning">
+<p class="admonition-title">Honest limit: SIGTERM is not trapped</p>
+<p>langclaw does not install a <code>SIGTERM</code> handler. Orchestrators (Docker, k8s)
+send <code>SIGTERM</code> on stop — by default that terminates the process without
+running the graceful unwind. If you need clean shutdown under an
+orchestrator, install your own handler that raises <code>KeyboardInterrupt</code> /
+cancels the loop, and give the platform a <code>terminationGracePeriod</code> long
+enough for in-flight turns to finish.</p>
+</div>
+<h2 id="dev-prod-backends">Dev → prod backends<a class="headerlink" href="#dev-prod-backends" title="Permanent link">&para;</a></h2>
+<p>Everything below swaps via environment variables — no code changes. See the
+<a href="../../reference/config/">config reference</a> for the full key list.</p>
 <table>
 <thead>
 <tr>
-<th>Mode</th>
-<th>Who writes the body</th>
-<th>When</th>
+<th>Concern</th>
+<th>Dev default</th>
+<th>Production</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>python</code></td>
-<td>You</td>
-<td>Typed, testable, deterministic control flow</td>
+<td>Message bus</td>
+<td><code>asyncio</code> (in-process)</td>
+<td><code>rabbitmq</code> or <code>kafka</code></td>
 </tr>
 <tr>
-<td><code>saved</code></td>
-<td>The agent (once)</td>
-<td>Agent writes a JS body, saved to <code>workflows/&lt;name&gt;.js</code>, loads as a tool</td>
+<td>Conversation state</td>
+<td><code>sqlite</code></td>
+<td><code>postgres</code></td>
 </tr>
 <tr>
-<td><code>llm_authored</code> <em>(experimental)</em></td>
-<td>The model, per run</td>
-<td>Model writes the body fresh each run from a typed contract</td>
+<td>Cron job store</td>
+<td><code>sqlite</code></td>
+<td><code>postgres</code></td>
+</tr>
+<tr>
+<td>Workflow durable-step store</td>
+<td>(off)</td>
+<td><code>postgres</code> + <code>LANGCLAW__WORKFLOWS__DURABLE_STEPS=true</code></td>
 </tr>
 </tbody>
 </table>
-<p>Live progress streams to the channel as the workflow runs — users see phase headers and results as they come in.</p>
-<h2 id="code-interpreter-rlm">Code interpreter (RLM)<a class="headerlink" href="#code-interpreter-rlm" title="Permanent link">&para;</a></h2>
-<p>An opt-in sandboxed JavaScript <code>eval</code> tool backed by <code>langchain-quickjs</code>. The agent writes a program that can call tools, loop, branch, and fan out — including spawning subagents via <code>tools.task</code>.</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;langclaw[interpreter]&quot;</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">LANGCLAW__INTERPRETER__ENABLED</span><span class="o">=</span><span class="nb">true</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Production backends</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">LANGCLAW__BUS__BACKEND</span><span class="o">=</span>rabbitmq
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nv">LANGCLAW__BUS__RABBITMQ__AMQP_URL</span><span class="o">=</span>amqp://user:pass@rabbit:5672/
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nv">LANGCLAW__CHECKPOINTER__BACKEND</span><span class="o">=</span>postgres
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="nv">LANGCLAW__CHECKPOINTER__POSTGRES__DSN</span><span class="o">=</span>postgresql://user:pass@db:5432/langclaw
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nv">LANGCLAW__CRON__DATA_STORE__BACKEND</span><span class="o">=</span>postgres
 </span></code></pre></div>
-<p>The sandbox is capability-scoped: the agent can only call tools from an allowlist, and RBAC middleware runs before it. No ambient filesystem or network access.</p>
-<p>This is what powers <code>saved</code> and <code>llm_authored</code> workflow bodies — the interpreter is the runtime for both.</p>
-<h2 id="matrix-channel">Matrix channel<a class="headerlink" href="#matrix-channel" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">&quot;langclaw[matrix]&quot;</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">LANGCLAW__CHANNELS__MATRIX__ENABLED</span><span class="o">=</span><span class="nb">true</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nv">LANGCLAW__CHANNELS__MATRIX__HOMESERVER_URL</span><span class="o">=</span>https://matrix.org
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nv">LANGCLAW__CHANNELS__MATRIX__ACCESS_TOKEN</span><span class="o">=</span>...
-</span></code></pre></div>
-<h2 id="rbac-subagents-and-workflows-axes">RBAC: subagents and workflows axes<a class="headerlink" href="#rbac-subagents-and-workflows-axes" title="Permanent link">&para;</a></h2>
-<p><code>app.role()</code> now accepts <code>subagents</code> and <code>workflows</code> lists alongside <code>tools</code>. Both default-deny — a role must explicitly opt in:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">app</span><span class="o">.</span><span class="n">role</span><span class="p">(</span><span class="s2">&quot;analyst&quot;</span><span class="p">,</span> <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span> <span class="n">subagents</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;researcher&quot;</span><span class="p">],</span> <span class="n">workflows</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;digest&quot;</span><span class="p">])</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">app</span><span class="o">.</span><span class="n">role</span><span class="p">(</span><span class="s2">&quot;free&quot;</span><span class="p">,</span>    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;web_search&quot;</span><span class="p">],</span> <span class="n">subagents</span><span class="o">=</span><span class="p">[],</span> <span class="n">workflows</span><span class="o">=</span><span class="p">[])</span>
-</span></code></pre></div>
-<h2 id="whats-in-02">What's in 0.2<a class="headerlink" href="#whats-in-02" title="Permanent link">&para;</a></h2>
+<p>Install the matching extras: <code>uv add "langclaw[rabbitmq,postgres]"</code>.</p>
+<h2 id="scaling">Scaling<a class="headerlink" href="#scaling" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>@app.workflow()</code> — durable, typed, multi-step routines</li>
-<li><code>ctx.parallel</code>, <code>ctx.tool</code>, <code>ctx.subagent</code> workflow steps</li>
-<li>Three authoring modes: python (recommended), saved, llm_authored</li>
-<li>Sandboxed code interpreter (<code>langclaw[interpreter]</code>)</li>
-<li>Matrix channel</li>
-<li>RBAC <code>subagents</code> and <code>workflows</code> axes on <code>app.role()</code></li>
-<li>Named agent <code>display_name</code> support</li>
-<li>Streaming fix: only model chunks reach the channel (not middleware nodes)</li>
+<li><strong>Default (<code>asyncio</code> bus):</strong> single process only. The bus is an in-memory
+  queue — you cannot run a second instance against it.</li>
+<li><strong><code>rabbitmq</code> bus:</strong> the inbound queue is <strong>durable</strong> and consumed with
+  <code>prefetch=1</code>, i.e. <strong>competing consumers</strong>. Run N gateway processes against the
+  same queue and inbound messages are load-balanced across them — one message goes
+  to exactly one instance. Delivery is <strong>at-least-once</strong> (an instance that crashes
+  mid-turn leaves the message un-acked, so it's redelivered). A shared <code>postgres</code>
+  checkpointer keeps conversation state consistent across all instances.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Honest limit: don't duplicate a polling channel</p>
+<p>Competing consumers load-balance <em>the bus</em>, not a channel's upstream
+connection. A channel that owns a single long-poll connection (e.g. Telegram
+<code>getUpdates</code>) must run in <strong>exactly one</strong> process — two instances polling the
+same bot conflict. Scale-out is clean when many producers fan into the bus and
+multiple workers drain it; it is not "just run N identical copies" for
+single-connection polling channels. Webhook-style ingestion behind a load
+balancer avoids this.</p>
+</div>
+<h2 id="containerizing">Containerizing<a class="headerlink" href="#containerizing" title="Permanent link">&para;</a></h2>
+<p>No Dockerfile ships with langclaw. A minimal one for your own <code>app.py</code>:</p>
+<div class="language-dockerfile highlight"><span class="filename">Dockerfile</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.12-slim</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>ghcr.io/astral-sh/uv:latest<span class="w"> </span>/uv<span class="w"> </span>/usr/local/bin/uv
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">COPY</span><span class="w"> </span>pyproject.toml<span class="w"> </span>uv.lock<span class="w"> </span>./
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">RUN</span><span class="w"> </span>uv<span class="w"> </span>sync<span class="w"> </span>--frozen<span class="w"> </span>--no-dev
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">COPY</span><span class="w"> </span>.<span class="w"> </span>.
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c"># Run YOUR app (tools/subagents/commands you registered), not `langclaw gateway`,</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c"># which only runs the config-only built-in agent.</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;uv&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;run&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;python&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;app.py&quot;</span><span class="p">]</span>
+</span></code></pre></div>
+<div class="language-yaml highlight"><span class="filename">compose.yaml</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">services</span><span class="p">:</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">app</span><span class="p">:</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">build</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">env_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.env</span><span class="w">          </span><span class="c1"># LANGCLAW__* + provider keys</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">db</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">rabbit</span><span class="p p-Indicator">]</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">db</span><span class="p">:</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres:16</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> POSTGRES_PASSWORD</span><span class="p">:</span><span class="w"> </span><span class="nv">pass</span><span class="p p-Indicator">,</span><span class="nt"> POSTGRES_DB</span><span class="p">:</span><span class="w"> </span><span class="nv">langclaw</span><span class="w"> </span><span class="p p-Indicator">}</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">rabbit</span><span class="p">:</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rabbitmq:3-management</span>
+</span></code></pre></div>
+<p>Configure entirely through environment variables in the container — <code>langclaw
+init</code> (which writes <code>~/.langclaw/</code> and installs deps) is a local convenience, not
+a deploy step.</p>
+<h2 id="security-checklist">Security checklist<a class="headerlink" href="#security-checklist" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Drop the host shell in prod.</strong> The default <code>local_shell</code> backend gives the
+  agent an <strong>unsandboxed <code>execute</code></strong> tool that runs host commands. Set
+  <code>LANGCLAW__AGENTS__BACKEND__BACKEND=filesystem</code> to keep file tools without
+  <code>execute</code>, and/or run inside a locked-down container. See the
+  <a href="../architecture/">Architecture guide</a>.</li>
+<li><strong>Enable RBAC.</strong> It's off by default — set <code>LANGCLAW__PERMISSIONS__ENABLED=true</code>
+  and assign roles. See the <a href="../rbac/">RBAC guide</a>.</li>
+<li><strong>Don't expose the WebSocket channel unauthenticated</strong> to the public internet —
+  it has no built-in auth; put it behind your own auth/proxy.</li>
+<li><strong>Keep provider keys and tokens in the environment / a secrets manager</strong>, never
+  baked into the image.</li>
+</ul>
+<h2 id="observability">Observability<a class="headerlink" href="#observability" title="Permanent link">&para;</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Honest limit: no built-in HTTP health endpoint</p>
+<p>langclaw exposes no <code>/healthz</code>. <code>langclaw status</code> checks configuration (keys,
+channels, bus), not a live process. For an orchestrator liveness probe, do a
+TCP check on the WebSocket port, or add a tiny health route via a custom
+channel / <code>on_startup</code> hook.</p>
+</div>
+<ul>
+<li><strong>Logs:</strong> <code>app.run()</code> writes INFO+ to <code>&lt;workspace&gt;/logs/{date}.log</code> (daily
+  rotation, 30-day retention) in addition to stderr.</li>
+<li><strong>End-to-end checks:</strong> drive a real turn through the pipeline with the
+  <a href="../probe/">probe harness</a> (<code>langclaw probe</code>) against a running gateway.</li>
 </ul>
 
 
@@ -1305,20 +1450,15 @@
 
 
 
-  
-  
 
 
 
 
-  
 
-
-
-      
-    </article>
-  </div>
-
+                
+              </article>
+            </div>
+          
           
   <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
 

@@ -2,98 +2,98 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://langclaw.dev/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/ARCHITECTURE/</loc>
-         <lastmod>2026-06-12</lastmod>
-    </url>
-    <url>
-         <loc>https://langclaw.dev/BUSINESS_WORKSPACES/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/PROBE/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/getting-started/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/blog/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/blog/langclaw-0-2-0/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/blog/langclaw-0-3-0/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/blog/langclaw-0-4-0/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/guides/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/guides/architecture/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/guides/channels/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/guides/cron/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
+    </url>
+    <url>
+         <loc>https://langclaw.dev/guides/deployment/</loc>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/guides/probe/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/guides/rbac/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/guides/subagents/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/guides/tools/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/guides/workflows/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/reference/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/reference/app/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/reference/config/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/reference/context/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/blog/archive/2026/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
     <url>
          <loc>https://langclaw.dev/blog/category/release/</loc>
-         <lastmod>2026-06-12</lastmod>
+         <lastmod>2026-06-13</lastmod>
     </url>
 </urlset>

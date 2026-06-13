@@ -6,13 +6,17 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Multi-channel AI agent framework, the LangChain way">
+        <meta name="description" content="Build production-ready, role-gated Claws.">
       
       
       
         <link rel="canonical" href="https://langclaw.dev/ARCHITECTURE/">
       
       
+        <link rel="prev" href="../guides/architecture/">
+      
+      
+        <link rel="next" href="../reference/">
       
       
         
@@ -23,7 +27,7 @@
     
     
       
-        <title>Langclaw Architecture - langclaw</title>
+        <title>Architecture Internals - langclaw</title>
       
     
     
@@ -110,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Langclaw Architecture
+              Architecture Internals
             
           </span>
         </div>
@@ -262,10 +266,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../guides/" class="md-tabs__link">
           
   
@@ -420,26 +426,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -457,7 +468,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -671,6 +682,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../guides/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../guides/probe/" class="md-nav__link">
         
   
@@ -679,6 +718,34 @@
     
   
     Probe Harness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../PROBE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Probe Internals
   
 
     
@@ -715,6 +782,292 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Internals
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#message-flow-diagrams" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Flow Diagrams
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Message Flow Diagrams">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#end-to-end-sequence-user-channel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        End-to-End Sequence (User → Channel)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#middleware-pipeline-order-from-agentsbuilderpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Middleware Pipeline (order from agents/builder.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alternate-entry-paths-bypass-inject" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alternate Entry Paths (bypass / inject)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflow-primitive-entry-points-runtime-durability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow Primitive — Entry Points, Runtime, Durability
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#design-vision-a-framework-not-an-app" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design Vision: A Framework, Not an App
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Design Vision: A Framework, Not an App">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-tenets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Tenets
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architectural-deep-dive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architectural Deep Dive
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architectural Deep Dive">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-langclaw-app-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Langclaw App Class
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#message-bus-basemessagebus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Bus (BaseMessageBus)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#middleware-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Middleware Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checkpointer-abstraction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checkpointer Abstraction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflow-primitive-deterministic-orchestration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow Primitive — Deterministic Orchestration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-interpreter-rlm-trust-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Interpreter (RLM) — Trust Boundary
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comparison-with-alternative-frameworks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparison with Alternative Frameworks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Comparison with Alternative Frameworks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#openclaw" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OpenClaw
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#langclaws-position" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Langclaw's Position
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1182,6 +1535,46 @@
   
 
 
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href=".." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../guides/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Guides
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
               
               <article class="md-content__inner md-typeset">
                 
@@ -1193,11 +1586,11 @@
 
 
 <h1 id="langclaw-architecture">Langclaw Architecture<a class="headerlink" href="#langclaw-architecture" title="Permanent link">&para;</a></h1>
-<p>This document details the core design principles and architectural decisions of the Langclaw framework. For the package map and a quick ASCII data-flow overview, see the <a href="../README.md">README</a>; the rendered component, sequence, and middleware diagrams live in <a href="#message-flow-diagrams">Message Flow Diagrams</a> below.</p>
+<p>This document details the core design principles and architectural decisions of the Langclaw framework. For the package map and a quick ASCII data-flow overview, see the <a href="https://github.com/tisu19021997/langclaw/blob/main/README.md">README</a>; the rendered component, sequence, and middleware diagrams live in <a href="#message-flow-diagrams">Message Flow Diagrams</a> below.</p>
 <h2 id="message-flow-diagrams">Message Flow Diagrams<a class="headerlink" href="#message-flow-diagrams" title="Permanent link">&para;</a></h2>
 <p>These diagrams trace a message from a channel through the bus, gateway, middleware, and agent, and back out. They are sourced from the code — <code>gateway/manager.py</code> (<code>_handle</code>, <code>_resolve_agent_name</code>), <code>bus/base.py</code> (<code>InboundMessage</code> / <code>OutboundMessage</code>), and <code>agents/builder.py</code> (middleware stack).</p>
 <blockquote>
-<p>The high-level <strong>component architecture</strong> overview lives in <a href="../CLAUDE.md#message-flow">CLAUDE.md → Message Flow</a> (the always-loaded agent anchor). This section drills into the runtime sequence, middleware order, and bypass paths.</p>
+<p>The high-level <strong>component architecture</strong> overview lives in the <a href="../guides/architecture/">Architecture guide</a>. This section drills into the runtime sequence, middleware order, and bypass paths.</p>
 </blockquote>
 <h3 id="end-to-end-sequence-user-channel">End-to-End Sequence (User → Channel)<a class="headerlink" href="#end-to-end-sequence-user-channel" title="Permanent link">&para;</a></h3>
 <pre class="mermaid"><code>sequenceDiagram
@@ -1240,15 +1633,16 @@
 <pre class="mermaid"><code>flowchart LR
     IN["Input&lt;br/&gt;HumanMessage"] --&gt; M1
     M1["1 · ChannelContextMiddleware&lt;br/&gt;inject channel/user/ctx"] --&gt; M2
-    M2["2 · ToolPermissionMiddleware&lt;br/&gt;RBAC tool filter&lt;br/&gt;(if permissions.enabled)"] --&gt; M3
-    M3["3 · InterpreterMiddleware&lt;br/&gt;PTC eval sandbox&lt;br/&gt;(if interpreter.enabled)"] --&gt; M4
-    M4["4 · RateLimitMiddleware&lt;br/&gt;rpm cap"] --&gt; M5
-    M5["5 · ContentFilterMiddleware&lt;br/&gt;banned keywords"] --&gt; M6
-    M6["6 · PIIMiddleware&lt;br/&gt;redaction"] --&gt; M7
-    M7["7 · extra_middleware&lt;br/&gt;(user-provided)"] --&gt; LLM["Model + Tools"]
+    M2["2 · capability filter&lt;br/&gt;tool + workflow RBAC&lt;br/&gt;(if permissions.enabled)"] --&gt; M3
+    M3["3 · subagent gate&lt;br/&gt;task subagent_type RBAC&lt;br/&gt;(if permissions.enabled)"] --&gt; M4
+    M4["4 · InterpreterMiddleware&lt;br/&gt;PTC eval sandbox&lt;br/&gt;(if interpreter.enabled)"] --&gt; M5
+    M5["5 · RateLimitMiddleware&lt;br/&gt;rpm cap"] --&gt; M6
+    M6["6 · ContentFilterMiddleware&lt;br/&gt;banned keywords"] --&gt; M7
+    M7["7 · PIIMiddleware&lt;br/&gt;redaction"] --&gt; M8
+    M8["8 · extra_middleware&lt;br/&gt;(user-provided, last)"] --&gt; LLM["Model + Tools"]
     LLM --&gt; OUT["Output&lt;br/&gt;(reverse order on the way out)"]</code></pre>
 <blockquote>
-<p>Order matters: earliest runs first on input, last on output. The interpreter middleware is appended <strong>after</strong> <code>ToolPermissionMiddleware</code> so its PTC surface only ever sees the role-filtered toolset (see <a href="#code-interpreter-rlm--trust-boundary">Code Interpreter (RLM) — Trust Boundary</a>).</p>
+<p>Order matters: earliest runs first on input, last on output. The RBAC steps are <code>build_capability_filter_middleware</code> (tool + <code>workflow_&lt;name&gt;</code> visibility) and <code>build_subagent_permission_middleware</code> (the <code>task</code> subagent_type gate). The interpreter middleware is appended <strong>after</strong> the capability filter so its PTC surface only ever sees the role-filtered toolset (see <a href="#code-interpreter-rlm-trust-boundary">Code Interpreter (RLM) — Trust Boundary</a>).</p>
 </blockquote>
 <h3 id="alternate-entry-paths-bypass-inject">Alternate Entry Paths (bypass / inject)<a class="headerlink" href="#alternate-entry-paths-bypass-inject" title="Permanent link">&para;</a></h3>
 <pre class="mermaid"><code>flowchart TB

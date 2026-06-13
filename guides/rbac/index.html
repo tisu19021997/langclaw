@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Multi-channel AI agent framework, the LangChain way">
+        <meta name="description" content="Build production-ready, role-gated Claws.">
       
       
       
@@ -708,6 +708,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#enable-rbac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable RBAC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#assign-roles-to-users" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -784,6 +795,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../probe/" class="md-nav__link">
         
   
@@ -812,6 +851,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../PROBE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Probe Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../architecture/" class="md-nav__link">
         
   
@@ -820,6 +887,34 @@
     
   
     Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Internals
   
 
     
@@ -1089,6 +1184,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#enable-rbac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable RBAC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#assign-roles-to-users" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1190,7 +1296,7 @@
 
 
 <h1 id="rbac">RBAC<a class="headerlink" href="#rbac" title="Permanent link">&para;</a></h1>
-<p>Langclaw's RBAC is three-axis and default-deny on two of them: tools are default-pass-through (a role with <code>tools=["*"]</code> sees everything), while subagents and workflows are default-deny (a role must explicitly list the ones it can reach).</p>
+<p>Langclaw's RBAC is three-axis and <strong>default-deny on every axis</strong>: enabling permissions restricts tools, subagents, <em>and</em> workflows for everyone. A <em>defined</em> role sees only what it lists (<code>["*"]</code> grants all, <code>[]</code> grants none); an <em>unknown</em> role — including an unlisted user whose <code>default_role</code> you never registered — gets nothing. Turning RBAC on locks things down; you open them back up by defining roles.</p>
 <h2 id="define-roles">Define roles<a class="headerlink" href="#define-roles" title="Permanent link">&para;</a></h2>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">app</span><span class="o">.</span><span class="n">role</span><span class="p">(</span><span class="s2">&quot;admin&quot;</span><span class="p">,</span>    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>            <span class="n">subagents</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>            <span class="n">workflows</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">])</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">app</span><span class="o">.</span><span class="n">role</span><span class="p">(</span><span class="s2">&quot;analyst&quot;</span><span class="p">,</span>  <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;*&quot;</span><span class="p">],</span>            <span class="n">subagents</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;researcher&quot;</span><span class="p">],</span>   <span class="n">workflows</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;digest&quot;</span><span class="p">])</span>
@@ -1209,7 +1315,7 @@
 <tr>
 <td>Tools</td>
 <td><code>tools</code></td>
-<td>pass-through (<code>["*"]</code> = all tools)</td>
+<td><strong>deny</strong> — defined role sees only what it lists (<code>["*"]</code>=all, <code>[]</code>=none); unknown role → none</td>
 </tr>
 <tr>
 <td>Subagents</td>
@@ -1223,17 +1329,38 @@
 </tr>
 </tbody>
 </table>
-<h2 id="assign-roles-to-users">Assign roles to users<a class="headerlink" href="#assign-roles-to-users" title="Permanent link">&para;</a></h2>
-<p>Roles are resolved per-request based on the <code>user_id</code> from the inbound message. Wire a resolver:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nd">@app</span><span class="o">.</span><span class="n">role_resolver</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_role</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="k">if</span> <span class="n">user_id</span> <span class="ow">in</span> <span class="n">ADMIN_IDS</span><span class="p">:</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        <span class="k">return</span> <span class="s2">&quot;admin&quot;</span>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="k">if</span> <span class="k">await</span> <span class="n">is_paid_user</span><span class="p">(</span><span class="n">user_id</span><span class="p">):</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="k">return</span> <span class="s2">&quot;analyst&quot;</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="k">return</span> <span class="s2">&quot;free&quot;</span>
+<p>All three axes are independent: a role with <code>tools=["*"]</code> still gets no subagents or workflows unless it lists them.</p>
+<h2 id="enable-rbac">Enable RBAC<a class="headerlink" href="#enable-rbac" title="Permanent link">&para;</a></h2>
+<p>RBAC is <strong>off by default</strong> — every user sees every tool (the capability filter isn't even installed). Turn it on:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">LANGCLAW__PERMISSIONS__ENABLED</span><span class="o">=</span><span class="nb">true</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">LANGCLAW__PERMISSIONS__DEFAULT_ROLE</span><span class="o">=</span>viewer<span class="w">   </span><span class="c1"># role for unlisted users (default: viewer)</span>
 </span></code></pre></div>
-<p>Without a resolver, all users get the default role (no restrictions).</p>
+<p>Enabling RBAC is <strong>default-deny</strong>: until you define roles and grant capabilities, unlisted users get nothing. If you don't register the <code>default_role</code> (e.g. <code>viewer</code>), unlisted users are an unknown role and see <strong>no tools, subagents, or workflows</strong> — fail-closed, as you'd expect from a permissions switch.</p>
+<h2 id="assign-roles-to-users">Assign roles to users<a class="headerlink" href="#assign-roles-to-users" title="Permanent link">&para;</a></h2>
+<p>Roles are resolved per-request from the inbound message's <code>user_id</code>. You map
+users to roles <strong>per channel</strong> via that channel's <code>user_roles</code> setting. The env
+format is a comma list of <code>id:role</code> (IDs <em>or</em> <code>@usernames</code>):</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">LANGCLAW__CHANNELS__TELEGRAM__USER_ROLES</span><span class="o">=</span><span class="m">123456</span>:admin,@alice:analyst,789:free
+</span></code></pre></div>
+<p>Equivalently in code/config: <code>channels.telegram.user_roles = {"123456": "admin", "@alice": "analyst"}</code>.</p>
+<p><strong>Resolution order</strong> (<code>gateway/manager.py:_resolve_user_role</code>):</p>
+<ol>
+<li>A pre-resolved <code>metadata["user_role"]</code> on the message (e.g. stamped by a cron job at schedule time).</li>
+<li>The channel's <code>user_roles</code> mapping — by <code>user_id</code>, then by <code>username</code>.</li>
+<li><code>permissions.default_role</code> (default <code>"viewer"</code>) for anyone unlisted.</li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Unlisted users are denied until you grant the <code>default_role</code></p>
+<p>An unlisted user is assigned <code>default_role</code> (<code>"viewer"</code>). Enabling RBAC is
+default-deny on every axis, so if you never register that role with
+<code>app.role(...)</code> it resolves to <strong>no tools, subagents, or workflows</strong> — the
+safe direction. To give unlisted users a baseline, define the role
+explicitly: <code>app.role("viewer", tools=["web_search"])</code>, or
+<code>app.role("viewer", tools=["*"])</code> to restore open tool access for everyone
+not otherwise mapped.</p>
+</div>
+<p>There is currently no programmatic <code>role_resolver</code> hook — role assignment is
+declarative via <code>user_roles</code> + <code>default_role</code>.</p>
 <h2 id="how-enforcement-works">How enforcement works<a class="headerlink" href="#how-enforcement-works" title="Permanent link">&para;</a></h2>
 <p>The unified capability filter runs as middleware <strong>before the LLM sees the toolset</strong>. Tools the role can't access are stripped from the model's tool list entirely — the agent can't call what it can't see.</p>
 <p>Subagents and workflows have an additional gate: even if a subagent type appears in the toolset, the <code>task</code> tool checks <code>RoleConfig.subagents</code> at call time.</p>

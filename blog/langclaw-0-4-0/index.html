@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Multi-channel AI agent framework, the LangChain way">
+        <meta name="description" content="Build production-ready, role-gated Claws.">
       
       
       
@@ -677,6 +677,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../guides/deployment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deployment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guides/probe/" class="md-nav__link">
         
   
@@ -705,6 +733,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../PROBE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Probe Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guides/architecture/" class="md-nav__link">
         
   
@@ -713,6 +769,34 @@
     
   
     Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ARCHITECTURE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Internals
   
 
     
@@ -972,25 +1056,97 @@
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#two-new-primitives" class="md-nav__link">
+    <nav class="md-nav" aria-label="Six patterns, all running">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#classify-and-act-triage" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Two new primitives
+        Classify-and-act — triage
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Two new primitives">
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fan-out-and-synthesize-landscape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fan-out-and-synthesize — landscape
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adversarial-verification-fact_check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adversarial verification — fact_check
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#generate-and-filter-tagline_studio" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generate-and-filter — tagline_studio
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tournament-prioritize" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tournament — prioritize
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#loop-until-done-edge_hunt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Loop-until-done — edge_hunt
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#two-primitives-power-all-of-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two primitives power all of it
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Two primitives power all of it">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#ctxllm-bare-one-shot-model-call" class="md-nav__link">
+  <a href="#ctxllm-one-shot-structured-judgment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        ctx.llm — bare one-shot model call
+        ctx.llm — one-shot structured judgment
       
     </span>
   </a>
@@ -1102,7 +1258,7 @@
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg>
                           <span class="md-ellipsis">
                             
-                              2 min read
+                              4 min read
                             
                           </span>
                         </div>
@@ -1134,82 +1290,156 @@
 <!-- more -->
 
 <h2 id="six-patterns-all-running">Six patterns, all running<a class="headerlink" href="#six-patterns-all-running" title="Permanent link">&para;</a></h2>
-<p>Anthropic published six patterns for serious multi-agent work. We built a running example of each — not a tutorial, a real workflow that drives a real job through the full gateway. Each was validated end-to-end using langclaw's probe harness.</p>
-<table>
-<thead>
-<tr>
-<th>Pattern</th>
-<th>Workflow</th>
-<th>What it does</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Classify-and-act</strong></td>
-<td><code>triage</code></td>
-<td>Route a support ticket, run a type-specific branch</td>
-</tr>
-<tr>
-<td><strong>Fan-out-and-synthesize</strong></td>
-<td><code>landscape</code></td>
-<td>One subagent per competitor, isolated context, one comparison table</td>
-</tr>
-<tr>
-<td><strong>Adversarial verification</strong></td>
-<td><code>fact_check</code></td>
-<td>Independent skeptics try to refute each claim with their own search</td>
-</tr>
-<tr>
-<td><strong>Generate-and-filter</strong></td>
-<td><code>tagline_studio</code></td>
-<td>Candidates in parallel, scored, top survivors kept</td>
-</tr>
-<tr>
-<td><strong>Tournament</strong></td>
-<td><code>prioritize</code></td>
-<td>Rank by pairwise duels — more stable than 1–10 scoring</td>
-</tr>
-<tr>
-<td><strong>Loop-until-done</strong></td>
-<td><code>edge_hunt</code></td>
-<td>Keep proposing until a dry streak, not a fixed count</td>
-</tr>
-</tbody>
-</table>
+<p>Anthropic published six patterns for serious multi-agent work. We built a running example of each — not a tutorial, a real workflow that drives a real job through the full gateway, validated end-to-end with the probe harness.</p>
 <div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">LANGCLAW__WORKFLOWS__ENABLED</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>examples.workflow_patterns
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>uv<span class="w"> </span>run<span class="w"> </span>langclaw<span class="w"> </span>probe<span class="w"> </span><span class="s1">&#39;/workflows run prioritize {&quot;items&quot;: [&quot;SSO&quot;,&quot;dark mode&quot;,&quot;audit log&quot;], &quot;criterion&quot;: &quot;impact per eng-week&quot;}&#39;</span>
 </span></code></pre></div>
-<h2 id="two-new-primitives">Two new primitives<a class="headerlink" href="#two-new-primitives" title="Permanent link">&para;</a></h2>
-<h3 id="ctxllm-bare-one-shot-model-call"><code>ctx.llm</code> — bare one-shot model call<a class="headerlink" href="#ctxllm-bare-one-shot-model-call" title="Permanent link">&para;</a></h3>
-<p>A workflow step that calls the model directly — no tools, no agent loop — and returns a validated Pydantic object when you pass <code>schema</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Duel</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">winner</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="s2">&quot;B&quot;</span><span class="p">]</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">why</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="n">verdict</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">llm</span><span class="p">(</span>
-</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="sa">f</span><span class="s2">&quot;CRITERION: </span><span class="si">{</span><span class="n">criterion</span><span class="si">}</span><span class="se">\n</span><span class="s2">A: </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="se">\n</span><span class="s2">B: </span><span class="si">{</span><span class="n">b</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
-</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">schema</span><span class="o">=</span><span class="n">Duel</span><span class="p">,</span>
-</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">system</span><span class="o">=</span><span class="s2">&quot;Pick the better option.&quot;</span><span class="p">,</span>
-</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">)</span>
-</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># verdict.winner is already &quot;A&quot; or &quot;B&quot; — no parsing</span>
+<hr />
+<h3 id="classify-and-act-triage">Classify-and-act — <code>triage</code><a class="headerlink" href="#classify-and-act-triage" title="Permanent link">&para;</a></h3>
+<p>One model call routes the ticket; the branch does the work. The classifier never acts, the handler never re-classifies.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nd">@app</span><span class="o">.</span><span class="n">workflow</span><span class="p">(</span><span class="s2">&quot;triage&quot;</span><span class="p">,</span> <span class="nb">input</span><span class="o">=</span><span class="n">Ticket</span><span class="p">,</span> <span class="n">max_concurrency</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">triage</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">inp</span><span class="p">:</span> <span class="n">Ticket</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="s2">&quot;classify&quot;</span><span class="p">)</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">routing</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">llm</span><span class="p">(</span>
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>        <span class="sa">f</span><span class="s2">&quot;Classify this ticket.</span><span class="se">\n\n</span><span class="si">{</span><span class="n">inp</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>        <span class="n">schema</span><span class="o">=</span><span class="n">Routing</span><span class="p">,</span>   <span class="c1"># Literal[&quot;security&quot;, &quot;bug&quot;, &quot;feature_request&quot;, &quot;question&quot;]</span>
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>        <span class="n">system</span><span class="o">=</span><span class="n">_CLASSIFIER_SYS</span><span class="p">,</span>
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="p">)</span>
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;classified as </span><span class="si">{</span><span class="n">routing</span><span class="o">.</span><span class="n">category</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="s2">&quot;act&quot;</span><span class="p">)</span>
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>    <span class="k">if</span> <span class="n">routing</span><span class="o">.</span><span class="n">category</span> <span class="o">==</span> <span class="s2">&quot;security&quot;</span><span class="p">:</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>        <span class="n">hits</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">tool</span><span class="p">(</span><span class="s2">&quot;web_search&quot;</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">inp</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2"> CVE advisory&quot;</span><span class="p">)</span>
+</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>        <span class="n">assessment</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">llm</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;security ticket:</span><span class="se">\n</span><span class="si">{</span><span class="n">inp</span><span class="o">.</span><span class="n">text</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">system</span><span class="o">=</span><span class="n">_ASSESS_SYS</span><span class="p">)</span>
+</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>        <span class="o">...</span>
+</span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>    <span class="k">elif</span> <span class="n">routing</span><span class="o">.</span><span class="n">category</span> <span class="o">==</span> <span class="s2">&quot;bug&quot;</span><span class="p">:</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>        <span class="o">...</span>
 </span></code></pre></div>
-<p>This is a langclaw primitive. Claude Code's workflow harness has an equivalent, but neither langchain nor deepagents expose a bare model-call step you can use as a first-class workflow step with crash-resume. <code>ctx.llm</code> fills that gap.</p>
+<hr />
+<h3 id="fan-out-and-synthesize-landscape">Fan-out-and-synthesize — <code>landscape</code><a class="headerlink" href="#fan-out-and-synthesize-landscape" title="Permanent link">&para;</a></h3>
+<p>Each competitor researched by its own subagent — isolated context, its own <code>web_search</code> — so no contender's findings colour another's. Synthesis is a single <code>ctx.llm</code> call over the collected notes.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nd">@app</span><span class="o">.</span><span class="n">workflow</span><span class="p">(</span><span class="s2">&quot;landscape&quot;</span><span class="p">,</span> <span class="nb">input</span><span class="o">=</span><span class="n">Landscape</span><span class="p">,</span> <span class="n">max_concurrency</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">landscape</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">inp</span><span class="p">:</span> <span class="n">Landscape</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="s2">&quot;research&quot;</span><span class="p">)</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">findings</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">parallel</span><span class="p">([</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="k">lambda</span> <span class="n">c</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">subagent</span><span class="p">(</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>            <span class="s2">&quot;scout&quot;</span><span class="p">,</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>            <span class="sa">f</span><span class="s2">&quot;Research &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; as a </span><span class="si">{</span><span class="n">inp</span><span class="o">.</span><span class="n">subject</span><span class="si">}</span><span class="s2">.&quot;</span><span class="p">,</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>        <span class="p">)</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">inp</span><span class="o">.</span><span class="n">contenders</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    <span class="p">],</span> <span class="n">return_exceptions</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># one failing scout doesn&#39;t sink the brief</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="s2">&quot;synthesize&quot;</span><span class="p">)</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="n">table</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">llm</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">system</span><span class="o">=</span><span class="n">_COMPARE_SYS</span><span class="p">)</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="k">return</span> <span class="n">table</span>
+</span></code></pre></div>
+<hr />
+<h3 id="adversarial-verification-fact_check">Adversarial verification — <code>fact_check</code><a class="headerlink" href="#adversarial-verification-fact_check" title="Permanent link">&para;</a></h3>
+<p>Decompose a draft into atomic claims, then for each claim spawn N skeptic subagents that search independently and try to refute. Majority vote decides. Independence is the whole game — each skeptic searches on its own and never sees the others' findings.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">verify_one</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">claim</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">replies</span> <span class="o">=</span> <span class="k">await</span> <span class="n">c</span><span class="o">.</span><span class="n">parallel</span><span class="p">([</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>        <span class="k">lambda</span> <span class="n">cc</span><span class="p">:</span> <span class="n">cc</span><span class="o">.</span><span class="n">subagent</span><span class="p">(</span><span class="s2">&quot;skeptic&quot;</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;CLAIM: </span><span class="si">{</span><span class="n">claim</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">inp</span><span class="o">.</span><span class="n">votes</span><span class="p">)</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="p">])</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    <span class="n">verdicts</span> <span class="o">=</span> <span class="p">[</span><span class="n">_verdict</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">replies</span><span class="p">]</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    <span class="n">survived</span> <span class="o">=</span> <span class="n">verdicts</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s2">&quot;supported&quot;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">verdicts</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s2">&quot;refuted&quot;</span><span class="p">)</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;claim&quot;</span><span class="p">:</span> <span class="n">claim</span><span class="p">,</span> <span class="s2">&quot;survived&quot;</span><span class="p">:</span> <span class="n">survived</span><span class="p">,</span> <span class="s2">&quot;verdicts&quot;</span><span class="p">:</span> <span class="n">verdicts</span><span class="p">}</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">parallel</span><span class="p">([</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    <span class="k">lambda</span> <span class="n">c</span><span class="p">,</span> <span class="n">cl</span><span class="o">=</span><span class="n">cl</span><span class="p">:</span> <span class="n">verify_one</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">cl</span><span class="p">)</span> <span class="k">for</span> <span class="n">cl</span> <span class="ow">in</span> <span class="n">claims</span>
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="p">])</span>
+</span></code></pre></div>
+<hr />
+<h3 id="generate-and-filter-tagline_studio">Generate-and-filter — <code>tagline_studio</code><a class="headerlink" href="#generate-and-filter-tagline_studio" title="Permanent link">&para;</a></h3>
+<p>Generate candidates from deliberately different angles so the pool is diverse, not N variations of one idea. Score each in parallel with <code>ctx.llm</code> + schema, keep the ones that clear the bar.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">ctx</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="s2">&quot;generate&quot;</span><span class="p">)</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">raw</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">parallel</span><span class="p">([</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="k">lambda</span> <span class="n">c</span><span class="p">,</span> <span class="n">angle</span><span class="o">=</span><span class="n">angle</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">llm</span><span class="p">(</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>        <span class="sa">f</span><span class="s2">&quot;PRODUCT: </span><span class="si">{</span><span class="n">inp</span><span class="o">.</span><span class="n">product</span><span class="si">}</span><span class="se">\n</span><span class="s2">ANGLE: </span><span class="si">{</span><span class="n">angle</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>        <span class="n">system</span><span class="o">=</span><span class="n">_WRITE_SYS</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="p">)</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="k">for</span> <span class="n">angle</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;bold&quot;</span><span class="p">,</span> <span class="s2">&quot;playful&quot;</span><span class="p">,</span> <span class="s2">&quot;technical&quot;</span><span class="p">,</span> <span class="s2">&quot;benefit-led&quot;</span><span class="p">,</span> <span class="s2">&quot;contrarian&quot;</span><span class="p">,</span> <span class="s2">&quot;minimalist&quot;</span><span class="p">]</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">])</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="n">ctx</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="s2">&quot;filter&quot;</span><span class="p">)</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">verdicts</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">parallel</span><span class="p">([</span>
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="k">lambda</span> <span class="n">c</span><span class="p">,</span> <span class="n">line</span><span class="o">=</span><span class="n">line</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">llm</span><span class="p">(</span>
+</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>        <span class="sa">f</span><span class="s2">&quot;AUDIENCE: </span><span class="si">{</span><span class="n">inp</span><span class="o">.</span><span class="n">audience</span><span class="si">}</span><span class="se">\n</span><span class="s2">TAGLINE: </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>        <span class="n">schema</span><span class="o">=</span><span class="n">Score</span><span class="p">,</span>   <span class="c1"># score: int, why: str</span>
+</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>        <span class="n">system</span><span class="o">=</span><span class="n">_JUDGE_SYS</span><span class="p">,</span>
+</span><span id="__span-4-16"><a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a>    <span class="p">)</span>
+</span><span id="__span-4-17"><a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a>    <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">candidates</span>
+</span><span id="__span-4-18"><a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="p">])</span>
+</span><span id="__span-4-19"><a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="n">kept</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">scored</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="p">[</span><span class="s2">&quot;score&quot;</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)[:</span><span class="n">inp</span><span class="o">.</span><span class="n">keep</span><span class="p">]</span>
+</span></code></pre></div>
+<hr />
+<h3 id="tournament-prioritize">Tournament — <code>prioritize</code><a class="headerlink" href="#tournament-prioritize" title="Permanent link">&para;</a></h3>
+<p>Asking a model to score 10 backlog items 1–10 is noisy. Asking "which of these two ships more value" is far more stable. Single-elimination bracket: all duels in a round run in parallel, winners advance.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">duel</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="k">if</span> <span class="n">b</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>        <span class="k">return</span> <span class="n">a</span>  <span class="c1"># bye</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">verdict</span> <span class="o">=</span> <span class="k">await</span> <span class="n">c</span><span class="o">.</span><span class="n">llm</span><span class="p">(</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>        <span class="sa">f</span><span class="s2">&quot;CRITERION: </span><span class="si">{</span><span class="n">inp</span><span class="o">.</span><span class="n">criterion</span><span class="si">}</span><span class="se">\n</span><span class="s2">A: </span><span class="si">{</span><span class="n">a</span><span class="si">}</span><span class="se">\n</span><span class="s2">B: </span><span class="si">{</span><span class="n">b</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="n">schema</span><span class="o">=</span><span class="n">Duel</span><span class="p">,</span>    <span class="c1"># winner: Literal[&quot;A&quot;, &quot;B&quot;], why: str</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="n">system</span><span class="o">=</span><span class="n">_REFEREE_SYS</span><span class="p">,</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>    <span class="p">)</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>    <span class="k">return</span> <span class="n">b</span> <span class="k">if</span> <span class="n">verdict</span><span class="o">.</span><span class="n">winner</span> <span class="o">==</span> <span class="s2">&quot;B&quot;</span> <span class="k">else</span> <span class="n">a</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">current</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>    <span class="n">rnd</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;round </span><span class="si">{</span><span class="n">rnd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>    <span class="n">pairs</span> <span class="o">=</span> <span class="p">[(</span><span class="n">current</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">current</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">i</span><span class="o">+</span><span class="mi">1</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">current</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>             <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">current</span><span class="p">),</span> <span class="mi">2</span><span class="p">)]</span>
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>    <span class="n">current</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">parallel</span><span class="p">([</span><span class="k">lambda</span> <span class="n">c</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="o">=</span><span class="n">b</span><span class="p">:</span> <span class="n">duel</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">])</span>
+</span></code></pre></div>
+<hr />
+<h3 id="loop-until-done-edge_hunt">Loop-until-done — <code>edge_hunt</code><a class="headerlink" href="#loop-until-done-edge_hunt" title="Permanent link">&para;</a></h3>
+<p>Fixed iteration counts either pad with junk or stop short. Loop instead: each round proposes new items, deduped against everything accumulated, stopping when you hit the target <em>or</em> when consecutive rounds turn up nothing new.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">found</span><span class="p">,</span> <span class="n">seen</span><span class="p">,</span> <span class="n">dry</span> <span class="o">=</span> <span class="p">[],</span> <span class="nb">set</span><span class="p">(),</span> <span class="mi">0</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">while</span> <span class="n">rnd</span> <span class="o">&lt;</span> <span class="n">inp</span><span class="o">.</span><span class="n">max_rounds</span><span class="p">:</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">rnd</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">ctx</span><span class="o">.</span><span class="n">phase</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;round </span><span class="si">{</span><span class="n">rnd</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>    <span class="n">proposed</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">llm</span><span class="p">(</span>
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>        <span class="sa">f</span><span class="s2">&quot;TARGET: </span><span class="si">{</span><span class="n">inp</span><span class="o">.</span><span class="n">target</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">ALREADY FOUND:</span><span class="se">\n</span><span class="si">{</span><span class="n">already</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>        <span class="n">schema</span><span class="o">=</span><span class="n">Cases</span><span class="p">,</span>   <span class="c1"># cases: list[str]</span>
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>        <span class="n">system</span><span class="o">=</span><span class="n">_HUNTER_SYS</span><span class="p">,</span>
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>    <span class="p">)</span>
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>    <span class="n">fresh</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">proposed</span><span class="o">.</span><span class="n">cases</span> <span class="k">if</span> <span class="n">norm</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">]</span>
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">fresh</span><span class="p">:</span>
+</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a>        <span class="n">dry</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>        <span class="k">if</span> <span class="n">dry</span> <span class="o">&gt;=</span> <span class="n">inp</span><span class="o">.</span><span class="n">patience</span><span class="p">:</span>
+</span><span id="__span-6-16"><a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a>            <span class="n">reason</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;dried up after </span><span class="si">{</span><span class="n">dry</span><span class="si">}</span><span class="s2"> empty rounds&quot;</span>
+</span><span id="__span-6-17"><a id="__codelineno-6-17" name="__codelineno-6-17" href="#__codelineno-6-17"></a>            <span class="k">break</span>
+</span><span id="__span-6-18"><a id="__codelineno-6-18" name="__codelineno-6-18" href="#__codelineno-6-18"></a>        <span class="k">continue</span>
+</span><span id="__span-6-19"><a id="__codelineno-6-19" name="__codelineno-6-19" href="#__codelineno-6-19"></a>
+</span><span id="__span-6-20"><a id="__codelineno-6-20" name="__codelineno-6-20" href="#__codelineno-6-20"></a>    <span class="n">dry</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-6-21"><a id="__codelineno-6-21" name="__codelineno-6-21" href="#__codelineno-6-21"></a>    <span class="n">seen</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">norm</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">fresh</span><span class="p">)</span>
+</span><span id="__span-6-22"><a id="__codelineno-6-22" name="__codelineno-6-22" href="#__codelineno-6-22"></a>    <span class="n">found</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">fresh</span><span class="p">)</span>
+</span><span id="__span-6-23"><a id="__codelineno-6-23" name="__codelineno-6-23" href="#__codelineno-6-23"></a>    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">found</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">inp</span><span class="o">.</span><span class="n">target_count</span><span class="p">:</span>
+</span><span id="__span-6-24"><a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a>        <span class="k">break</span>
+</span></code></pre></div>
+<hr />
+<h2 id="two-primitives-power-all-of-it">Two primitives power all of it<a class="headerlink" href="#two-primitives-power-all-of-it" title="Permanent link">&para;</a></h2>
+<h3 id="ctxllm-one-shot-structured-judgment"><code>ctx.llm</code> — one-shot structured judgment<a class="headerlink" href="#ctxllm-one-shot-structured-judgment" title="Permanent link">&para;</a></h3>
+<p>A model call that returns a validated Pydantic object. No tools, no agent loop, no string parsing. Used by every pattern above for classification, scoring, pairwise comparison, and extraction.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Routing</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="n">category</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;security&quot;</span><span class="p">,</span> <span class="s2">&quot;bug&quot;</span><span class="p">,</span> <span class="s2">&quot;feature_request&quot;</span><span class="p">,</span> <span class="s2">&quot;question&quot;</span><span class="p">]</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">routing</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">llm</span><span class="p">(</span><span class="n">inp</span><span class="o">.</span><span class="n">text</span><span class="p">,</span> <span class="n">schema</span><span class="o">=</span><span class="n">Routing</span><span class="p">,</span> <span class="n">system</span><span class="o">=</span><span class="n">_CLASSIFIER_SYS</span><span class="p">)</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># routing.category is already one of the four literals</span>
+</span></code></pre></div>
+<p>This is a langclaw primitive — neither LangChain nor deepagents expose a bare model-call step that's a first-class durable workflow step with crash-resume. <code>ctx.llm</code> fills that gap.</p>
 <h3 id="ctxsubagent-isolated-delegation"><code>ctx.subagent</code> — isolated delegation<a class="headerlink" href="#ctxsubagent-isolated-delegation" title="Permanent link">&para;</a></h3>
-<p>Delegate a leaf of your workflow to a full agent in its own context. The subagent has its own tools, searches on its own, and returns its findings without contaminating the parent context:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">findings</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">parallel</span><span class="p">([</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="k">lambda</span> <span class="n">c</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">:</span> <span class="n">c</span><span class="o">.</span><span class="n">subagent</span><span class="p">(</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        <span class="s2">&quot;scout&quot;</span><span class="p">,</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>        <span class="sa">f</span><span class="s2">&quot;Research &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; as an agent framework.&quot;</span><span class="p">,</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="p">)</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">contenders</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="p">],</span> <span class="n">return_exceptions</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span></code></pre></div>
-<p>The rule for choosing: does this step need tools? If yes, <code>ctx.subagent</code>. If no, <code>ctx.llm</code>.</p>
+<p>When a leaf needs multi-step work with its own tools, give it an isolated context. Used by <code>landscape</code> (one scout per competitor) and <code>fact_check</code> (independent skeptics per claim).</p>
+<p>The rule: does this step need tools? If yes, <code>ctx.subagent</code>. If no, <code>ctx.llm</code>.</p>
+<hr />
 <h2 id="whats-also-in-04">What's also in 0.4<a class="headerlink" href="#whats-also-in-04" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><code>tools.llm</code> in the JS sandbox</strong> — the <code>ctx.llm</code> parity for agent-authored (saved) workflows</li>
+<li><strong><code>tools.llm</code> in the JS sandbox</strong> — a one-shot model call for agent-authored (saved) workflows (plain text only — no <code>schema=</code> structured output like Python's <code>ctx.llm</code>; use <code>JSON.parse</code> in the body for structure)</li>
 <li><strong>Workflow subagent delegation fix</strong> — <code>ctx.subagent</code> was previously inert in registered workflows; it now invokes subagent runnables directly</li>
-<li><strong>Probe harness</strong> — <code>langclaw probe</code> for driving the gateway in tests without real channel credentials</li>
+<li><strong>Probe harness</strong> — <code>langclaw probe</code> for driving the full gateway pipeline in tests without real channel credentials</li>
 </ul>
 <p>Source: <a href="https://github.com/tisu19021997/langclaw/tree/main/examples/workflow_patterns"><code>examples/workflow_patterns/</code></a></p>
 
