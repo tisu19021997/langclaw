@@ -1,6 +1,6 @@
 # RBAC
 
-Langclaw's RBAC is three-axis and default-deny on two of them: tools are default-pass-through (a role with `tools=["*"]` sees everything), while subagents and workflows are default-deny (a role must explicitly list the ones it can reach).
+Langclaw's RBAC is three-axis, and the axes differ in their default. **Tools** are pass-through for *unknown* roles — an unlisted role name sees the full toolset, while a *defined* role sees only the tools it lists (`["*"]` grants all, `[]` grants none). **Subagents** and **workflows** are default-deny on every role: each must explicitly list the ones it can reach.
 
 ## Define roles
 
@@ -14,7 +14,7 @@ app.role("free",     tools=["web_search"],   subagents=[],               workflo
 
 | Axis | `RoleConfig` field | Default |
 |---|---|---|
-| Tools | `tools` | pass-through (`["*"]` = all tools) |
+| Tools | `tools` | unknown role → all tools; defined role → only what it lists (`["*"]`=all, `[]`=none) |
 | Subagents | `subagents` | **deny** — must be explicitly allowed |
 | Workflows | `workflows` | **deny** — must be explicitly allowed |
 
@@ -45,12 +45,13 @@ Equivalently in code/config: `channels.telegram.user_roles = {"123456": "admin",
 2. The channel's `user_roles` mapping — by `user_id`, then by `username`.
 3. `permissions.default_role` (default `"viewer"`) for anyone unlisted.
 
-!!! note "What `default_role` actually grants"
-    The default role is **not** "no restrictions". An unlisted user gets whatever
-    that role's `RoleConfig` allows: tools are pass-through *only if* the role's
-    `tools` includes them (define `app.role("viewer", tools=["*"])` to allow all),
-    while **subagents and workflows remain default-deny** unless the role lists
-    them explicitly.
+!!! warning "Footgun: define your `default_role`, or tools stay open"
+    An unlisted user is assigned `default_role` (`"viewer"`). If you never register
+    that role with `app.role(...)`, it is an **unknown** role — and on the **tools**
+    axis unknown roles are **pass-through (all tools)**. So enabling RBAC *without*
+    defining the default role does **not** restrict tools (subagents and workflows
+    *are* still denied). To actually limit tools, define it explicitly, e.g.
+    `app.role("viewer", tools=["web_search"])` — or `tools=[]` for none.
 
 There is currently no programmatic `role_resolver` hook — role assignment is
 declarative via `user_roles` + `default_role`.

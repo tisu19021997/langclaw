@@ -32,7 +32,7 @@ API keys are the exception — they use the provider's own plain env var
 | `LANGCLAW__CHANNELS__TELEGRAM__TOKEN` | `""` | bot token (needs `langclaw[telegram]`) |
 | `LANGCLAW__CHANNELS__TELEGRAM__USER_ROLES` | `{}` | `id:role` comma list, e.g. `123:admin,@alice:analyst` |
 | `LANGCLAW__CHANNELS__WEBSOCKET__ENABLED` | `false` | bundled, no extra |
-| `LANGCLAW__CHANNELS__WEBSOCKET__PORT` | `8765` | |
+| `LANGCLAW__CHANNELS__WEBSOCKET__PORT` | `18789` | |
 
 The same `enabled` / `token` / `user_roles` pattern applies to the Discord, Slack,
 and Matrix channels. Full field-level docs (types and defaults) are rendered below.
@@ -51,6 +51,7 @@ and Matrix channels. Full field-level docs (types and defaults) are rendered bel
 ::: langclaw.config.schema.TelegramChannelConfig
 ::: langclaw.config.schema.DiscordChannelConfig
 ::: langclaw.config.schema.SlackChannelConfig
+::: langclaw.config.schema.MatrixChannelConfig
 ::: langclaw.config.schema.WebSocketChannelConfig
 ::: langclaw.config.schema.CheckpointerConfig
 ::: langclaw.config.schema.BusConfig

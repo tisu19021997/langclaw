@@ -6,6 +6,10 @@ repo_name: tisu19021997/langclaw
 edit_uri: edit/main/docs/
 docs_dir: docs
 
+# Internal design doc for an unshipped feature — kept in-repo, not published.
+exclude_docs: |
+  BUSINESS_WORKSPACES.md
+
 theme:
   name: material
   palette:

@@ -12,7 +12,7 @@ Install channel extras you need:
 uv add "langclaw[telegram]"          # Telegram
 uv add "langclaw[discord]"           # Discord
 uv add "langclaw[slack]"             # Slack
-uv add "langclaw[websocket]"         # WebSocket (included with the base package)
+uv add "langclaw[websocket]"         # WebSocket channel
 uv add "langclaw[telegram,postgres]" # multiple extras
 uv add "langclaw[all]"               # everything
 ```

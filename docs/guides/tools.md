@@ -74,11 +74,18 @@ Langclaw ships built-in tools under `langclaw.agents.tools`. They're wired autom
 
 | Tool | Extra required | Config key |
 |---|---|---|
-| `web_search` | `search` | — |
+| `web_search` | `search` | `LANGCLAW__TOOLS__BRAVE_API_KEY` (default backend) — see note |
 | `web_fetch` | `search` | — |
+| `read_email` / `search_emails` / `send_email` / `draft_email` / `reply_email` / `manage_labels` | `gmail` | `LANGCLAW__TOOLS__GMAIL__ENABLED=true` (+ OAuth client) |
 | `cron` | — | `LANGCLAW__CRON__ENABLED=true` |
 | `task` | — | subagents registered |
 | `eval` | `interpreter` | `LANGCLAW__INTERPRETER__ENABLED=true` |
+
+!!! note "`web_search` needs a backend key"
+    The default search backend is `brave`, which requires `LANGCLAW__TOOLS__BRAVE_API_KEY`.
+    Set `LANGCLAW__TOOLS__SEARCH_BACKEND=tavily` (with `…TAVILY_API_KEY`) or
+    `=duckduckgo` (no key required) to switch. Without a usable backend, `web_search`
+    is silently omitted from the toolset.
 
 ## RBAC
 

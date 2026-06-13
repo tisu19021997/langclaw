@@ -79,10 +79,10 @@ uv add "langclaw[all]"
 
 Available extras:
 
-- **Channels:** `telegram` · `telegram-e2e` · `discord` · `slack` · `matrix` · `websocket` (websocket is bundled)
+- **Channels:** `telegram` · `telegram-e2e` · `discord` · `slack` · `matrix` · `websocket`
 - **Backends:** `postgres` · `rabbitmq` · `kafka`
 - **Capabilities:** `search` · `mcp` · `gmail` · `interpreter`
-- **`all`** — everything above
+- **`all`** — every extra except `telegram-e2e`
 
 ## Quick example
 

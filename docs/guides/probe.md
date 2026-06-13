@@ -84,6 +84,7 @@ async def test_reset_command(gateway):
 You can also inject a **fake transport** to test the probe's normalization logic without a live server:
 
 ```python
+import asyncio
 from langclaw.testing import probe
 
 class FakeTransport:
@@ -94,14 +95,17 @@ class FakeTransport:
     async def receive(self):
         for f in self.frames: yield f
 
-events = await probe("hi", transport=FakeTransport([
-    {"type": "ai_chunk", "content": "Hel"},
-    {"type": "ai_chunk", "content": "lo"},
-    {"type": "ai_stream_end"},
-]))
-assert events[-1].type == "ai"
-assert events[-1].content == "Hello"
-assert events[-1].is_final
+async def main():
+    events = await probe("hi", transport=FakeTransport([
+        {"type": "ai_chunk", "content": "Hel"},
+        {"type": "ai_chunk", "content": "lo"},
+        {"type": "ai_stream_end"},
+    ]))
+    assert events[-1].type == "ai"
+    assert events[-1].content == "Hello"
+    assert events[-1].is_final
+
+asyncio.run(main())
 ```
 
 ---

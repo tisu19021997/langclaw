@@ -34,7 +34,8 @@ On fire, the workflow runs verbatim. If the `.js` file is deleted, the job self-
 
 ```
 /cron list          → all scheduled jobs
-/cron cancel <id>   → remove a job
+/cron view <id>     → show job details
+/cron remove <id>   → remove a job
 ```
 
 ## Where output goes

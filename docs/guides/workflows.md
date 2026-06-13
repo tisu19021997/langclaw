@@ -42,9 +42,12 @@ async def research(ctx, inp: Brief) -> str:
 
 **Via CLI**:
 ```
+/workflows                       # list registered workflows (default)
+/workflows list                  # list registered workflows
 /workflows run research {"topic": "solid-state batteries"}
-/workflows runs          # list recent runs
-/workflows status <id>   # run details
+/workflows runs                  # list recent runs
+/workflows status <run_id>       # run details
+/workflows cancel <run_id>       # cancel a live run
 ```
 
 **Via cron** — schedule it once and it fires on the schedule without any LLM overhead. See [Scheduled Jobs](cron.md).
@@ -61,9 +64,9 @@ Call a registered tool. Deterministic, fast.
 result = await ctx.tool("web_search", query="langchain docs")
 ```
 
-### `ctx.llm(prompt, schema=Model, system=...)`
+### `ctx.llm(prompt, schema=Model, model=..., system=...)`
 
-One model call — no tools, no agent loop. Returns a validated Pydantic object when `schema` is given, plain text otherwise.
+One model call — no tools, no agent loop. Returns a validated Pydantic object when `schema` is given, plain text otherwise. Pass `model="openai:gpt-4.1"` to override the workflow's default model for just this call.
 
 ```python
 from pydantic import BaseModel
@@ -83,7 +86,7 @@ print(verdict.score)  # int, not a string to parse
 !!! tip
     `ctx.llm` is a langclaw primitive — neither Claude Code nor deepagents expose a bare one-shot model-call step. Use it for classification, scoring, pairwise comparison, extraction — anywhere you don't need tool calls.
 
-### `ctx.subagent(type, prompt)`
+### `ctx.subagent(subagent_type, prompt)`
 
 Delegate to a subagent — a full isolated agent with its own tools and context window. Use when a leaf needs multi-step work (search → read → reason).
 
@@ -98,9 +101,9 @@ notes = await ctx.subagent(
 
 Run a step against a [named agent](subagents.md#named-agents) (its own tools, model, and thread) and get its reply back. Like `ctx.subagent` but targets a top-level named agent instead of a subagent type.
 
-### `ctx.parallel(fns, return_exceptions=False)`
+### `ctx.parallel(thunks, return_exceptions=False)`
 
-Fan out a list of step lambdas concurrently, bounded by the workflow's `max_concurrency`:
+Fan out a list of step lambdas (`thunks`) concurrently, bounded by the workflow's `max_concurrency`:
 
 ```python
 results = await ctx.parallel([

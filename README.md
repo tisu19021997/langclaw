@@ -151,11 +151,11 @@ async def research(ctx, inp: Brief) -> str:
     return "\n\n".join(f"## {a}\n{r}" for a, r in zip(inp.angles, findings))
 ```
 
-A workflow body composes four kinds of step, each a durable, resumable unit:
+A workflow body composes these kinds of step (each becomes a memoized, resumable unit once `LANGCLAW__WORKFLOWS__DURABLE_STEPS=true` — off by default):
 
 - `ctx.tool(name, **kw)` — call a registered tool (deterministic capability)
 - `ctx.subagent(type, prompt)` — delegate to a subagent (its own tools, isolated context)
-- `ctx.llm(prompt, schema=Model)` — **one model call, no tools, no agent loop** — for one-shot judgment (classify / score / extract). With a Pydantic `schema` you get a *validated object back from a single structured call*; without it, plain text. Neither Claude Code nor deepagents exposes a bare model-call step — this is langclaw's, and like every step it's memoized and crash-resumable.
+- `ctx.llm(prompt, schema=Model)` — **one model call, no tools, no agent loop** — for one-shot judgment (classify / score / extract). With a Pydantic `schema` you get a *validated object back from a single structured call*; without it, plain text. Neither Claude Code nor deepagents exposes a bare model-call step — this is langclaw's, and like every step it's memoized and crash-resumable when `durable_steps` is enabled.
 - `ctx.parallel([...])` — fan the above out concurrently, bounded by `max_concurrency`
 
 ```bash
@@ -223,11 +223,11 @@ With channel and backend extras:
 ```bash
 uv add "langclaw[telegram,postgres,rabbitmq]"
 
-# Or install everything:
+# Or install all common extras (everything except telegram-e2e):
 uv add "langclaw[all]"
 ```
 
-Available extras: `telegram`, `telegram-e2e`, `discord`, `slack`, `matrix`, `websocket`, `postgres`, `rabbitmq`, `kafka`, `mcp`, `search`, `gmail`, `interpreter` (and `all`).
+Available extras: `telegram`, `telegram-e2e`, `discord`, `slack`, `matrix`, `websocket`, `postgres`, `rabbitmq`, `kafka`, `mcp`, `search`, `gmail`, `interpreter`. `all` bundles every extra except `telegram-e2e`.
 
 ## Quick Start
 
@@ -238,8 +238,8 @@ Available extras: `telegram`, `telegram-e2e`, `discord`, `slack`, `matrix`, `web
 
 2. **Set your environment variables** in a `.env` file:
    ```env
-   LANGCLAW__PROVIDERS__OPENAI__API_KEY=sk-...
-   LANGCLAW__CHANNELS__TELEGRAM__BOT_TOKEN=123456:ABC-DEF...
+   OPENAI_API_KEY=sk-...   # plain provider env var, no LANGCLAW__ prefix
+   LANGCLAW__CHANNELS__TELEGRAM__TOKEN=123456:ABC-DEF...
    ```
 
 3. **Run your agent** (Choose one option):
@@ -288,7 +288,7 @@ Available extras: `telegram`, `telegram-e2e`, `discord`, `slack`, `matrix`, `web
 | `session/` | Maps (channel, user, context) to LangGraph thread IDs |
 | `checkpointer/` | Conversation state persistence — SQLite (dev), Postgres (prod) |
 | `providers/` | LLM model resolution via `init_chat_model` |
-| `cli/` | Typer CLI: `langclaw init`, `langclaw gateway`, `langclaw agent`, `langclaw cron`, `langclaw status` |
+| `cli/` | Typer CLI: `langclaw init`, `langclaw gateway`, `langclaw agent`, `langclaw probe`, `langclaw cron`, `langclaw status` |
 
 ## Business Workspaces (preview)
 

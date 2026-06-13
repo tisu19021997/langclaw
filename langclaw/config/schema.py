@@ -438,9 +438,9 @@ class CronPostgresDataStoreConfig(BaseModel):
 class CronDataStoreConfig(BaseModel):
     """APScheduler data store — controls where job schedules are persisted.
 
-    - ``"memory"``   — in-process only, lost on restart (default).
-    - ``"sqlite"``   — persistent local file via SQLAlchemy + aiosqlite.
+    - ``"sqlite"``   — persistent local file via SQLAlchemy + aiosqlite (default).
     - ``"postgres"`` — persistent shared DB via SQLAlchemy + asyncpg.
+    - ``"memory"``   — in-process only, lost on restart.
     """
 
     backend: Literal["memory", "sqlite", "postgres"] = "sqlite"

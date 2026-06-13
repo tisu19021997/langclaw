@@ -23,9 +23,10 @@ async def close_pool():
     ...
 ```
 
-On normal cancellation (Ctrl-C / `SIGINT`), langclaw unwinds the bus,
-checkpointer, and workflow stores via an `AsyncExitStack` and then runs your
-`on_shutdown` hooks.
+`on_startup` hooks run **before** the bus and checkpointer are started — use them
+to open your own resources (DB pools, HTTP clients), not to publish to the bus. On
+normal cancellation (Ctrl-C / `SIGINT`), langclaw unwinds the bus, checkpointer,
+and workflow stores via an `AsyncExitStack` and then runs your `on_shutdown` hooks.
 
 !!! warning "Honest limit: SIGTERM is not trapped"
     langclaw does not install a `SIGTERM` handler. Orchestrators (Docker, k8s)
@@ -45,7 +46,7 @@ Everything below swaps via environment variables — no code changes. See the
 | Message bus | `asyncio` (in-process) | `rabbitmq` or `kafka` |
 | Conversation state | `sqlite` | `postgres` |
 | Cron job store | `sqlite` | `postgres` |
-| Workflow durable-step store | (off) | `postgres` + `DURABLE_STEPS=true` |
+| Workflow durable-step store | (off) | `postgres` + `LANGCLAW__WORKFLOWS__DURABLE_STEPS=true` |
 
 ```bash
 # Production backends

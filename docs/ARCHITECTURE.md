@@ -55,16 +55,17 @@ sequenceDiagram
 flowchart LR
     IN["Input<br/>HumanMessage"] --> M1
     M1["1 · ChannelContextMiddleware<br/>inject channel/user/ctx"] --> M2
-    M2["2 · ToolPermissionMiddleware<br/>RBAC tool filter<br/>(if permissions.enabled)"] --> M3
-    M3["3 · InterpreterMiddleware<br/>PTC eval sandbox<br/>(if interpreter.enabled)"] --> M4
-    M4["4 · RateLimitMiddleware<br/>rpm cap"] --> M5
-    M5["5 · ContentFilterMiddleware<br/>banned keywords"] --> M6
-    M6["6 · PIIMiddleware<br/>redaction"] --> M7
-    M7["7 · extra_middleware<br/>(user-provided)"] --> LLM["Model + Tools"]
+    M2["2 · capability filter<br/>tool + workflow RBAC<br/>(if permissions.enabled)"] --> M3
+    M3["3 · subagent gate<br/>task subagent_type RBAC<br/>(if permissions.enabled)"] --> M4
+    M4["4 · InterpreterMiddleware<br/>PTC eval sandbox<br/>(if interpreter.enabled)"] --> M5
+    M5["5 · RateLimitMiddleware<br/>rpm cap"] --> M6
+    M6["6 · ContentFilterMiddleware<br/>banned keywords"] --> M7
+    M7["7 · PIIMiddleware<br/>redaction"] --> M8
+    M8["8 · extra_middleware<br/>(user-provided, last)"] --> LLM["Model + Tools"]
     LLM --> OUT["Output<br/>(reverse order on the way out)"]
 ```
 
-> Order matters: earliest runs first on input, last on output. The interpreter middleware is appended **after** `ToolPermissionMiddleware` so its PTC surface only ever sees the role-filtered toolset (see [Code Interpreter (RLM) — Trust Boundary](#code-interpreter-rlm-trust-boundary)).
+> Order matters: earliest runs first on input, last on output. The RBAC steps are `build_capability_filter_middleware` (tool + `workflow_<name>` visibility) and `build_subagent_permission_middleware` (the `task` subagent_type gate). The interpreter middleware is appended **after** the capability filter so its PTC surface only ever sees the role-filtered toolset (see [Code Interpreter (RLM) — Trust Boundary](#code-interpreter-rlm-trust-boundary)).
 
 ### Alternate Entry Paths (bypass / inject)
 

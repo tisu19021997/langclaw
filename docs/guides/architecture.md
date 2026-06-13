@@ -23,7 +23,7 @@ flowchart TB
 
     CH -- "InboundMessage" --> BUS
     CRON -- "origin=cron" --> BUS
-    SUB -- "origin=subagent" --> BUS
+    SUB -- "origin=subagent, to=channel" --> BUS
     CH -. "/command (bypass)" .-> CMD
     CMD -. "str response" .-> CH
     BUS --> HANDLE --> RESOLVE --> AGENT
@@ -32,7 +32,7 @@ flowchart TB
     AGENT -- "OutboundMessage" --> CH
 ```
 
-**Commands** (`/start`, `/reset`, `/help`, `/agent`) bypass the bus and LLM — `CommandRouter` handles them synchronously before the message enters the pipeline.
+**Commands** (`/start`, `/reset`, `/help`, `/agent`) bypass the bus and LLM — `CommandRouter` handles them synchronously before the message enters the pipeline. The one exception is `/agent <name> <message>` (one-off), which publishes the message to the bus for normal agent handling.
 
 ## Agent name resolution
 
@@ -47,14 +47,20 @@ flowchart TB
 The stack in `agents/builder.py`, from first-run to last-run on input:
 
 ```
-ChannelContextMiddleware      1. inject channel metadata
-ToolPermissionMiddleware      2. RBAC filter (if role configured)
-RateLimitMiddleware           3. per-user rate limiting
-ContentFilterMiddleware       4. content filtering
-PIIMiddleware                 5. PII redaction
-[user-provided middleware]    6. app.add_middleware(...)
-CodeInterpreterMiddleware     7. eval tool (if interpreter enabled)
+ChannelContextMiddleware          1. inject channel metadata (always)
+capability filter                 2. tool + workflow RBAC      (if permissions.enabled)
+subagent gate                     3. `task` subagent_type RBAC (if permissions.enabled)
+CodeInterpreterMiddleware         4. eval tool                 (if interpreter.enabled)
+RateLimitMiddleware               5. per-user rate limiting
+ContentFilterMiddleware           6. content filtering
+PIIMiddleware                     7. PII redaction
+[user-provided middleware]        8. app.add_middleware(...) — runs last
 ```
+
+The RBAC steps (2–3, built by `build_capability_filter_middleware` /
+`build_subagent_permission_middleware`) and the interpreter (4) are conditional;
+the interpreter is placed **after** the capability filter so a role-stripped tool
+is never reachable from the `eval` sandbox.
 
 ## Pluggable backends
 
