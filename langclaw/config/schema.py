@@ -438,9 +438,9 @@ class CronPostgresDataStoreConfig(BaseModel):
 class CronDataStoreConfig(BaseModel):
     """APScheduler data store — controls where job schedules are persisted.
 
-    - ``"memory"``   — in-process only, lost on restart (default).
-    - ``"sqlite"``   — persistent local file via SQLAlchemy + aiosqlite.
+    - ``"sqlite"``   — persistent local file via SQLAlchemy + aiosqlite (default).
     - ``"postgres"`` — persistent shared DB via SQLAlchemy + asyncpg.
+    - ``"memory"``   — in-process only, lost on restart.
     """
 
     backend: Literal["memory", "sqlite", "postgres"] = "sqlite"
@@ -481,7 +481,10 @@ class CronEventBrokerConfig(BaseModel):
 
 
 class CronConfig(BaseModel):
-    enabled: bool = True
+    enabled: bool = False
+    """Off by default. Enabling the SQLite data store (the default) requires the
+    ``sqlalchemy`` and ``aiosqlite`` packages. Set ``LANGCLAW__CRON__ENABLED=true``
+    to opt in."""
     timezone: str = "UTC"
     data_store: CronDataStoreConfig = Field(default_factory=CronDataStoreConfig)
     event_broker: CronEventBrokerConfig = Field(default_factory=CronEventBrokerConfig)
@@ -803,6 +806,12 @@ class LangclawConfig(BaseSettings):
     cron: CronConfig = Field(default_factory=CronConfig)
     heartbeat: HeartbeatConfig = Field(default_factory=HeartbeatConfig)
 
+    strict_env: bool = False
+    """When ``True``, an unknown ``LANGCLAW__`` env var raises at load time instead
+    of logging a warning. Unknown keys are otherwise silently ignored by
+    pydantic-settings, which makes typos (e.g. ``…__BOT_TOKEN`` for ``…__TOKEN``)
+    impossible to self-diagnose. Override via ``LANGCLAW__STRICT_ENV=true``."""
+
     @model_validator(mode="before")
     @classmethod
     def _merge_json_file(cls, values: Any) -> Any:
@@ -834,17 +843,110 @@ class LangclawConfig(BaseSettings):
         )
 
 
+def _collect_valid_env_keys(model_cls: type[BaseModel], prefix: str) -> tuple[set[str], set[str]]:
+    """Walk a settings model and return the set of valid ``LANGCLAW__`` env keys.
+
+    Args:
+        model_cls: The (possibly nested) Pydantic model to walk.
+        prefix:    Env-var prefix accumulated so far (e.g. ``"LANGCLAW__CHANNELS__"``).
+
+    Returns:
+        ``(exact, deep)`` — *exact* is the set of fully-qualified env var names
+        (upper-cased), one per field. *deep* is the subset that are ``dict``/``Any``
+        leaves, under which arbitrary ``__<key>`` suffixes are valid too (so
+        per-key dict env vars like ``…__MODEL_KWARGS__TEMPERATURE`` aren't flagged).
+    """
+    from typing import Any, get_args, get_origin
+
+    exact: set[str] = set()
+    deep: set[str] = set()
+    for name, field in model_cls.model_fields.items():
+        key = f"{prefix}{name}".upper()
+        annotation = field.annotation
+        # Unwrap ``X | None`` to the concrete type.
+        if get_origin(annotation) is not None and type(None) in get_args(annotation):
+            annotation = next((a for a in get_args(annotation) if a is not type(None)), annotation)
+
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            exact.add(key)  # whole sub-model may be set via a single JSON env var
+            sub_exact, sub_deep = _collect_valid_env_keys(annotation, f"{key}__")
+            exact |= sub_exact
+            deep |= sub_deep
+        else:
+            exact.add(key)
+            if annotation is Any or get_origin(annotation) is dict:
+                deep.add(key)  # dict leaf — accept per-key suffixes
+    return exact, deep
+
+
+def validate_env_keys(env: dict[str, str] | None = None, *, strict: bool = False) -> list[str]:
+    """Surface ``LANGCLAW__`` env vars that don't map to a real config field.
+
+    Pydantic settings use ``extra="ignore"``, so a misspelled key
+    (``LANGCLAW__CHANNELS__TELEGRAM__BOT_TOKEN`` when the field is ``…__TOKEN``)
+    is silently dropped. This walks the schema and reports the strays so a typo
+    fails loud instead of leaving the bot/model unconfigured.
+
+    Only ``LANGCLAW__``-prefixed keys are checked — plain provider vars such as
+    ``OPENAI_API_KEY`` are intentionally left alone.
+
+    Args:
+        env:    Mapping to inspect (defaults to ``os.environ``).
+        strict: When ``True``, raise ``ValueError`` instead of logging a warning.
+
+    Returns:
+        The list of unknown ``LANGCLAW__`` keys found (empty when all are valid).
+
+    Raises:
+        ValueError: If ``strict`` and at least one unknown key is present.
+    """
+    import os
+
+    from loguru import logger
+
+    env = os.environ if env is None else env
+    prefix = LangclawConfig.model_config["env_prefix"].upper()  # "LANGCLAW__"
+    exact, deep = _collect_valid_env_keys(LangclawConfig, prefix)
+    deep_prefixes = tuple(f"{d}__" for d in deep)
+
+    unknown: list[str] = []
+    for raw_key, value in env.items():
+        upper = raw_key.upper()
+        if not upper.startswith(prefix):
+            continue
+        if value == "":  # mirror env_ignore_empty=True
+            continue
+        if upper in exact or upper.startswith(deep_prefixes):
+            continue
+        unknown.append(raw_key)
+
+    if unknown:
+        message = (
+            "Unknown LANGCLAW__ environment variable(s) — ignored, check for typos: "
+            f"{', '.join(sorted(unknown))}"
+        )
+        if strict:
+            raise ValueError(message)
+        logger.warning(message)
+    return unknown
+
+
 def load_config() -> LangclawConfig:
     """Load and return the merged LangclawConfig.
 
     Also calls ``load_dotenv()`` so that standard provider env vars
     (``ANTHROPIC_API_KEY``, ``OPENAI_API_KEY``, etc.) from ``.env``
     are available in ``os.environ`` for ``init_chat_model``.
+
+    Unknown ``LANGCLAW__`` env vars are surfaced via :func:`validate_env_keys`
+    (warning by default; raising when ``LANGCLAW__STRICT_ENV=true``).
     """
     from dotenv import load_dotenv
 
     load_dotenv(override=False)
-    return LangclawConfig()
+    config = LangclawConfig()
+    validate_env_keys(strict=config.strict_env)
+    return config
 
 
 def save_default_config() -> Path:

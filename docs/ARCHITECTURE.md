@@ -1,12 +1,12 @@
 # Langclaw Architecture
 
-This document details the core design principles and architectural decisions of the Langclaw framework. For the package map and a quick ASCII data-flow overview, see the [README](../README.md); the rendered component, sequence, and middleware diagrams live in [Message Flow Diagrams](#message-flow-diagrams) below.
+This document details the core design principles and architectural decisions of the Langclaw framework. For the package map and a quick ASCII data-flow overview, see the [README](https://github.com/tisu19021997/langclaw/blob/main/README.md); the rendered component, sequence, and middleware diagrams live in [Message Flow Diagrams](#message-flow-diagrams) below.
 
 ## Message Flow Diagrams
 
 These diagrams trace a message from a channel through the bus, gateway, middleware, and agent, and back out. They are sourced from the code — `gateway/manager.py` (`_handle`, `_resolve_agent_name`), `bus/base.py` (`InboundMessage` / `OutboundMessage`), and `agents/builder.py` (middleware stack).
 
-> The high-level **component architecture** overview lives in [CLAUDE.md → Message Flow](../CLAUDE.md#message-flow) (the always-loaded agent anchor). This section drills into the runtime sequence, middleware order, and bypass paths.
+> The high-level **component architecture** overview lives in the [Architecture guide](guides/architecture.md). This section drills into the runtime sequence, middleware order, and bypass paths.
 
 ### End-to-End Sequence (User → Channel)
 
@@ -55,16 +55,17 @@ sequenceDiagram
 flowchart LR
     IN["Input<br/>HumanMessage"] --> M1
     M1["1 · ChannelContextMiddleware<br/>inject channel/user/ctx"] --> M2
-    M2["2 · ToolPermissionMiddleware<br/>RBAC tool filter<br/>(if permissions.enabled)"] --> M3
-    M3["3 · InterpreterMiddleware<br/>PTC eval sandbox<br/>(if interpreter.enabled)"] --> M4
-    M4["4 · RateLimitMiddleware<br/>rpm cap"] --> M5
-    M5["5 · ContentFilterMiddleware<br/>banned keywords"] --> M6
-    M6["6 · PIIMiddleware<br/>redaction"] --> M7
-    M7["7 · extra_middleware<br/>(user-provided)"] --> LLM["Model + Tools"]
+    M2["2 · capability filter<br/>tool + workflow RBAC<br/>(if permissions.enabled)"] --> M3
+    M3["3 · subagent gate<br/>task subagent_type RBAC<br/>(if permissions.enabled)"] --> M4
+    M4["4 · InterpreterMiddleware<br/>PTC eval sandbox<br/>(if interpreter.enabled)"] --> M5
+    M5["5 · RateLimitMiddleware<br/>rpm cap"] --> M6
+    M6["6 · ContentFilterMiddleware<br/>banned keywords"] --> M7
+    M7["7 · PIIMiddleware<br/>redaction"] --> M8
+    M8["8 · extra_middleware<br/>(user-provided, last)"] --> LLM["Model + Tools"]
     LLM --> OUT["Output<br/>(reverse order on the way out)"]
 ```
 
-> Order matters: earliest runs first on input, last on output. The interpreter middleware is appended **after** `ToolPermissionMiddleware` so its PTC surface only ever sees the role-filtered toolset (see [Code Interpreter (RLM) — Trust Boundary](#code-interpreter-rlm--trust-boundary)).
+> Order matters: earliest runs first on input, last on output. The RBAC steps are `build_capability_filter_middleware` (tool + `workflow_<name>` visibility) and `build_subagent_permission_middleware` (the `task` subagent_type gate). The interpreter middleware is appended **after** the capability filter so its PTC surface only ever sees the role-filtered toolset (see [Code Interpreter (RLM) — Trust Boundary](#code-interpreter-rlm-trust-boundary)).
 
 ### Alternate Entry Paths (bypass / inject)
 

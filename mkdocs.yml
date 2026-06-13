@@ -1,0 +1,110 @@
+site_name: langclaw
+site_description: Build production-ready, role-gated Claws.
+site_url: https://langclaw.dev
+repo_url: https://github.com/tisu19021997/langclaw
+repo_name: tisu19021997/langclaw
+edit_uri: edit/main/docs/
+docs_dir: docs
+
+# Internal design doc for an unshipped feature — kept in-repo, not published.
+exclude_docs: |
+  BUSINESS_WORKSPACES.md
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.path
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - announce.dismiss
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            docstring_style: google
+            merge_init_into_class: true
+  - blog:
+      blog_dir: blog
+      post_url_format: "{slug}"
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Guides:
+    - guides/index.md
+    - Tools: guides/tools.md
+    - Channels: guides/channels.md
+    - Workflows: guides/workflows.md
+    - Subagents: guides/subagents.md
+    - RBAC: guides/rbac.md
+    - Scheduled Jobs: guides/cron.md
+    - Deployment: guides/deployment.md
+    - Probe Harness: guides/probe.md
+    - Probe Internals: PROBE.md
+    - Architecture: guides/architecture.md
+    - Architecture Internals: ARCHITECTURE.md
+  - API Reference:
+    - reference/index.md
+    - Langclaw: reference/app.md
+    - Config: reference/config.md
+    - Context: reference/context.md
+  - Blog: blog/index.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/tisu19021997/langclaw
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/langclaw/

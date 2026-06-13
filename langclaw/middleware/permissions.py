@@ -57,9 +57,11 @@ def allowed_tool_names(
 ) -> set[str]:
     """Return the set of tool names *role* may invoke, given the live toolset.
 
-    The tool axis is **pass-through** for unknown roles (an unrecognised role
-    sees the full toolset); ``"*"`` grants all; otherwise the role's listed
-    names intersected with what is on offer. See
+    The tool axis is **default-deny** for unknown roles (an unrecognised role —
+    including an unlisted user's undefined ``default_role`` — sees no tools);
+    ``"*"`` grants all; otherwise the role's listed names intersected with what
+    is on offer. This filter is only installed when ``permissions.enabled`` —
+    with RBAC off, every user keeps the full toolset. See
     :func:`langclaw.rbac.resolve_capability`.
     """
     return resolve_capability(TOOLS, config, role, all_tool_names)

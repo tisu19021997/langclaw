@@ -117,8 +117,9 @@ def show_registry() -> None:
         else:
             mapping = "n/a — gated per-arg"
         print(f"   {a.name:<11}{a.role_field:<12}{policy:<16}{mapping}")
-    print(f"\n{DIM}   → tools pass-through; subagents + workflows default-deny —")
-    print(f"   the historical divergence is now a single boolean column.{RESET}")
+    print(f"\n{DIM}   → every shipped axis is default-deny for unknown roles, so enabling")
+    print("   RBAC restricts unlisted users everywhere. The pass-through column stays")
+    print(f"   available for a future opt-in (anonymous/public) axis.{RESET}")
 
 
 # --------------------------------------------------------------------------- #
@@ -153,11 +154,11 @@ def show_resolver() -> None:
         w = sorted(resolve_capability(WORKFLOWS, cfg, role, wf_univ))
         print(f"   {role:<10}{str(t):<32}{str(s):<18}{str(w)}")
 
-    print(f"\n{DIM}   Note the asymmetry, captured by ONE flag:{RESET}")
+    print(f"\n{DIM}   Default-deny everywhere — enabling RBAC restricts unlisted users:{RESET}")
     check(
-        "guest (unknown) → ALL tools (pass-through)",
+        "guest (unknown / undefined default_role) → NO tools (default-deny)",
         resolve_capability(TOOLS, cfg, "guest", tool_univ),
-        {"web_search", "delete_file"},
+        set(),
     )
     check(
         "guest (unknown) → NO workflows (default-deny)",
@@ -165,7 +166,7 @@ def show_resolver() -> None:
         set(),
     )
     check(
-        "analyst tools=['*']? no — still NO subagents unless granted",
+        "analyst tools=['*']? still NO subagents unless granted (per-axis grants)",
         resolve_capability(SUBAGENTS, PermissionsConfig(roles={"a": RoleConfig(tools=["*"])}), "a"),
         set(),
     )
@@ -274,9 +275,9 @@ def show_scalability() -> None:
             ["web_search", "dataset_sales", "dataset_payroll"],
         )
         check(
-            "guest (unknown) — tools pass-through, datasets default-deny",
+            "guest (unknown) — default-deny on every axis, including tools",
             run_filter(mw, live, "guest"),
-            ["web_search"],
+            [],
         )
     finally:
         perms_mod.CAPABILITY_AXES = original

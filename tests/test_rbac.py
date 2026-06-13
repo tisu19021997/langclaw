@@ -55,9 +55,12 @@ def test_registry_declares_three_axes_once():
 def test_semantics_decision_is_a_single_per_axis_flag():
     from langclaw.rbac import SUBAGENTS, TOOLS, WORKFLOWS
 
-    # The ONE divergence — unknown-role pass-through vs default-deny — is now a
-    # single boolean on each axis, not scattered control flow.
-    assert TOOLS.unknown_role_grants_all is True
+    # The unknown-role policy is a single boolean per axis, not scattered control
+    # flow. Every *shipped* axis is default-deny, so enabling RBAC restricts
+    # unlisted users on every axis (tools included — see the default-deny guards
+    # below). The pass-through (True) branch stays available for a future opt-in
+    # axis but is exercised here only via a synthetic axis.
+    assert TOOLS.unknown_role_grants_all is False
     assert SUBAGENTS.unknown_role_grants_all is False
     assert WORKFLOWS.unknown_role_grants_all is False
 
@@ -95,10 +98,20 @@ def test_workflow_axis_is_classified_by_the_workflow_prefix():
 
 
 def test_pass_through_axis_unknown_role_grants_universe():
-    from langclaw.rbac import TOOLS, resolve_capability
+    """The resolver still honours a pass-through axis — but no *shipped* axis sets
+    it, so this is pinned via a synthetic axis (keeps the True branch covered and
+    proves the knob is real, just unused). The shipped tools axis is default-deny;
+    see ``test_enabling_rbac_without_a_defined_default_role_denies_all_tools``."""
+    from langclaw.rbac import CapabilityAxis, resolve_capability
 
+    public = CapabilityAxis(
+        name="public",
+        role_field="tools",
+        unknown_role_grants_all=True,
+        is_residual_tool_axis=True,
+    )
     cfg = _perms({})  # no roles → every role is "unknown"
-    out = resolve_capability(TOOLS, cfg, "nobody", universe=["a", "b", "c"])
+    out = resolve_capability(public, cfg, "nobody", universe=["a", "b", "c"])
     assert out == {"a", "b", "c"}
 
 
@@ -138,6 +151,38 @@ def test_universeless_axis_returns_grants_verbatim():
 
     # Unknown role is still default-deny even without a universe.
     assert resolve_capability(SUBAGENTS, _perms({}), "nobody") == set()
+
+
+# ---------------------------------------------------------------------------
+# Enabling RBAC is default-deny on EVERY axis — including tools.
+#
+# Security regression guard. `permissions.default_role` defaults to "viewer",
+# but that role is not auto-registered. An operator who flips
+# `permissions.enabled=true` without also defining the default role used to hit
+# the tools axis's unknown-role *pass-through* — so every unlisted user silently
+# got ALL tools, the opposite of what "enable RBAC" implies. The tools axis is
+# now full default-deny like subagents/workflows.
+# ---------------------------------------------------------------------------
+
+
+def test_enabling_rbac_without_a_defined_default_role_denies_all_tools():
+    """An undefined `default_role` must NOT receive every tool (the footgun)."""
+    from langclaw.rbac import TOOLS, resolve_capability
+
+    cfg = _perms({}, enabled=True, default_role="viewer")  # "viewer" never defined
+    out = resolve_capability(TOOLS, cfg, "viewer", universe=["web_search", "danger"])
+    assert out == set(), "enabling RBAC must be default-deny, not tools pass-through"
+
+
+def test_unified_filter_strips_all_tools_for_undefined_default_role():
+    """End to end: the enforcement seam strips every tool for an unlisted user
+    whose `default_role` was never defined — RBAC fails closed."""
+    from langclaw.middleware.permissions import build_capability_filter_middleware
+
+    cfg = _perms({}, enabled=True, default_role="viewer")  # no roles defined
+    mw = build_capability_filter_middleware(cfg)
+    tools = [_tool("web_search"), _tool("danger")]
+    assert _run_filter(mw, tools, "viewer") == []
 
 
 # ---------------------------------------------------------------------------

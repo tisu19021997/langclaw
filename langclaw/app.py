@@ -400,7 +400,7 @@ class Langclaw:
 
         Three independent RBAC axes:
 
-        - ``tools``     — pass-through for unknown roles; ``["*"]`` grants all.
+        - ``tools``     — **default-deny** for unknown roles; ``["*"]`` grants all.
         - ``subagents`` — **default-deny**; subagent types reachable via the
                           ``task`` tool. ``["*"]`` allows every registered one.
         - ``workflows`` — **default-deny**; workflows reachable as the
@@ -598,13 +598,13 @@ class Langclaw:
         - Shares the same checkpointer backend as the main agent.
         - Can use a different system prompt, tool set, or model.
 
-        Users switch between agents via the built-in ``/switch <name>`` command,
-        and can return to the main agent with ``/switch default``.
+        Users switch between agents via the built-in ``/agent <name>`` command,
+        and can return to the main agent with ``/agent default``.
 
         Args:
-            name:          Unique identifier used with ``/switch <name>``.
+            name:          Unique identifier used with ``/agent <name>``.
                            Must not be ``"default"`` (reserved sentinel).
-            description:   Short description shown by ``/switch`` with no args.
+            description:   Short description shown by ``/agent`` with no args.
             display_name:  Optional human-facing name for this agent. Injected
                            into the system prompt so the model knows its own
                            name, and shown alongside the routing key in
