@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>langclaw · readme hero</title>
+<style>
+  :root{
+    --bg:#1d2021; --bg1:#282828; --bg2:#32302f; --bgs:#3c3836;
+    --fg:#ebdbb2; --fg2:#d5c4a1; --dim:#928374; --dimmer:#665c54;
+    --red:#fb4934; --green:#b8bb26; --yellow:#fabd2f; --blue:#83a598;
+    --purple:#d3869b; --aqua:#8ec07c; --orange:#fe8019; --line:#504945;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:#141617}
+  .stage{
+    width:1200px;height:630px;background:var(--bg);
+    margin:0 auto;position:relative;overflow:hidden;
+    font-family:"SF Mono",ui-monospace,"JetBrains Mono","DejaVu Sans Mono",Menlo,monospace;
+    padding:34px 40px 0;color:var(--fg);
+  }
+  .stage::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px);opacity:.35}
+  .man{display:flex;justify-content:space-between;align-items:baseline;color:var(--dim);
+    font-size:16px;letter-spacing:1px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:20px}
+  .man b{color:var(--fg2);font-weight:600;letter-spacing:2px}
+  .man .mid{color:var(--orange);font-weight:600;letter-spacing:1.5px}
+  .term{border:1px solid var(--line);border-radius:8px;background:var(--bg1);
+    box-shadow:0 18px 44px -22px rgba(0,0,0,.7);overflow:hidden}
+  .bar{height:38px;background:var(--bg2);display:flex;align-items:center;padding:0 14px;gap:8px;border-bottom:1px solid var(--line)}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .r{background:#fb4934}.y{background:#fabd2f}.g{background:#b8bb26}
+  .bt{margin-left:12px;color:var(--dim);font-size:13.5px}
+  .bt b{color:var(--fg2);font-weight:500}
+  .cols{display:flex}
+  .col{padding:16px 20px}
+  .col.l{flex:1.32;border-right:1px solid var(--line)}
+  .col.rgt{flex:1}
+  .clbl{color:var(--aqua);font-size:12px;margin-bottom:10px}
+  pre{font-size:15px;line-height:1.55;white-space:pre;tab-size:2}
+  .kw{color:var(--red)}.fn{color:var(--green);font-weight:500}.str{color:var(--green)}
+  .num{color:var(--purple)}.cmt{color:var(--dim);font-style:italic}.dec{color:var(--yellow)}
+  .at{color:var(--aqua)}.op{color:var(--fg)}.ty{color:var(--yellow)}
+  .you{color:var(--green);font-weight:500}.ok{color:var(--green)}.note{color:var(--dim)}
+  .res{color:var(--purple)}.lblc{color:var(--yellow)}
+  .status{position:absolute;left:0;bottom:0;width:100%;height:40px;display:flex;align-items:center;
+    font-size:14px;background:var(--bg);border-top:1px solid var(--line)}
+  .seg{padding:0 16px;height:100%;display:flex;align-items:center;letter-spacing:.3px}
+  .mode{background:var(--green);color:#1d2021;font-weight:700}
+  .file{background:var(--bgs);color:var(--fg2)}
+  .mid2{flex:1;color:var(--dim);padding-left:16px}
+  .right{background:var(--bgs);color:var(--aqua)}
+  .right b{color:var(--orange);font-weight:600}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="man">
+      <span><b>langclaw(7)</b>&nbsp;&nbsp;a production harness for proactive, multi-channel agents</span>
+      <span class="mid">v0.4.0</span>
+    </div>
+
+    <div class="term">
+      <div class="bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+        <div class="bt">app.py&nbsp;&nbsp;<b>one object · you declare, langclaw wires the rest</b></div></div>
+      <div class="cols">
+        <div class="col l">
+          <div class="clbl">you declare</div>
+<pre>app = <span class="ty">Langclaw</span>()
+
+app.<span class="at">register_tool</span>(web_search)        <span class="cmt"># any tool</span>
+app.<span class="at">subagent</span>(<span class="str">"researcher"</span>, graph=my_agent) <span class="cmt"># your graph</span>
+
+app.<span class="at">role</span>(<span class="str">"analyst"</span>,                  <span class="cmt"># who can do what</span>
+    tools=[<span class="str">"*"</span>], subagents=[<span class="str">"researcher"</span>],
+    workflows=[<span class="str">"digest"</span>])
+
+<span class="dec">@app.workflow</span>(<span class="str">"digest"</span>)               <span class="cmt"># durable · resumable</span>
+<span class="kw">async def</span> <span class="fn">digest</span>(ctx, inp): ...
+
+app.<span class="at">run</span>()</pre>
+        </div>
+        <div class="col rgt">
+          <div class="clbl">langclaw wires the rest</div>
+<pre><span class="you">$</span> langclaw run
+ <span class="ok">✓</span> <span class="lblc">channels</span>  telegram·discord·ws
+ <span class="ok">✓</span> <span class="lblc">bus</span>       asyncio <span class="note">→ rabbitmq·kafka</span>
+ <span class="ok">✓</span> <span class="lblc">rbac</span>      <span class="res">3 roles</span> · default-deny
+ <span class="ok">✓</span> <span class="lblc">workflows</span> tool·/run·cron
+ <span class="ok">✓</span> <span class="lblc">cron</span>      jobs → same bus
+ <span class="ok">✓</span> <span class="lblc">state</span>     checkpointed·resume
+
+<span class="note">listening - your agent
+is now a service.</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="status">
+      <div class="seg mode">READY</div>
+      <div class="seg file">app.py</div>
+      <div class="seg mid2">bring your existing agent · gate it · orchestrate it</div>
+      <div class="seg right">you declare&nbsp;<b>·</b>&nbsp;it wires</div>
+    </div>
+  </div>
+</body>
+</html>
