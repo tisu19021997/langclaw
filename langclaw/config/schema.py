@@ -329,6 +329,45 @@ class BackendConfig(BaseModel):
     """``local_shell`` only — extra environment variables for spawned commands."""
 
 
+class WorkspaceLayerConfig(BaseModel):
+    """Business Workspaces layering — org ▸ team ▸ employee (see
+    ``docs/BUSINESS_WORKSPACES.md``).
+
+    Opt-in and **off by default**.  When ``enabled``, the agent's base system
+    prompt is assembled from the layered ``org/`` (+ optional ``teams/`` /
+    ``users/``) tree via ``langclaw.agents.workspace_layers.assemble_system_prompt``
+    instead of the flat ``AGENTS.md`` — a two-phase merge-then-validate that
+    emits org blocks under ``sealed:`` / ``authoritative:`` banners, lets a
+    more-specific layer refine ``default:`` blocks, and re-asserts every sealed
+    rule from ``policy.yaml`` so a mask can never strip a binding constraint.
+
+    Off (the default) == today's single-workspace behavior, byte-for-byte: the
+    builder reads the flat ``AGENTS.md`` and nothing here is consulted.
+
+    Env: ``LANGCLAW__AGENTS__WORKSPACE_LAYERS__ENABLED=true``
+    """
+
+    enabled: bool = False
+    """Activate org/team/employee layering. Off == flat ``AGENTS.md`` (today)."""
+
+    sealed_files: StringList = Field(default_factory=lambda: ["POLICY.md", "policy.yaml"])
+    """Org files whose blocks are ``sealed:`` (binding, never overridable). ``.md``
+    files render as prose under the SEALED banner; ``.yaml`` files are parsed for
+    machine-checkable ``sealed:`` rules and re-asserted by the validate pass."""
+
+    approver_map_file: str = "policy.yaml"
+    """Org file holding the machine-checkable sealed-rule IDs and the
+    section→approver map (consumed by the validate pass; governance lands later)."""
+
+    employee_memory_top_k: int = 8
+    """Bounds personal-memory prompt growth: at most this many of a user's
+    ``memories/*.md`` files are concatenated into the assembled prompt."""
+
+    agent_instance_cache_size: int = 256
+    """LRU cap reserved for the per-``(agent, user)`` instance cache (the
+    request-time write path; not yet wired in Phase 1's read-only assembly)."""
+
+
 class AgentConfig(BaseModel):
     model: str = "anthropic:claude-sonnet-4-5-20250929"
     model_kwargs: dict[str, Any] = Field(default_factory=dict)
@@ -338,6 +377,9 @@ class AgentConfig(BaseModel):
     display_name: str = ""
     backend: BackendConfig = Field(default_factory=BackendConfig)
     """Deepagents filesystem/shell backend selection. See ``BackendConfig``."""
+
+    workspace_layers: WorkspaceLayerConfig = Field(default_factory=WorkspaceLayerConfig)
+    """Business Workspaces org/team/employee layering. See ``WorkspaceLayerConfig``."""
     """Human-facing name for the default agent. Injected into the system prompt
     so the model knows its own name and shown in ``/agent`` listings. Empty
     string means no display name configured."""
@@ -386,6 +428,29 @@ class AgentConfig(BaseModel):
             else self.workspace_dir
         )
         return root / "workflows"
+
+    # --- Business Workspaces layer paths (default agent) ---------------------
+    # Layers nest *under* the agent root, reusing the named-agent subtree pattern
+    # verbatim. These resolve the default agent's layers; named agents root at
+    # ``workspace_dir / <agent>`` and the builder derives the same names there.
+
+    @property
+    def org_dir(self) -> Path:
+        """ORG layer — authoritative, agent-read-only (lower overlay layer)."""
+        return self.workspace_dir / "org"
+
+    def team_dir(self, team_id: str) -> Path:
+        """TEAM layer for ``team_id`` — optional middle tier (refinements)."""
+        return self.workspace_dir / "teams" / team_id
+
+    def user_dir(self, user_id: str) -> Path:
+        """EMPLOYEE layer for ``user_id`` — fully read/write by that person."""
+        return self.workspace_dir / "users" / user_id
+
+    @property
+    def proposals_dir(self) -> Path:
+        """Governance store for promotion proposals (Phase 2)."""
+        return self.org_dir / "_proposals"
 
 
 class SqliteCheckpointerConfig(BaseModel):

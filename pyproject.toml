@@ -46,6 +46,7 @@ dependencies = [
     "tenacity>=9.1.4",
     "loguru>=0.7.3",
     "fastapi>=0.135.1",
+    "pyyaml>=6",
 ]
 
 [project.optional-dependencies]
